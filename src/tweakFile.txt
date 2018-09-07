@@ -1,0 +1,4 @@
+gravityIsOn: true;
+followPlayer: true;
+globalSoundOn: true;
+cameraStartZ: -0.3;
