@@ -1,5 +1,6 @@
 uniform samplerBuffer PVMArray;
 uniform samplerBuffer ColorArray;
+uniform samplerBuffer UVArray;
 // uniform vec4 color;
 
 in vec3 vertex;
@@ -21,6 +22,12 @@ void main() {
 	mat4 PVM = mat4(a, b, c, d);
     gl_Position = PVM * vec4(vertex, 1);
     colorOut = texelFetch(ColorArray, gl_InstanceID);
-    texUV_out = texUV;
+
+    vec4 uvQuad = texelFetch(UVArray, gl_InstanceID);
+
+    int xAt = int(texUV.x*2);
+    int yAt = int(texUV.y*2) + 1;
+    texUV_out = vec2(uvQuad[xAt], uvQuad[yAt]);
+
     zAt = gl_Position.z;
 }

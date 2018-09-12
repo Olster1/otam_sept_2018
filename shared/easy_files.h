@@ -277,13 +277,24 @@ static inline FileContents getFileContents(char *fileName) {
 }
 
 void platformDeleteFile(char *fileName) {
+#ifdef __APPLE__ 
     if(remove(fileName) != 0) {
         assert(!"couldn't delete file");
     }
+#elif _WIN32
+    if(DeleteFileA(fileName) == 0) {
+        assert(!"couldn't delete file");
+    }
+#else 
+    assert(!"not implemented")
+#endif
 }
 
+#ifdef __APPLE__ 
 #include <errno.h>
 #include <sys/stat.h> //for mkdir S_IRWXU
+#endif
+
 bool platformCreateDirectory(char *fileName) {
     bool result = false;
     DIR* dir = opendir(fileName);
@@ -303,11 +314,21 @@ bool platformCreateDirectory(char *fileName) {
 
 bool platformDoesDirectoryExist(char *fileName) {
     bool result = false;
+#ifdef __APPLE__
     DIR* dir = opendir(fileName);
     if(dir) {
         result = true;
         closedir(dir);
     }
+#elif _WIN32
+    WIN32_FIND_DATAA fileFindData
+    HANDLE dirHandle = FindFirstFileA(fileName, &fileFindData);
+    if(dirHandle != INVALID_HANDLE_VALUE) { 
+        result = true;
+        FindClose(dirHandle);
+    }
+#endif
+    
     return result;
 }
 
@@ -355,19 +376,39 @@ void platformCopyFile(char *fileName, char *copyDir) {
 
 }
 
-//TODO: can we make this into a multiple purpose function for deleting files etc.??
 FileNameOfType getDirectoryFilesOfType_(char *dirName, char *copyDir, char **exts, int count, DirTypeOperation opType) { 
     FileNameOfType fileNames = {};
     #ifdef __APPLE__
         DIR *directory = opendir(dirName);
         if(directory) {
-
             struct dirent *dp = 0;
-
+    #elif _WIN32
+        WIN32_FIND_DATAA fileFindData
+        HANDLE dirHandle = FindFirstFileA(fileName, &fileFindData);
+        if(dirHandle != INVALID_HANDLE_VALUE) {
+            bool firstTurn = true;
+    #else 
+        assert(!"not implemented");
+    #endif
                do {
-                   dp = readdir(directory);
-                   if (dp) {
-                        char *fileName = concat(dirName, dp->d_name);
+                
+#if __APPLE__
+                dp = readdir(directory);
+                if (dp) {
+                    char *name = dp->d_name;
+#elif _WIN32
+                BOOL findResult = true;
+                if(!firstTurn) {
+                    findResult = FindNextFileA(dirHandle, &fileFindData);
+                } else {
+                    firstTurn = false;
+                }
+                if(findResult != 0) {
+                    char *name = fileFindData.cFileName;
+#else 
+assert(!"not implemented");
+#endif
+                        char *fileName = concat(dirName, name);
                         char *ext = getFileExtension(fileName);
                         switch(opType) {
                             case DIR_FIND_FILE_TYPE: {
@@ -378,7 +419,7 @@ FileNameOfType getDirectoryFilesOfType_(char *dirName, char *copyDir, char **ext
                             } break;
                             case DIR_DELETE_FILE_TYPE: {
                                 if(isInCharList(ext, exts, count)) {
-                                    remove(fileName);
+                                    platformDeleteFile(fileName);
                                     free(fileName);
                                 }
                             } break;
@@ -397,11 +438,14 @@ FileNameOfType getDirectoryFilesOfType_(char *dirName, char *copyDir, char **ext
                         }
                    }
                } while (dp);
+#if __APPLE__
             closedir(directory);
+#elif _WIN32
+            FindClose(dirHandle);
+#else 
+            assert(!"not implemented");
+#endif
         }
-    #else 
-        assert(!"not implemented");
-    #endif
 
     return fileNames;
 }

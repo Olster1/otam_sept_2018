@@ -308,7 +308,7 @@ typedef union {
     };
 } Rect3f;
 
-Rect3f rect2f(float minX, 
+Rect3f rect3f(float minX, 
               float minY,
               float minZ, 
               float maxX, 

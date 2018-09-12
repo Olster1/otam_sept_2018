@@ -76,9 +76,8 @@ void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info
     char *titleAt = menuOptions->options[info->menuCursorAt];
     
     if(backgroundTex) {
-        static GLBufferHandles backgroundMenuRenderHandles = {};
         renderDisableDepthTest(&globalRenderGroup);
-        openGlTextureCentreDim(&backgroundMenuRenderHandles, backgroundTex->id, v3(0.5f*bufferWidth, 0.5f*bufferHeight, -1), v2(bufferWidth, bufferHeight), COLOR_WHITE, 0, mat4(), 1, OrthoMatrixToScreen(bufferWidth, bufferHeight, 1), mat4());
+        renderTextureCentreDim(backgroundTex, v3(0.5f*bufferWidth, 0.5f*bufferHeight, -1), v2(bufferWidth, bufferHeight), COLOR_WHITE, 0, mat4(), OrthoMatrixToScreen(bufferWidth, bufferHeight, 1), mat4());
         renderEnableDepthTest(&globalRenderGroup);
     }
 

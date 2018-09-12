@@ -12,14 +12,13 @@ static float bufferHeight;
 static float bufferWidth; 
 static GameButton gameButtons[BUTTON_COUNT];
 
-
 #include "easy_files.h"
 #include "easy_math.h"
 #include "easy_error.h"
 #include "easy_array.h"
 #include "sdl_audio.h"
 #include "easy_lex.h"
-#include "easy_opengl.h"
+#include "easy_render.h"
 
 // #include "../shared/easy_3d.h"
 #include "easy_utf8.h"

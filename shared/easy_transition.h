@@ -56,11 +56,11 @@ bool updateTransitions(TransitionState *transState, V2 resolution, float dt) {
         }
         float transWidth = smoothStep01(0, tValue, halfScreen);   
         //These are the black rects to make it look like a shutter opening and closing. 
-        Rect2f rect1 = rect2f(0, 0, transWidth, resolution.y);
-        Rect2f rect2 = rect2f(resolution.x - transWidth, 0, resolution.x, resolution.y);
-        static GLBufferHandles handles = {};
-        openGlDrawRect(&handles, rect1, -0.5, COLOR_BLACK, 0, mat4(), 1, OrthoMatrixToScreen(resolution.x, resolution.y, 1));                    
-        openGlDrawRect(&handles, rect2, -0.5, COLOR_BLACK, 0, mat4(), 1, OrthoMatrixToScreen(resolution.x, resolution.y, 1));                    
+        V2 halfRes = v2_scale(0.5f, resolution);
+        Rect2f rect1 = rect2f(-halfRes.x, -halfRes.y, -halfRes.x + transWidth, halfRes.y + resolution.y);
+        Rect2f rect2 = rect2f(halfRes.x - transWidth, -halfRes.y, halfRes.x, halfRes.y);
+        renderDrawRect(rect1, -0.5, COLOR_BLACK, 0, mat4(), OrthoMatrixToScreen(resolution.x, resolution.y, 1));                    
+        renderDrawRect(rect2, -0.5, COLOR_BLACK, 0, mat4(), OrthoMatrixToScreen(resolution.x, resolution.y, 1));                    
 
         if(timeInfo.finished) {
             if(trans->direction) {

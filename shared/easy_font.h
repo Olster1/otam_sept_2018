@@ -24,37 +24,25 @@ typedef struct FontSheet {
 } FontSheet;
 
 typedef struct {
+    char *fileName;
     int fontHeight;
     FontSheet *sheets;
 } Font;
 
-FontSheet *findFontSheet(Font *font, unsigned int character) {
-    FontSheet *sheet = font->sheets;
-    FontSheet *result = 0;
-    while(sheet) {
-        if(sheet->minText >= character && sheet->maxText < sheet->maxText) {
-            result = sheet;
-            break;
-        }
-        sheet = sheet->next;
-    }
-
-    return result;
-}
-
 #define FONT_SIZE 512 //I think this can be any reasonable number, it doesn't affect the size of the font. Maybe the clarity of the glyphs? 
-Font initFont_(char *fileName, int firstChar, int endChar, int fontHeight)
+FontSheet *createFontSheet(Font *font, int firstChar, int endChar)
 {
-    Font result = {}; 
-    result.fontHeight = fontHeight;
-    FontSheet *sheet = result.sheets = (FontSheet *)calloc(sizeof(FontSheet), 1);
+    
+    FontSheet *sheet = (FontSheet *)calloc(sizeof(FontSheet), 1);
     sheet->minText = firstChar;
     sheet->maxText = endChar;
+    sheet->next = 0;
     int bitmapW = FONT_SIZE;
     int bitmapH = FONT_SIZE;
     int numOfPixels = bitmapH*bitmapW;
     unsigned char temp_bitmap[numOfPixels]; //bakfontbitmap is one byte per pixel. 
     
+    //TODO: use platform file io functions instead. 
     FILE *fileHandle = fopen(fileName, "rb");
     size_t fileSize = getFileSize(fileHandle);
     
@@ -67,7 +55,7 @@ Font initFont_(char *fileName, int firstChar, int endChar, int fontHeight)
     sheet->cdata = (stbtt_bakedchar *)calloc(numOfChars*sizeof(stbtt_bakedchar), 1);
     //
     
-    stbtt_BakeFontBitmap(ttf_buffer, 0, fontHeight, temp_bitmap, bitmapW, bitmapH, firstChar, numOfChars, sheet->cdata);
+    stbtt_BakeFontBitmap(ttf_buffer, 0, font->fontHeight, temp_bitmap, bitmapW, bitmapH, firstChar, numOfChars, sheet->cdata);
     // no guarantee this fits!
     
     free(ttf_buffer);
@@ -88,23 +76,42 @@ Font initFont_(char *fileName, int firstChar, int endChar, int fontHeight)
             dest++;
         }
     }
-    #if FIXED_FUNCTION_PIPELINE
-        glGenTextures(1, &result.handle);
-        glBindTexture(GL_TEXTURE_2D, result.handle);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP); 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP); 
-        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE); 
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, FONT_SIZE, FONT_SIZE, 0, GL_BGRA, GL_UNSIGNED_BYTE, bitmapTexture);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    #else 
-        sheet->handle = openGlLoadTexture(FONT_SIZE, FONT_SIZE, bitmapTexture);
-    #endif
+        sheet->handle = renderLoadTexture(FONT_SIZE, FONT_SIZE, bitmapTexture);
         free(bitmapTexture);
+    return sheet;
+}
+
+FontSheet *findFontSheet(Font *font, unsigned int character) {
+    FontSheet *sheet = font->sheets;
+    FontSheet *result = 0;
+    while(sheet) {
+        if(sheet->minText >= character && sheet->maxText < sheet->maxText) {
+            result = sheet;
+            break;
+        }
+        sheet = sheet->next;
+    }
+
+    if(!result) {
+        unsigned int interval = 256;
+        unsigned int firstUnicode = (character / interval) * interval;
+        result = sheet = createFontSheet(font, firstUnicode, firstUnicode + interval);
+
+        //put at the start of the list
+        sheet->next = font->sheets;
+        font->sheets = sheet;
+    }
+    assert(result);
+
     return result;
 }
 
+Font initFont_(char *fileName, int firstChar, int endChar, int fontHeight) {
+    Font result = {}; 
+    result.fontHeight = fontHeight;
+    font.fileName = fileName;
+    result.sheets = createFontSheet(&result, firstChar, endChar);
+}
 
 
 Font initFont(char *fileName, int fontHeight) {
@@ -112,76 +119,42 @@ Font initFont(char *fileName, int fontHeight) {
     return result;
 }
 
-typedef struct {
-    GLuint texHandle;
-    //TODO: Can we make this file not depend on Array_Dynamic??
-    InfiniteAlloc vertexData;
-    InfiniteAlloc indicesData;
-    V4 color;
+// void pushFontGlyphQuad(FontDrawState *drawState, float u, float t, float x, float y, float z) {
+//     Vertex vertex = {};
+//     vertex.position = v3(x, y, z);
+//     vertex.position = transformPositionV3(vertex.position, mat4TopLeftToBottomLeft(drawState->bufferHeight));
+//     vertex.texUV = v2(u, t);
+//     vertex.color = drawState->color;
+//     unsigned int index = drawState->vertexData.count;
+//     addElementInifinteAlloc_(&drawState->vertexData, &vertex);
 
-    int quadVertexAt; //stored to keep track of quad
-    int indexAt;
+//     addElementInifinteAlloc_(&drawState->indicesData, &index);
+//     assert(drawState->indicesData.count > 0);
+//     if(drawState->quadVertexAt == 3) {
+//         assert(drawState->indicesData.count >= 4);
+//         unsigned int *data = (unsigned int *)drawState->indicesData.memory;
+//         assert(drawState->indicesData.count - 4 >= 0);
+//         unsigned int index1 = data[drawState->indicesData.count - 4];
+//         unsigned int index2 = data[drawState->indicesData.count - 2];
+//         addElementInifinteAlloc_(&drawState->indicesData, &index1);
+//         addElementInifinteAlloc_(&drawState->indicesData, &index2);
+//         drawState->quadVertexAt = 0;
+//     } else {
+//         drawState->quadVertexAt++;
+//         assert(drawState->quadVertexAt <= 3);
+//     }
+// }
 
-    float size;
-
-    float bufferHeight;
-
-} FontDrawState;
-
-void pushFontGlyphQuad(FontDrawState *drawState, float u, float t, float x, float y, float z) {
-    Vertex vertex = {};
-    vertex.position = v3(x, y, z);
-    vertex.position = transformPositionV3(vertex.position, mat4TopLeftToBottomLeft(drawState->bufferHeight));
-    vertex.texUV = v2(u, t);
-    vertex.color = drawState->color;
-    unsigned int index = drawState->vertexData.count;
-    addElementInifinteAlloc_(&drawState->vertexData, &vertex);
-
-    addElementInifinteAlloc_(&drawState->indicesData, &index);
-    assert(drawState->indicesData.count > 0);
-    if(drawState->quadVertexAt == 3) {
-        assert(drawState->indicesData.count >= 4);
-        unsigned int *data = (unsigned int *)drawState->indicesData.memory;
-        assert(drawState->indicesData.count - 4 >= 0);
-        unsigned int index1 = data[drawState->indicesData.count - 4];
-        unsigned int index2 = data[drawState->indicesData.count - 2];
-        addElementInifinteAlloc_(&drawState->indicesData, &index1);
-        addElementInifinteAlloc_(&drawState->indicesData, &index2);
-        drawState->quadVertexAt = 0;
-    } else {
-        drawState->quadVertexAt++;
-        assert(drawState->quadVertexAt <= 3);
-    }
-}
-
-FontDrawState beginFontGlyphs(GLuint texHandle, V4 color, float bufferHeight, float size) {
-    FontDrawState result = {};
-    result.texHandle = texHandle;
-    result.vertexData = initInfinteAlloc(Vertex);
-    result.indicesData = initInfinteAlloc(unsigned int);
-    result.bufferHeight = bufferHeight; 
-    result.color = color;
-    result.size = size;
-    return result;
-}
-
-void endFontGlyphs(FontDrawState *drawState, int bufferWidth, int bufferHeight) {
-    #if FIXED_FUNCTION_PIPELINE
-    assert(!"Not implemented");
-    #else 
-    unsigned int *at = (unsigned int *)drawState->indicesData.memory;
-    Matrix4 orthoMatrix = OrthoMatrixToScreen(bufferWidth, bufferHeight, 1);
-    //orthoMatrix = Matrix4_scale(orthoMatrix, v3(drawState->size, drawState->size, 1));
-    if(globalFontImmediate) {
-        loadVertices(0, (Vertex *)drawState->vertexData.memory, drawState->vertexData.count, (unsigned int *)drawState->indicesData.memory, drawState->indicesData.count, &textureProgram, SHAPE_TEXTURE, drawState->texHandle, orthoMatrix, 1, drawState->color);    
-    } else {
-        pushRenderItem(0, &globalRenderGroup, (Vertex *)drawState->vertexData.memory, drawState->vertexData.count, (unsigned int *)drawState->indicesData.memory, drawState->indicesData.count, &textureProgram, SHAPE_TEXTURE, drawState->texHandle, orthoMatrix, 1, drawState->color, -1);    
-    }
-    
-    releaseInfiniteAlloc(&drawState->vertexData);
-    releaseInfiniteAlloc(&drawState->indicesData);
-    #endif
-}
+// FontDrawState beginFontGlyphs(GLuint texHandle, V4 color, float bufferHeight, float size) {
+//     FontDrawState result = {};
+//     result.texHandle = texHandle;
+//     result.vertexData = initInfinteAlloc(Vertex);
+//     result.indicesData = initInfinteAlloc(unsigned int);
+//     result.bufferHeight = bufferHeight; 
+//     result.color = color;
+//     result.size = size;
+//     return result;
+// }
 
 typedef struct {
     stbtt_aligned_quad q;
@@ -195,20 +168,12 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float bufferWidth, float bu
     
     if(bounds.min.x > x) { x = bounds.min.x; }
     //if(bounds.min.y > y) { y = bounds.min.x; }
-#if FIXED_FUNCTION_PIPELINE
-    glMatrixMode(GL_MODELVIEW);
-#endif
     float modelMatrix[] = {
         size,  0,  0,  0, 
         0, size,  0,  0, 
         0, 0,  1,  0, 
         0, 0, 0,  1
     };
-#if FIXED_FUNCTION_PIPELINE
-    glLoadMatrixf(modelMatrix); 
-    
-    glColor4f(color.x, color.y, color.z, color.w);
-#endif
     float width = 0; 
     float height = 0;
     V2 pos = v2(0, 0);
@@ -224,18 +189,11 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float bufferWidth, float bu
     int quadCount = 0;
     
     unsigned int *text = text_;
-#if FIXED_FUNCTION_PIPELINE
-    glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, font->handle);
-
-    glBegin(GL_QUADS);
-#else 
     //THIS IS A HACK!
     FontSheet *sheet = font->sheets;//findFontSheet(Font *font, unsigned int character)
     assert(sheet);
     //////
-    FontDrawState drawState = beginFontGlyphs(sheet->handle, color, bufferHeight, size);
-#endif
+    // FontDrawState drawState = beginFontGlyphs(sheet->handle, color, bufferHeight, size);
     V2 lastXY = v2(x, y);
     V2 startP = lastXY;
 #define transformToSizeX(val) ((val - startP.x)*size + startP.x)
@@ -247,7 +205,9 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float bufferWidth, float bu
         bool increment = true;
         bool drawText = false;
         //points1[pC1++] = v2(x, y);
-        
+        FontSheet *sheet = findFontSheet(font, *text);
+        assert(sheet);
+
         if (((int)(*text) >= sheet->minText && (int)(*text) < sheet->maxText) && *text != '\n') {
             stbtt_aligned_quad q  = {};
 
@@ -296,18 +256,10 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float bufferWidth, float bu
                 //points[pC++] = b;
                 
                 if(display) {
-#if FIXED_FUNCTION_PIPELINE
-                    glTexCoord2f(q.s0, q.t1); glVertex2f(q.x0, -1*q.y1 + bufferHeight);
-                    glTexCoord2f(q.s1,q.t1); glVertex2f(q.x1, -1*q.y1 + bufferHeight);
-                    glTexCoord2f(q.s1,q.t0); glVertex2f(q.x1, -1*q.y0 + bufferHeight);
-                    glTexCoord2f(q.s0,q.t0); glVertex2f(q.x0, -1*q.y0 + bufferHeight);
-#else 
-                    pushFontGlyphQuad(&drawState, q.s0, q.t1, q.x0, q.y1, -1);
-                    pushFontGlyphQuad(&drawState, q.s1, q.t1, q.x1, q.y1, -1);
-                    pushFontGlyphQuad(&drawState, q.s1, q.t0, q.x1, q.y0, -1);
-                    pushFontGlyphQuad(&drawState, q.s0, q.t0, q.x0, q.y0, -1);
-
-#endif
+                    // pushFontGlyphQuad(&drawState, q.s0, q.t1, q.x0, q.y1, -1);
+                    // pushFontGlyphQuad(&drawState, q.s1, q.t1, q.x1, q.y1, -1);
+                    // pushFontGlyphQuad(&drawState, q.s1, q.t0, q.x1, q.y0, -1);
+                    // pushFontGlyphQuad(&drawState, q.s0, q.t0, q.x0, q.y0, -1);
                 }
                 if(cursorInfo && (glyph->index == cursorInfo->index)) {
                     width = q.x1 - q.x0;
@@ -329,12 +281,7 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float bufferWidth, float bu
             tempAt = text;
         }
     }
-#if FIXED_FUNCTION_PIPELINE
-    glEnd();
-    glLoadIdentity();
-#else 
-    endFontGlyphs(&drawState, bufferWidth, bufferHeight);
-#endif
+    // endFontGlyphs(&drawState, bufferWidth, bufferHeight);
     
     if(cursorInfo && (int)(text - text_) <= cursorInfo->index) {
         width = size*16;
@@ -344,7 +291,7 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float bufferWidth, float bu
     }
     
     if(cursorInfo) {
-        openGlDrawRectCenterDim(0, v2ToV3(pos, -1), v2(width, height), cursorInfo->color, 0, mat4TopLeftToBottomLeft(bufferHeight), 1, OrthoMatrixToScreen(bufferWidth, bufferHeight, 1));
+        renderDrawRectCenterDim(v2ToV3(pos, -1), v2(width, height), cursorInfo->color, 0, mat4TopLeftToBottomLeft(bufferHeight), OrthoMatrixToScreen(bufferWidth, bufferHeight, 1));
     }
 #if 0 //draw idvidual text boxes
     for(int i = 0; i < pC; ++i) {

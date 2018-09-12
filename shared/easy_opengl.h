@@ -16,8 +16,6 @@ static float FEATHER_PIXELS = 2;
 #include "easy_math.h"
 #endif
 
-#include "easy_render.h"
-
 #define STB_IMAGE_IMPLEMENTATION 1
 #include "stb_image.h"
 
@@ -436,7 +434,7 @@ Matrix4 OrthoMatrixToScreen(int width, int height, float zoom) {
         a,  0,  0,  0,
         0,  b,  0,  0,
         0,  0,  (-2)/(farClip - nearClip), 0, //definitley the projection coordinate. 
-        -1, -1, -((farClip + nearClip)/(farClip - nearClip)),  1
+        0, 0, -((farClip + nearClip)/(farClip - nearClip)),  1
     }};
     
     // Matrix4 scaleMat = mat4();

@@ -125,8 +125,8 @@ AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder) {
     //////////
 
     ////SETUP OPEN GL//
-    enableOpenGl(resolution.x, resolution.y);
-    glCheckError();
+    enableRenderer(resolution.x, resolution.y);
+    renderCheckError();
     //////
 
     ////INIT RANDOM GENERATOR
@@ -188,11 +188,11 @@ void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *window
 	////Resolve Frame
 	glViewport(0, 0, screenDim.x, screenDim.y);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, backBufferId);
-	glCheckError();
+	renderCheckError();
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, compositedFrameBufferId); 
-	glCheckError();
+	renderCheckError();
 	glBlitFramebuffer(0, 0, resolution.x, resolution.y, wResidue, yResidue, screenDim.x - wResidue, screenDim.y - yResidue, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-	glCheckError();                    
+	renderCheckError();                    
 	///////
    glViewport(0, 0, screenDim.x, screenDim.y);
    updateChannelVolumes(dt);
@@ -379,7 +379,7 @@ AppKeyStates easyOS_processKeyStates(V2 resolution, V2 *screenDim, bool *running
 	float screenDimY = screenDim->y;
 	state.mouseP = v2(mouseX/screenDimX*resolution.x, mouseY/screenDimY*resolution.y);
 	
-	state.mouseP_yUp = v2(state.mouseP.x, -1*state.mouseP.y + resolution.y);
+	state.mouseP_yUp = v2_minus(v2(state.mouseP.x, -1*state.mouseP.y + resolution.y), v2_scale(0.5f, resolution));
 
 	bool leftMouseDown = mouseState & SDL_BUTTON_LMASK;
 	sdlProcessGameKey(&gameButtons[BUTTON_LEFT_MOUSE], leftMouseDown, leftMouseDown == mouseWasDown);

@@ -2,6 +2,8 @@
 #define MemoryBarrier()  __sync_synchronize()
 #define _ReadWriteBarrier() { SDL_CompilerBarrier(); }
 #include <dirent.h>
+#elif _WIN32
+
 #endif
 
 #if !defined arrayCount

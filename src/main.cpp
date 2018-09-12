@@ -52,12 +52,31 @@ typedef enum {
 #define MAX_SHAPE_COUNT 16
 typedef struct {
     V2 coords[MAX_SHAPE_COUNT];
-    GLBufferHandles renderHandle;
     int count;
     bool valid;
 
     Timer moveTimer;
 } FitrisShape;
+
+typedef enum {
+    SHAPE_WINDMILL,
+} ExtraShapeType;
+
+typedef struct {
+    ExtraShapeType type;
+    V2 pos;
+
+    Timer timer;
+
+    bool onX; //on x or on y
+    bool isOut; //going out or in
+
+    int count;
+
+    int xMax;
+    int yMax;
+    
+} ExtraShape;
 
 typedef enum {
     BOARD_VAL_NULL,
@@ -81,6 +100,7 @@ typedef enum {
     LEVEL_1, 
     LEVEL_2, 
     LEVEL_3, 
+    LEVEL_4, 
 } LevelType;
 
 typedef struct {
@@ -88,8 +108,6 @@ typedef struct {
     int boardWidth;
     int boardHeight;
     BoardValue *board;
-    GLBufferHandles bgBoardHandle;
-    GLBufferHandles fgBoardHandle;
 
     FitrisShape currentShape;
     Texture *stoneTex;
@@ -110,6 +128,9 @@ typedef struct {
     int lifePoints;
     int lifePointsMax;
     bool wasHitByExplosive; 
+
+    int extraShapeCount;
+    ExtraShape extraShapes[32];
 
     bool createShape;
 
@@ -191,6 +212,14 @@ BoardValue *getBoardValue(FrameParams *params, V2 pos) {
     return result;
 }
 
+bool inBoardBounds(FrameParams *params, V2 pos) {
+    bool result = false;
+    if(pos.x >= 0 && pos.x < params->boardWidth && pos.y >= 0 && pos.y < params->boardHeight) {
+        result = true;
+    }
+    return result;
+}
+
 void setBoardState(FrameParams *params, V2 pos, BoardState state, BoardValType type) {
     if(pos.x >= 0 && pos.x < params->boardWidth && pos.y >= 0 && pos.y < params->boardHeight) {
         BoardValue *val = &params->board[params->boardWidth*(int)pos.y + (int)pos.x];
@@ -204,7 +233,21 @@ void setBoardState(FrameParams *params, V2 pos, BoardState state, BoardValType t
 }
 
 void createLevel(FrameParams *params, int blockCount, LevelType levelType) {
-    for(int i = 0; i < blockCount && levelType != LEVEL_0; ++i) {
+    if(levelType == LEVEL_4) {
+        assert(params->extraShapeCount < arrayCount(params->extraShapes));
+        ExtraShape *shape = params->extraShapes + params->extraShapeCount++;
+        shape->type = SHAPE_WINDMILL;
+
+        shape->pos = v2(2, 2);
+
+        shape->timer = initTimer(0.5f);
+        shape->isOut = true;
+        shape->xMax = 3;
+        shape->yMax = 3;
+
+    }
+
+    for(int i = 0; i < blockCount && levelType != LEVEL_0 && levelType != LEVEL_4; ++i) {
         V2 pos = {};
         float rand1 = getRandNum01_include();
         float rand2 = getRandNum01_include();
@@ -718,11 +761,49 @@ void setLevelTransition(FrameParams *params,  int blockCount, LevelType levelTyp
     setTransition_(&params->transitionState, transitionCallbackForLevel, data);
 }
 
+void updateWindmillSide(FrameParams *params, V2 pos, int max, int *count_, bool *isOut_, bool *axis_) {
+    int count = *count_;
+    bool isOut = *isOut_;
+    bool axis = *axis_;
+
+    V2 shift = v2(0, 0);
+    BoardState stateToSet = BOARD_NULL;
+    if(isOut) {
+        count++;
+        if(axis) { shift = v2(count, 0); } //is xAxis
+        if(!axis) { shift = v2(0, count); } //is xAxis
+        stateToSet = BOARD_STATIC;
+    } else {
+        count--;
+        if(axis) { shift = v2(count, 0); } //is xAxis
+        if(!axis) { shift = v2(0, count); } //is xAxis
+    }
+
+    if(inBoardBounds(params, v2_plus(pos, shift))) {
+        setBoardState(params, v2_plus(pos, shift), stateToSet, BOARD_VAL_ALWAYS);
+    }
+
+    if(count == max) {
+        isOut = false;
+    }
+    if(count == 0) {
+        axis = !axis;
+        isOut = true;
+        count = 0;
+    }
+    *count_ = count;
+    *axis_ = axis;
+    *isOut_ = isOut;
+}
+
 void gameUpdateAndRender(void *params_) {
     FrameParams *params = (FrameParams *)params_;
     V2 screenDim = *params->screenDim;
     V2 resolution = *params->resolution;
     V2 middleP = v2_scale(0.5f, resolution);
+    //ceneter the camera
+    params->cameraPos.xy = v2_scale(0.5f, v2((float)params->boardWidth - 1, (float)params->boardHeight - 1));
+
     //make this platform independent
     easyOS_beginFrame(resolution);
     //////CLEAR BUFFERS
@@ -730,8 +811,7 @@ void gameUpdateAndRender(void *params_) {
     clearBufferAndBind(params->backbufferId, COLOR_BLACK);
     clearBufferAndBind(params->mainFrameBuffer.bufferId, COLOR_PINK);
     renderEnableDepthTest(&globalRenderGroup);
-    static GLBufferHandles bgHandle = {};
-    openGlTextureCentreDim(&bgHandle, params->bgTex->id, v2ToV3(middleP, -2), resolution, COLOR_WHITE, 0, mat4(), 1, mat4(), OrthoMatrixToScreen(resolution.x, resolution.y, 1));                    
+    renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -4), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y, 1));                    
     
     bool isPlayState = drawMenu(&params->menuInfo, params->longTermArena, gameButtons, 0, params->successSound, params->moveSound, params->dt, params->screenRelativeSize, params->keyStates->mouseP);
     bool transitioning = updateTransitions(&params->transitionState, resolution, params->dt);
@@ -762,16 +842,36 @@ void gameUpdateAndRender(void *params_) {
             params->createShape = false;
         }
 
+        for(int extraIndex = 0; extraIndex < params->extraShapeCount; ++extraIndex) {
+            ExtraShape *extraShape = params->extraShapes + extraIndex;
+            switch(extraShape->type) {
+                case SHAPE_WINDMILL: {
+                    TimerReturnInfo info = updateTimer(&extraShape->timer, params->dt);
+                    if(info.finished) {
+                        turnTimerOn(&extraShape->timer);
+                        
+
+                        if(extraShape->onX) {
+                            updateWindmillSide(params, extraShape->pos, extraShape->xMax, &extraShape->count, &extraShape->isOut, &extraShape->onX);
+                        } else {
+                            updateWindmillSide(params, extraShape->pos, extraShape->yMax, &extraShape->count, &extraShape->isOut, &extraShape->onX);
+                        }
+                        
+                    }
+                } break;
+            }
+        }
         updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params);
         updateBoardWinState(params);
     }
 
+    //Stil render when we are in a transition
     if(isPlayState) {
         for(int boardY = 0; boardY < params->boardHeight; ++boardY) {
             for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
-                RenderInfo renderInfo = calculateRenderInfo(v3(boardX, boardY, -2), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
+                RenderInfo bgRenderInfo = calculateRenderInfo(v3(boardX, boardY, -3), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
                 BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
-                openGlTextureCentreDim(&params->bgBoardHandle, params->boarderTex->id, renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), 1, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y, 1), renderInfo.pvm));            
+                renderTextureCentreDim(params->boarderTex, bgRenderInfo.pos, bgRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y, 1), bgRenderInfo.pvm));            
                 
                 if(!(boardVal->prevState == BOARD_NULL && boardVal->state == BOARD_NULL)) {
                     V4 currentColor = boardVal->color;
@@ -782,11 +882,11 @@ void gameUpdateAndRender(void *params_) {
                         V4 prevColor = lerpV4(boardVal->color, clamp01(lerpT), COLOR_NULL);
                         currentColor = lerpV4(COLOR_NULL, lerpT, boardVal->color);
 
-                        RenderInfo bgRenderInfo = calculateRenderInfo(v3(boardX, boardY, -1), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
+                        RenderInfo prevRenderInfo = calculateRenderInfo(v3(boardX, boardY, -1), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
 
                         Texture *tex = getBoardTex(boardVal, boardVal->prevState, params);
                         if(tex) {
-                            openGlTextureCentreDim(&params->fgBoardHandle, tex->id, bgRenderInfo.pos, renderInfo.dim.xy, prevColor, 0, mat4(), 1, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y, 1), renderInfo.pvm));            
+                            renderTextureCentreDim(tex, prevRenderInfo.pos, prevRenderInfo.dim.xy, prevColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y, 1), prevRenderInfo.pvm));            
                         }    
 
                         if(timeInfo.finished) {
@@ -796,7 +896,8 @@ void gameUpdateAndRender(void *params_) {
                         
                     Texture *tex = getBoardTex(boardVal, boardVal->state, params);
                     if(tex) {
-                        openGlTextureCentreDim(&params->fgBoardHandle, tex->id, renderInfo.pos, renderInfo.dim.xy, currentColor, 0, mat4(), 1, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y, 1), renderInfo.pvm));            
+                        RenderInfo currentStateRenderInfo = calculateRenderInfo(v3(boardX, boardY, -2), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
+                        renderTextureCentreDim(tex, currentStateRenderInfo.pos, currentStateRenderInfo.dim.xy, currentColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y, 1), currentStateRenderInfo.pvm));            
                     }
                 } else {
                     assert(!isOn(&boardVal->fadeTimer));
@@ -808,15 +909,12 @@ void gameUpdateAndRender(void *params_) {
    drawRenderGroup(&globalRenderGroup);
    
    easyOS_endFrame(resolution, screenDim, &params->dt, params->windowHandle, params->mainFrameBuffer.bufferId, params->backbufferId, params->renderbufferId, &params->lastTime, 1.0f / 60.0f);
-
-
-
 }
 
 int main(int argc, char *args[]) {
 	
 	V2 screenDim = {}; //init in create app function
-	V2 resolution = v2(1280, 720); //this could be variable -> passed in by the app etc. 
+	V2 resolution = v2(1280, 720); //this could be variable -> passed in by the app etc. like unity window 
 
   OSAppInfo appInfo = easyOS_createApp("Fitris", &screenDim);
   assert(appInfo.valid);
@@ -893,7 +991,8 @@ int main(int argc, char *args[]) {
     params.bgTex = bgTex;
     params.lastTime = SDL_GetTicks();
     params.currentHotIndex = -1;
-    params.cameraPos = v3(-5, -2, 0);
+
+    params.cameraPos = v3(0, 0, 0);
 
     TransitionState transState = {};
     transState.transitionSound = findSoundAsset("click.wav");
