@@ -7,9 +7,6 @@
 #include "easy.h"
 
 static char* globalExeBasePath;
-
-static float bufferHeight;
-static float bufferWidth; 
 static GameButton gameButtons[BUTTON_COUNT];
 
 #include "easy_files.h"

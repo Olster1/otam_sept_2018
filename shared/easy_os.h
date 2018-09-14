@@ -136,8 +136,8 @@ AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder) {
     /////////Scale the size factor to be keep size of app constant. 
     V2 screenRelativeSize = v2(idealResolution.x / resolution.x, idealResolution.y / resolution.y); 
     V2 ratio = v2_scale(60.0f, screenRelativeSize);
-    assert(ratio.x != 0);
-    assert(ratio.y != 0);
+    // assert(ratio.x != 0);
+    // assert(ratio.y != 0);
     result.metresToPixels = Matrix4_scale(mat4(), v3(ratio.x, ratio.y, 1));
     result.pixelsToMeters = Matrix4_scale(mat4(), v3(1.0f / ratio.x, 1.0f / ratio.y, 1));
     result.screenRelativeSize = screenRelativeSize;
@@ -174,13 +174,13 @@ void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *window
 	if(h1 > screenDim.y) {
 	    screenRatio =  screenDim.y / resolution.y;
 	    float w1 = resolution.x * screenRatio;
-	    assert(w1 <= screenDim.x);
+	    // assert(w1 <= screenDim.x);
 	}
 
 	float screenX = screenRatio*resolution.x;
 	float screenY = screenRatio*resolution.y;
-	assert(screenX <= screenDim.x);
-	assert(screenY <= screenDim.y);
+	// assert(screenX <= screenDim.x);
+	// assert(screenY <= screenDim.y);
 
 	float wResidue = (screenDim.x - screenX) / 2.0f;
 	float yResidue = (screenDim.y - screenY) / 2.0f;

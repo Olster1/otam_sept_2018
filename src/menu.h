@@ -47,6 +47,7 @@ void changeMenuState(MenuInfo *info, GameMode mode) {
     data->lastMode = info->gameMode;
     data->info = info;
     setTransition_(info->transitionState, transitionCallbackForMenu, data);
+    // info->lastMouseP = v2(-1000, -1000); //make it undefined 
 }
 
 bool updateMenu(MenuOptions *menuOptions, GameButton *gameButtons, MenuInfo *info, Arena *arenaForSounds, WavFile *moveSound) {
@@ -71,20 +72,20 @@ bool updateMenu(MenuOptions *menuOptions, GameButton *gameButtons, MenuInfo *inf
     return active;
 }
 
-void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info, Lerpf *sizeTimers, float dt, V2 screenRelativeSize, V2 mouseP, bool mouseActive) {
+void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info, Lerpf *sizeTimers, float dt, V2 mouseP, bool mouseActive, V2 resolution) {
     
     char *titleAt = menuOptions->options[info->menuCursorAt];
     
     if(backgroundTex) {
         renderDisableDepthTest(&globalRenderGroup);
-        renderTextureCentreDim(backgroundTex, v3(0.5f*bufferWidth, 0.5f*bufferHeight, -1), v2(bufferWidth, bufferHeight), COLOR_WHITE, 0, mat4(), OrthoMatrixToScreen(bufferWidth, bufferHeight, 1), mat4());
+        renderTextureCentreDim(backgroundTex, v3(0, 0, -2), v2(resolution.x, resolution.y), COLOR_WHITE, 0, mat4(), OrthoMatrixToScreen(resolution.x, resolution.y), mat4());
         renderEnableDepthTest(&globalRenderGroup);
     }
 
-    float yIncrement = bufferHeight / (menuOptions->count + 1);
-    Rect2f menuMargin = rect2f(0, 0, bufferWidth, bufferHeight);
+    float yIncrement = resolution.y / (menuOptions->count + 1);
+    Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
     
-    float xAt_ = (bufferWidth / 2);
+    float xAt_ = (resolution.x / 2);
     float yAt = yIncrement;
     static float dtValue = 0;
     dtValue += dt;
@@ -94,20 +95,17 @@ void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info
         ++menuIndex) {
         
         
-        float fontSize = screenRelativeSize.x;//mapValue(sin(dtValue), -1, 1, 0.7f, 1.2f);
-        if(sizeTimers) {
-            // updateLerpf(sizeTimers[menuIndex], dt, LINEAR);
-            fontSize = sizeTimers[menuIndex].value;
-        }
+        float fontSize = 2.0f;//mapValue(sin(dtValue), -1, 1, 0.7f, 1.2f);
 
         char *title = menuOptions->options[menuIndex];
-        float xAt = xAt_ - (getBounds(easyUnicode_utf8StreamToUtf32Stream((unsigned char *)title), menuMargin, info->font, fontSize).x / 2);
+        unsigned int *name = easyUnicode_utf8StreamToUtf32Stream((unsigned char *)title);
+        float xAt = xAt_ - (getBounds(name, menuMargin, info->font, fontSize, resolution).x / 2);
 
 
-        Rect2f outputDim = outputText(info->font, xAt, yAt, bufferWidth, bufferHeight, easyUnicode_utf8StreamToUtf32Stream((unsigned char *)title), menuMargin, COLOR_WHITE, fontSize, false);
+        Rect2f outputDim = outputText(info->font, xAt, yAt, -1, resolution, name, menuMargin, COLOR_WHITE, fontSize, false);
         //spread across screen so the mouse hit is more easily
         outputDim.min.x = 0;
-        outputDim.max.x = bufferWidth;
+        outputDim.max.x = resolution.x;
         //
         if(inBounds(mouseP, outputDim, BOUNDS_RECT) && mouseActive) {
             info->menuCursorAt = menuIndex;
@@ -118,14 +116,13 @@ void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info
         if(menuIndex == info->menuCursorAt) {
             menuItemColor = COLOR_RED;
         }
-        
-        outputText(info->font, xAt, yAt, bufferWidth, bufferHeight, easyUnicode_utf8StreamToUtf32Stream((unsigned char *)title), menuMargin, menuItemColor, fontSize, true);
-
+        outputText(info->font, xAt, yAt, -1, resolution, name, menuMargin, menuItemColor, fontSize, true);
+        free(name);
         yAt += yIncrement;
     }
 }
 
-bool drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Texture *backgroundTex, WavFile *submitSound, WavFile *moveSound, float dt, V2 screenRelativeSize, V2 mouseP) {
+bool drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Texture *backgroundTex, WavFile *submitSound, WavFile *moveSound, float dt, V2 resolution, V2 mouseP) {
     bool isPlayMode = false;
     MenuOptions menuOptions = {};
 
@@ -284,6 +281,7 @@ bool drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Tex
             }
         } break;
         case MENU_MODE:{
+
             menuOptions.options[menuOptions.count++] = "Play";
             menuOptions.options[menuOptions.count++] = "Quit";
             
@@ -309,7 +307,7 @@ bool drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Tex
     } 
 
     if(!isPlayMode) {
-        renderMenu(backgroundTex, &menuOptions, info, thisSizeTimers, dt, screenRelativeSize, mouseP, mouseChangedPos);
+        renderMenu(backgroundTex, &menuOptions, info, thisSizeTimers, dt, mouseP, mouseChangedPos, resolution);
         setSoundType(AUDIO_FLAG_MENU);
     }
 

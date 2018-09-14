@@ -811,9 +811,9 @@ void gameUpdateAndRender(void *params_) {
     clearBufferAndBind(params->backbufferId, COLOR_BLACK);
     clearBufferAndBind(params->mainFrameBuffer.bufferId, COLOR_PINK);
     renderEnableDepthTest(&globalRenderGroup);
-    renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -4), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y, 1));                    
+    renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -4), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
     
-    bool isPlayState = drawMenu(&params->menuInfo, params->longTermArena, gameButtons, 0, params->successSound, params->moveSound, params->dt, params->screenRelativeSize, params->keyStates->mouseP);
+    bool isPlayState = drawMenu(&params->menuInfo, params->longTermArena, gameButtons, 0, params->successSound, params->moveSound, params->dt, resolution, params->keyStates->mouseP);
     bool transitioning = updateTransitions(&params->transitionState, resolution, params->dt);
     if(!transitioning && isPlayState) {
         //if updating a transition don't update the game logic, just render the game board. 
@@ -871,7 +871,7 @@ void gameUpdateAndRender(void *params_) {
             for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
                 RenderInfo bgRenderInfo = calculateRenderInfo(v3(boardX, boardY, -3), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
                 BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
-                renderTextureCentreDim(params->boarderTex, bgRenderInfo.pos, bgRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y, 1), bgRenderInfo.pvm));            
+                renderTextureCentreDim(params->boarderTex, bgRenderInfo.pos, bgRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), bgRenderInfo.pvm));            
                 
                 if(!(boardVal->prevState == BOARD_NULL && boardVal->state == BOARD_NULL)) {
                     V4 currentColor = boardVal->color;
@@ -886,7 +886,7 @@ void gameUpdateAndRender(void *params_) {
 
                         Texture *tex = getBoardTex(boardVal, boardVal->prevState, params);
                         if(tex) {
-                            renderTextureCentreDim(tex, prevRenderInfo.pos, prevRenderInfo.dim.xy, prevColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y, 1), prevRenderInfo.pvm));            
+                            renderTextureCentreDim(tex, prevRenderInfo.pos, prevRenderInfo.dim.xy, prevColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), prevRenderInfo.pvm));            
                         }    
 
                         if(timeInfo.finished) {
@@ -897,7 +897,7 @@ void gameUpdateAndRender(void *params_) {
                     Texture *tex = getBoardTex(boardVal, boardVal->state, params);
                     if(tex) {
                         RenderInfo currentStateRenderInfo = calculateRenderInfo(v3(boardX, boardY, -2), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
-                        renderTextureCentreDim(tex, currentStateRenderInfo.pos, currentStateRenderInfo.dim.xy, currentColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y, 1), currentStateRenderInfo.pvm));            
+                        renderTextureCentreDim(tex, currentStateRenderInfo.pos, currentStateRenderInfo.dim.xy, currentColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), currentStateRenderInfo.pvm));            
                     }
                 } else {
                     assert(!isOn(&boardVal->fadeTimer));
@@ -926,7 +926,8 @@ int main(int argc, char *args[]) {
     float idealFrameTime = 1.0f / 60.0f;
 
     ////INIT FONTS
-    Font mainFont = initFont_(concat(globalExeBasePath, "fonts/Merriweather-Regular.ttf"), 0, 2048, 32);
+    char *fontName = concat(globalExeBasePath, "/fonts/Roboto-Regular.ttf");//fonts/Merriweather-Regular.ttf");
+    Font mainFont = initFont(fontName, 32);
     ///
 
     Arena soundArena = createArena(Megabytes(200));

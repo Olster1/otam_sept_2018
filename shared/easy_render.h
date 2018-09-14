@@ -2,6 +2,8 @@
 #define NEAR_CLIP_PLANE 0.1;
 #define FAR_CLIP_PLANE 10000.0f
 
+#define PRINT_NUMBER_DRAW_CALLS 0
+
 #if !defined arrayCount
 #define arrayCount(arg) (sizeof(arg) / sizeof(arg[0])) 
 #endif
@@ -159,8 +161,9 @@ typedef struct {
     RenderProgram *program; 
     ShapeType type; 
     
-    Texture *texture; 
-    
+    u32 textureHandle;
+    Rect2f textureUVs;    
+
     Matrix4 PVM; 
     float zAt;
     
@@ -247,7 +250,11 @@ void pushRenderItem(VaoHandle *handles, RenderGroup *group, Vertex *triangleData
     
     info->program = program;
     info->type = type;
-    info->texture = texture;
+    if(texture) {
+        info->textureHandle = (u32)texture->id;
+        assert(info->textureHandle);
+        info->textureUVs = texture->uvCoords;
+    } 
     info->PVM = PVM;
 }
 
@@ -441,7 +448,7 @@ RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentSh
     }
     
     
-    Matrix4 OrthoMatrixToScreen(int width, int height, float zoom) {
+    Matrix4 OrthoMatrixToScreen_(int width, int height, float offsetX, float offsetY) {
         float a = 2.0f / (float)width; 
         float b = 2.0f / (float)height;
         
@@ -452,34 +459,24 @@ RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentSh
                 a,  0,  0,  0,
                 0,  b,  0,  0,
                 0,  0,  (-2)/(farClip - nearClip), 0, //definitley the projection coordinate. 
-                0, 0, -((farClip + nearClip)/(farClip - nearClip)),  1
+                offsetX, offsetY, -((farClip + nearClip)/(farClip - nearClip)),  1
             }};
-        
-        // Matrix4 scaleMat = mat4();
-        
-        //we do this afterwards to scale from the center. 
-        //scaleMat.a.x *= zoom; 
-        //scaleMat.b.y *= zoom;
-        //I think we have to do this to all the zises. 
-        
-        
-        // result = Mat4Mult(scaleMat, result);
         
         return result;
     }
-    
-    // Matrix4 OrthoMatrixToScreenViewPort(float zoom) {
-    
-    //     GLint viewport[4];
-    //     glGetIntegerv(GL_VIEWPORT, viewport);
-    //     Matrix4 result = OrthoMatrixToScreen(viewport[2], viewport[3], zoom);
-    //     return result;
-// }
+
+    Matrix4 OrthoMatrixToScreen(int width, int height) {
+        return OrthoMatrixToScreen_(width, height, 0, 0);
+    }
+
+    Matrix4 OrthoMatrixToScreen_BottomLeft(int width, int height) {
+        return OrthoMatrixToScreen_(width, height, -1, -1);
+    }
 
 V2 transformWorldPToScreenP(V2 inputA, float zPos, V2 resolution, V2 screenDim, ProjectionType type) {
     Matrix4 projMat;
     if(type == ORTHO_MATRIX) {
-        projMat = OrthoMatrixToScreen(resolution.x, resolution.y, 1);   
+        projMat = OrthoMatrixToScreen(resolution.x, resolution.y);   
     } else if(type == PERSPECTIVE_MATRIX) {
         projMat = projectionMatrixToScreen(resolution.x, resolution.y);   
     }
@@ -1013,7 +1010,7 @@ void getQuadVertexes(Vertex *triangleData) { //has to be length of four
 }
 
 void renderDrawRectOutlineCenterDim(V3 center, V2 dim, V4 color, float rot, Matrix4 offsetTransform, Matrix4 projectionMatrix) {
-    V3 deltaP = V4MultMat4(v3ToV4Homogenous(center), offsetTransform).xyz; 
+    V3 deltaP = transformPositionV3(center, offsetTransform);
     
     float a1 = cos(rot);
     float a2 = sin(rot);
@@ -1090,9 +1087,7 @@ void renderDrawRectCenterDim_(V3 center, V2 dim, V4 *colors, float rot, Matrix4 
     float b1 = cos(rot + HALF_PI32);
     float b2 = sin(rot + HALF_PI32);
     
-    V4 centerV4 = v3ToV4Homogenous(center);
-    
-    V3 deltaP = V4MultMat4(centerV4, offsetTransform).xyz; 
+    V3 deltaP = transformPositionV3(center, offsetTransform);
     Matrix4 rotationMat = {{
             dim.x*a1,  dim.x*a2,  0,  0,
             dim.y*b1,  dim.y*b2,  0,  0,
@@ -1109,7 +1104,9 @@ void renderDrawRectCenterDim_(V3 center, V2 dim, V4 *colors, float rot, Matrix4 
     } else {
         int triCount = arrayCount(triangleData);
         int indicesCount = arrayCount(globalQuadIndicesData);
-        pushRenderItem(&globalQuadVaoHandle, &globalRenderGroup, triangleData, triCount, globalQuadIndicesData, indicesCount, program, type, texture, Mat4Mult(projectionMatrix, Mat4Mult(viewMatrix, rotationMat)), colors[0], center.z);
+        pushRenderItem(&globalQuadVaoHandle, &globalRenderGroup, triangleData, triCount, 
+            globalQuadIndicesData, indicesCount, program, type, texture, 
+            Mat4Mult(projectionMatrix, Mat4Mult(viewMatrix, rotationMat)), colors[0], center.z);
     }    
 }
 
@@ -1210,7 +1207,7 @@ int cmpRenderItemFunc (const void * a, const void * b) {
     RenderItem *itemB = (RenderItem *)b;
     bool result = true;
     if(itemA->zAt == itemB->zAt) {
-        if((!itemA->texture && !itemA->texture) || (itemA->texture->id == itemB->texture->id)) {
+        if(itemA->textureHandle == itemB->textureHandle) {
             if(itemA->bufferHandles == itemB->bufferHandles) {
                 if(itemA->program == itemB->program) {
                     result = false;
@@ -1221,11 +1218,7 @@ int cmpRenderItemFunc (const void * a, const void * b) {
                 result = (intptr_t)itemA->bufferHandles > (intptr_t)itemB->bufferHandles;                
             }
         } else {
-            if(!itemA->texture || !itemB->texture) {
-                result = itemA->texture > itemB->texture;
-            } else {
-                result = (intptr_t)itemA->texture->id > (intptr_t)itemB->texture->id;    
-            }
+            result = (intptr_t)itemA->textureHandle > (intptr_t)itemB->textureHandle;    
         }
     } else {
         result = itemA->zAt > itemB->zAt;
@@ -1273,7 +1266,8 @@ void drawRenderGroup(RenderGroup *group) {
     }
     
     int drawCallCount = 0;
-    
+        
+    // printf("Render Items count: %d\n", group->items.count);
     // int instanceIndexAt = 0;
     for(int i = 0; i < group->items.count; ++i) {
         RenderItem *info = (RenderItem *)getElementFromAlloc_(&group->items, i);
@@ -1302,8 +1296,8 @@ void drawRenderGroup(RenderGroup *group) {
         
         addElementInifinteAllocWithCount_(&pvms, info->PVM.val, 16);
         addElementInifinteAllocWithCount_(&colors, info->color.E, 4);
-        if(info->texture) {
-            addElementInifinteAllocWithCount_(&uvs, info->texture->uvCoords.E, 4);
+        if(info->textureHandle != 0) {
+            addElementInifinteAllocWithCount_(&uvs, info->textureUVs.E, 4);
         }
         
         int instanceCount = 1;
@@ -1311,10 +1305,8 @@ void drawRenderGroup(RenderGroup *group) {
         while(collecting) {
             RenderItem *nextItem = getRenderItem(group, i + 1);
             if(nextItem) {
-                GLuint thisTextureId = (info->texture) ? info->texture->id : 0; 
-                GLuint nextTextureId = (nextItem->texture) ? nextItem->texture->id : 0; 
 
-                if(info->bufferHandles == nextItem->bufferHandles && thisTextureId == nextTextureId && info->program == nextItem->program) {
+                if(info->bufferHandles == nextItem->bufferHandles && info->textureHandle == nextItem->textureHandle && info->program == nextItem->program) {
                     
                     assert(info->blendFuncType == nextItem->blendFuncType);
                     assert(info->depthTest == nextItem->depthTest);
@@ -1322,9 +1314,8 @@ void drawRenderGroup(RenderGroup *group) {
                     addElementInifinteAllocWithCount_(&pvms, nextItem->PVM.val, 16);
                     addElementInifinteAllocWithCount_(&colors, nextItem->color.E, 4);
                     
-                    if(nextItem->texture) {
-                        Rect2f uvCoords = nextItem->texture->uvCoords;
-                        addElementInifinteAllocWithCount_(&uvs, uvCoords.E, 4);
+                    if(nextItem->textureHandle) {
+                        addElementInifinteAllocWithCount_(&uvs, nextItem->textureUVs.E, 4);
                     } else {
                         assert(uvs.count == 0);
                     }
@@ -1351,8 +1342,7 @@ void drawRenderGroup(RenderGroup *group) {
             uvId = uvStore.buffer;
         }
         
-        GLuint textureId = (info->texture) ? info->texture->id : 0; 
-        drawVao(info->bufferHandles, (Vertex *)info->triangleData.memory, info->triCount, (unsigned int *)info->indicesData.memory, info->indexCount, info->program, info->type, textureId, pvmStore.buffer, colorStore.buffer, uvId, info->color, DRAWCALL_INSTANCED, instanceCount);
+        drawVao(info->bufferHandles, (Vertex *)info->triangleData.memory, info->triCount, (unsigned int *)info->indicesData.memory, info->indexCount, info->program, info->type, info->textureHandle, pvmStore.buffer, colorStore.buffer, uvId, info->color, DRAWCALL_INSTANCED, instanceCount);
         drawCallCount++;
         
         assert(lastStorageBufferCount < arrayCount(lastBufferStorage));
@@ -1373,7 +1363,9 @@ void drawRenderGroup(RenderGroup *group) {
         
     }
     releaseInfiniteAlloc(&group->items);
+#if PRINT_NUMBER_DRAW_CALLS
     printf("NUMBER OF DRAW CALLS: %d\n", drawCallCount);
+#endif
     group->idAt = 0;
 }
 
