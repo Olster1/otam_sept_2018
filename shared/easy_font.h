@@ -75,6 +75,7 @@ FontSheet *createFontSheet(Font *font, int firstChar, int endChar)
         }
     }
         sheet->handle = renderLoadTexture(FONT_SIZE, FONT_SIZE, bitmapTexture);
+        assert(sheet->handle);
         free(bitmapTexture);
     return sheet;
 }
@@ -124,10 +125,11 @@ typedef struct {
     stbtt_aligned_quad q;
     int index;
     V2 lastXY;
+    u32 textureHandle;
 } GlyphInfo;
 
 //This does unicode now 
-Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, unsigned int *text_, Rect2f margin, V4 color, float size, CursorInfo *cursorInfo, bool display) {
+Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, char *text_, Rect2f margin, V4 color, float size, CursorInfo *cursorInfo, bool display) {
     Rect2f bounds = InverseInfinityRect2f();
         
     if(x < margin.min.x) { x = margin.min.x; }
@@ -147,35 +149,46 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, u
     GlyphInfo qs[256] = {};
     int quadCount = 0;
     
-    unsigned int *text = text_;
+    char *text = text_;
     V2 lastXY = v2(x, y);
     V2 startP = lastXY;
 #define transformToSizeX(val) ((val - startP.x)*size + startP.x)
 #define transformToSizeY(val) ((val - startP.y)*size + startP.y)
     bool inWord = false;
     bool hasBeenToNewLine = false;
-    unsigned int *tempAt = text;
+    char *tempAt = text;
     while (*text) {
+        char *tempR = text;
+        unsigned int unicodePoint = easyUnicode_utf8ToUtf32((unsigned char **)&text, false);
+        int unicodeLen = easyUnicode_unicodeLength(*text);
+
+        assert(tempR == text);
         bool increment = true;
         bool drawText = false;
         //points1[pC1++] = v2(x, y);
-        FontSheet *sheet = findFontSheet(font, *text);
+        FontSheet *sheet = findFontSheet(font, unicodePoint);
         assert(sheet);
 
-        if (((int)(*text) >= sheet->minText && (int)(*text) < sheet->maxText) && *text != '\n') {
-            stbtt_aligned_quad q  = {};
+        if(unicodePoint != '\n') {
+            if (((int)(unicodePoint) >= sheet->minText && (int)(unicodePoint) < sheet->maxText)) {
+                stbtt_aligned_quad q  = {};
 
-            stbtt_GetBakedQuad(sheet->cdata, FONT_SIZE, FONT_SIZE, *text - sheet->minText, &x,&y,&q, 1);
-            assert(quadCount < arrayCount(qs));
-            GlyphInfo *glyph = qs + quadCount++; 
-            glyph->q = q;
-            glyph->index = (int)(text - text_);
-            glyph->lastXY = lastXY;;
+                stbtt_GetBakedQuad(sheet->cdata, FONT_SIZE, FONT_SIZE, unicodePoint - sheet->minText, &x,&y,&q, 1);
+                assert(quadCount < arrayCount(qs));
+                GlyphInfo *glyph = qs + quadCount++; 
+                glyph->textureHandle = sheet->handle;
+                // printf("sheet handles: %d ", sheet->handle);
+                glyph->q = q;
+                glyph->index = (int)(text - text_);
+                glyph->lastXY = lastXY;
+            } else {
+                assert(!"false");
+            }
         }
         
         bool overflowed = (transformToSizeX(x) > margin.maxX && inWord);
         
-        if(*text == ' ' || *text == '\n') {
+        if(unicodePoint == ' ' || unicodePoint == '\n') {
             inWord = false;
             hasBeenToNewLine = false;
             drawText = true;
@@ -190,12 +203,12 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, u
             hasBeenToNewLine = true;
         }
         
-        if(overflowed || *text == '\n') {
+        if(overflowed || unicodePoint == '\n') {
             x = margin.minX;
             y += size*font->fontHeight; 
         }
         
-        bool lastCharacter = (*(text + 1) == '\0');
+        bool lastCharacter = (*(text + unicodeLen) == '\0');
         
         if(drawText || lastCharacter) {
             for(int i = 0; i < quadCount; ++i) {
@@ -211,14 +224,10 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, u
                 
                 if(display) {
                     Texture tempTex = {};
-                    tempTex.id = sheet->handle;
+                    tempTex.id = glyph->textureHandle;
                     tempTex.uvCoords = rect2f(q.s0, q.t1, q.s1, q.t0);
                     renderTextureCentreDim(&tempTex, v2ToV3(getCenter(b), zAt), getDim(b), color, 0, mat4TopLeftToBottomLeft(resolution.y), mat4(), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y));            
 
-                    // pushFontGlyphQuad(&drawState, q.s0, q.t1, q.x0, q.y1, -1);
-                    // pushFontGlyphQuad(&drawState, q.s1, q.t1, q.x1, q.y1, -1);
-                    // pushFontGlyphQuad(&drawState, q.s1, q.t0, q.x1, q.y0, -1);
-                    // pushFontGlyphQuad(&drawState, q.s0, q.t0, q.x0, q.y0, -1);
                 }
                 if(cursorInfo && (glyph->index == cursorInfo->index)) {
                     width = q.x1 - q.x0;
@@ -234,7 +243,8 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, u
         lastXY.x = x;
         lastXY.y = y;
         if(increment) {
-            ++text;
+            
+            text += unicodeLen;
         }
         if(!inWord) {
             tempAt = text;
@@ -276,7 +286,7 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, u
     
 }
 
-Rect2f outputText_with_cursor(Font *font, float x, float y, float z, V2 resolution, unsigned int *text, Rect2f margin, V4 color, float size, int cursorIndex, V4 cursorColor, bool display) {
+Rect2f outputText_with_cursor(Font *font, float x, float y, float z, V2 resolution, char *text, Rect2f margin, V4 color, float size, int cursorIndex, V4 cursorColor, bool display) {
     CursorInfo cursorInfo = {};
     cursorInfo.index = cursorIndex;
     cursorInfo.color = cursorColor;
@@ -285,13 +295,13 @@ Rect2f outputText_with_cursor(Font *font, float x, float y, float z, V2 resoluti
     return result;
 }
 
-Rect2f outputText(Font *font, float x, float y, float z, V2 resolution, unsigned int *text, Rect2f margin, V4 color, float size, bool display) {
+Rect2f outputText(Font *font, float x, float y, float z, V2 resolution, char *text, Rect2f margin, V4 color, float size, bool display) {
     Rect2f result = my_stbtt_print_(font, x, y, z, resolution, text, margin, color, size, 0, display);
     return result;
 }
 
-Rect2f outputTextWithLength(Font *font, float x, float y, float z, V2 resolution, unsigned int *allText, int textLength, Rect2f margin, V4 color, float size, bool display) {
-    unsigned int *text = (unsigned int *)malloc(sizeof(unsigned int)*(textLength + 1));
+Rect2f outputTextWithLength(Font *font, float x, float y, float z, V2 resolution, char *allText, int textLength, Rect2f margin, V4 color, float size, bool display) {
+    char *text = (char *)malloc(sizeof(char)*(textLength + 1));
     for(int i = 0; i < textLength; ++i) {
         text[i] = allText[i];
     }
@@ -302,7 +312,7 @@ Rect2f outputTextWithLength(Font *font, float x, float y, float z, V2 resolution
     return result;
 }
 
-V2 getBounds(unsigned int *string, Rect2f margin, Font *font, float size, V2 resolution) {
+V2 getBounds(char *string, Rect2f margin, Font *font, float size, V2 resolution) {
     Rect2f bounds  = outputText(font, margin.minX, margin.minY, -1, resolution, string, margin, v4(0, 0, 0, 1), size, false);
     
     V2 result = getDim(bounds);
@@ -310,7 +320,7 @@ V2 getBounds(unsigned int *string, Rect2f margin, Font *font, float size, V2 res
 }
 
 
-Rect2f getBoundsRectf(unsigned int *string, float xAt, float yAt, Rect2f margin, Font *font, float size, V2 resolution) {
+Rect2f getBoundsRectf(char *string, float xAt, float yAt, Rect2f margin, Font *font, float size, V2 resolution) {
     Rect2f bounds  = outputText(font, xAt, yAt, -1, resolution, string, margin, v4(0, 0, 0, 1), size, false);
     
     return bounds;

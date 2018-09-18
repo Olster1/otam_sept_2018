@@ -95,14 +95,13 @@ void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info
         ++menuIndex) {
         
         
-        float fontSize = 2.0f;//mapValue(sin(dtValue), -1, 1, 0.7f, 1.2f);
+        float fontSize = 1.0f;//mapValue(sin(dtValue), -1, 1, 0.7f, 1.2f);
 
         char *title = menuOptions->options[menuIndex];
-        unsigned int *name = easyUnicode_utf8StreamToUtf32Stream((unsigned char *)title);
-        float xAt = xAt_ - (getBounds(name, menuMargin, info->font, fontSize, resolution).x / 2);
+        float xAt = xAt_ - (getBounds(title, menuMargin, info->font, fontSize, resolution).x / 2);
 
 
-        Rect2f outputDim = outputText(info->font, xAt, yAt, -1, resolution, name, menuMargin, COLOR_WHITE, fontSize, false);
+        Rect2f outputDim = outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, COLOR_WHITE, fontSize, false);
         //spread across screen so the mouse hit is more easily
         outputDim.min.x = 0;
         outputDim.max.x = resolution.x;
@@ -116,8 +115,7 @@ void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info
         if(menuIndex == info->menuCursorAt) {
             menuItemColor = COLOR_RED;
         }
-        outputText(info->font, xAt, yAt, -1, resolution, name, menuMargin, menuItemColor, fontSize, true);
-        free(name);
+        outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, menuItemColor, fontSize, true);
         yAt += yIncrement;
     }
 }
@@ -281,24 +279,45 @@ bool drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Tex
             }
         } break;
         case MENU_MODE:{
+            char *title = APP_TITLE;
+            Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
+            float fontSize = 1;
+            float xAt = (resolution.x - getBounds(title, menuMargin, info->font, fontSize, resolution).x) / 2;
 
-            menuOptions.options[menuOptions.count++] = "Play";
-            menuOptions.options[menuOptions.count++] = "Quit";
-            
-            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
-            
-            // NOTE(Oliver): Main Menu action options
-            if(changeMenuKey) {
-                // playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
-                switch (info->menuCursorAt) {
-                    case 0: {
-                        changeMenuState(info, PLAY_MODE);
-                    } break;
-                    case 1: {
-                        changeMenuState(info, QUIT_MODE);
-                    } break;
-                }
+            outputText(info->font, xAt, resolution.y / 2, -1, resolution, title, menuMargin, COLOR_BLACK, fontSize, true);
+
+            char *secondTitle = "Click To Start";
+            fontSize = 0.5f;
+            xAt = (resolution.x - getBounds(secondTitle, menuMargin, info->font, fontSize, resolution).x) / 2;
+
+            static float dt_val = 0;
+            dt_val += dt;
+            V4 color = smoothStep00V4(COLOR_WHITE, dt_val / 3.0f, COLOR_BLUE);
+            if(dt_val >= 3.0f) {
+                dt_val = 0;
             }
+            outputText(info->font, xAt, 0.7f*resolution.y, -1, resolution, secondTitle, menuMargin, color, fontSize, true);
+
+            if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                changeMenuState(info, PLAY_MODE);
+            }
+            // menuOptions.options[menuOptions.count++] = "Play";
+            // menuOptions.options[menuOptions.count++] = "Quit";
+            
+            // mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
+            
+            // // NOTE(Oliver): Main Menu action options
+            // if(changeMenuKey) {
+            //     // playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
+            //     switch (info->menuCursorAt) {
+            //         case 0: {
+            //             changeMenuState(info, PLAY_MODE);
+            //         } break;
+            //         case 1: {
+            //             changeMenuState(info, QUIT_MODE);
+            //         } break;
+            //     }
+            // }
         } break;
         case PLAY_MODE: {
             isPlayMode = true;

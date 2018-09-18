@@ -43,7 +43,7 @@ int easyUnicode_unicodeLength(unsigned char byte) {
 }
 
 //NOTE: this advances your pointer
-unsigned int easyUnicode_utf8ToUtf32(unsigned char **streamPtr) {
+unsigned int easyUnicode_utf8ToUtf32(unsigned char **streamPtr, bool advancePtr) {
 	unsigned char *stream = *streamPtr;
 	unsigned int result = 0;
 	unsigned int sixBitsFull = (1 << 5 | 1 << 4 | 1 << 3 | 1 << 2 | 1 << 1 | 1 << 0);
@@ -64,7 +64,7 @@ unsigned int easyUnicode_utf8ToUtf32(unsigned char **streamPtr) {
 				result |= (secondByte & sixBitsFull);
 				result |= ((firstByte & sixBitsFull) << 6);
 
-				(*streamPtr) += 2;
+				if(advancePtr) (*streamPtr) += 2;
 			} break;
 			case 3: {
 				// printf("%s\n", "three byte unicode");
@@ -77,7 +77,7 @@ unsigned int easyUnicode_utf8ToUtf32(unsigned char **streamPtr) {
 				result |= ((secondByte & sixBitsFull) << 6);
 				result |= ((firstByte & fiveBitsFull) << 12);
 
-				(*streamPtr) += 3;
+				if(advancePtr) (*streamPtr) += 3;
 			} break;
 			case 4: {
 				// printf("%s\n", "four byte unicode");
@@ -93,8 +93,7 @@ unsigned int easyUnicode_utf8ToUtf32(unsigned char **streamPtr) {
 				result |= ((firstByte & sixBitsFull) << 12);
 				result |= ((firstByte & fourBitsFull) << 18);
 
-
-				(*streamPtr) += 4;
+				if(advancePtr) (*streamPtr) += 4;
 			} break;
 			default: {
 				assert(!"invalid path");
@@ -103,7 +102,7 @@ unsigned int easyUnicode_utf8ToUtf32(unsigned char **streamPtr) {
 	} else {
 		// printf("%s\n", "single byte unicode");
 		result = stream[0];
-		(*streamPtr) += 1;
+		if(advancePtr) (*streamPtr) += 1;
 	}
 
 	return result;
@@ -118,7 +117,7 @@ unsigned int *easyUnicode_utf8StreamToUtf32Stream(unsigned char *stream) {
 	unsigned int *at = result;
 	while(*stream) {
 		unsigned char *a = stream;
-		*at = easyUnicode_utf8ToUtf32(&stream);
+		*at = easyUnicode_utf8ToUtf32(&stream, true);
 		assert(stream != a);
 		at++;
 	}

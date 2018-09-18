@@ -429,7 +429,32 @@ RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentSh
     return result;
 }
     
+    Matrix4 projectionMatrixFOV(float FOV, float aspectRatio) { //where aspect ratio = width/height of frame buffer resolution
+        float nearClip = NEAR_CLIP_PLANE;
+        float farClip = FAR_CLIP_PLANE;
+
+        float t = tan(FOV/2)*nearClip;
+        float b = -t;
+        float r = t*aspectRatio;
+        float l = -r;
+
+        float a1 = (2*nearClip) / (r - l); 
+        float b1 = (2*nearClip) / (t - b);
+
+        float c1 = (r + l) / (r - l);
+        float d1 = (t + b) / (t - b);
+        
+        Matrix4 result = {{
+                a1,  0,  0,  0,
+                0,  b1,  0,  0,
+                c1,  d1,  -((farClip + nearClip)/(farClip - nearClip)),  -1, 
+                0, 0,  (-2*nearClip*farClip)/(farClip - nearClip),  0
+            }};
+        
+        return result;
+    }
     
+
     Matrix4 projectionMatrixToScreen(int width, int height) {
         float a = 2 / (float)width; 
         float b = 2 / (float)height;
@@ -1061,18 +1086,12 @@ void renderDrawRectOutlineCenterDim(V3 center, V2 dim, V4 color, float rot, Matr
         V2 offset = offsets[i];
         
         Matrix4 rotationMat1 = {{
-                cos(rotat),  sin(rotat),  0,  0,
-                -sin(rotat),  cos(rotat),  0,  0,
+                thickness*cos(rotat),  thickness*sin(rotat),  0,  0,
+                lengths[i]*-sin(rotat),  lengths[i]*cos(rotat),  0,  0,
                 0,  0,  1,  0,
                 offset.x, offset.y, 0,  1
             }};
-        
-        if(globalImmediateModeGraphics) {
-            // (&globalQuadVaoHandle, triangleData, arrayCount(triangleData), globalQuadIndicesData, arrayCount(globalQuadIndicesData), &rectangleProgram, SHAPE_RECTANGLE, 0, projectionMatrix, color);
-        } else {
-            pushRenderItem(&globalQuadVaoHandle, &globalRenderGroup, triangleData, arrayCount(triangleData), globalQuadIndicesData, arrayCount(globalQuadIndicesData), &rectangleProgram, SHAPE_RECTANGLE, 0, Mat4Mult(projectionMatrix, Mat4Mult(rotationMat, rotationMat1)), color, center.z);
-        }
-        
+        pushRenderItem(&globalQuadVaoHandle, &globalRenderGroup, triangleData, arrayCount(triangleData), globalQuadIndicesData, arrayCount(globalQuadIndicesData), &rectangleProgram, SHAPE_RECTANGLE, 0, Mat4Mult(projectionMatrix, Mat4Mult(rotationMat, rotationMat1)), color, center.z);
     }
 }
 

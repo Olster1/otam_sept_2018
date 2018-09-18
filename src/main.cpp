@@ -116,6 +116,8 @@ typedef struct {
     Texture *metalTex;
     Texture *explosiveTex;
     Texture *boarderTex;
+    Texture *heartEmptyTex;
+    Texture *heartFullTex;
 
     WavFile *solidfyShapeSound;
     WavFile *moveSound;
@@ -144,6 +146,8 @@ typedef struct {
     MenuInfo menuInfo;
     
     int experiencePoints;
+
+    particle_system particleSystem;
 
     float slowTimeFactor;
 
@@ -240,6 +244,7 @@ void createLevel(FrameParams *params, int blockCount, LevelType levelType) {
 
         shape->pos = v2(2, 2);
 
+        setBoardState(params, shape->pos, BOARD_STATIC, BOARD_VAL_ALWAYS);    
         shape->timer = initTimer(0.5f);
         shape->isOut = true;
         shape->xMax = 3;
@@ -751,6 +756,7 @@ void transitionCallbackForLevel(void *data_) {
 
     initBoard(params->longTermArena, params, params->boardWidth, params->boardHeight, trans->levelType, trans->blockCount, false);
     params->createShape = true;   
+    params->lifePoints = params->lifePointsMax;
 } 
 
 void setLevelTransition(FrameParams *params,  int blockCount, LevelType levelType) {
@@ -771,16 +777,26 @@ void updateWindmillSide(FrameParams *params, V2 pos, int max, int *count_, bool 
     if(isOut) {
         count++;
         if(axis) { shift = v2(count, 0); } //is xAxis
-        if(!axis) { shift = v2(0, count); } //is xAxis
+        if(!axis) { shift = v2(0, count); } //is xyAxis
         stateToSet = BOARD_STATIC;
     } else {
-        count--;
         if(axis) { shift = v2(count, 0); } //is xAxis
         if(!axis) { shift = v2(0, count); } //is xAxis
+        count--;
     }
 
-    if(inBoardBounds(params, v2_plus(pos, shift))) {
-        setBoardState(params, v2_plus(pos, shift), stateToSet, BOARD_VAL_ALWAYS);
+    V2 newPos = v2_plus(pos, shift);
+
+    if(getBoardState(params, newPos) != BOARD_NULL && stateToSet == BOARD_STATIC) {
+        isOut = false;
+    }
+    if(inBoardBounds(params, newPos)) {
+        if((getBoardState(params, newPos) == BOARD_NULL && stateToSet == BOARD_STATIC) || stateToSet == BOARD_NULL) {
+            setBoardState(params, newPos, stateToSet, BOARD_VAL_ALWAYS);
+        }
+    } else {
+        isOut = false;
+        count--;
     }
 
     if(count == max) {
@@ -794,6 +810,36 @@ void updateWindmillSide(FrameParams *params, V2 pos, int max, int *count_, bool 
     *count_ = count;
     *axis_ = axis;
     *isOut_ = isOut;
+}
+
+void renderXPBarAndHearts(FrameParams *params, V2 resolution) {
+    float heartDim = 0.6f;
+    float across = params->lifePointsMax*heartDim / 2;
+    float heartY = params->boardHeight;
+    float xAt = 0.5f*params->boardWidth - across;
+    for(int heartIndex = 0; heartIndex < params->lifePointsMax; ++heartIndex) {
+        Texture *heartTex = 0;
+        if(params->lifePoints <= heartIndex) { 
+            heartTex = params->heartEmptyTex;
+        } else {
+            heartTex = params->heartFullTex;
+        }
+        RenderInfo renderInfo = calculateRenderInfo(v3(xAt, heartY, -2), v3_scale(heartDim, v3(1, 1, 1)), params->cameraPos, params->metresToPixels);
+        renderTextureCentreDim(heartTex, renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), renderInfo.pvm, OrthoMatrixToScreen(resolution.x, resolution.y));                    
+        xAt += heartDim;
+    }
+
+    float barHeight = 0.4f;
+    float maxExperiencePoints = 500;
+    float ratioXp = clamp01(params->experiencePoints / maxExperiencePoints);
+    float startXp = -0.5f; //move back half a square
+    float halfXp = 0.5f*params->boardWidth;
+    float xpWidth = ratioXp*params->boardWidth;
+    RenderInfo renderInfo = calculateRenderInfo(v3(startXp + 0.5f*xpWidth, -2*barHeight, -2), v3_scale(1, v3(xpWidth, barHeight, 1)), params->cameraPos, params->metresToPixels);
+    renderDrawRectCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_GREEN, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+
+    renderInfo = calculateRenderInfo(v3(startXp + halfXp, -2*barHeight, -2), v3_scale(1, v3(params->boardWidth, barHeight, 1)), params->cameraPos, params->metresToPixels);
+    renderDrawRectOutlineCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
 }
 
 void gameUpdateAndRender(void *params_) {
@@ -811,13 +857,16 @@ void gameUpdateAndRender(void *params_) {
     clearBufferAndBind(params->backbufferId, COLOR_BLACK);
     clearBufferAndBind(params->mainFrameBuffer.bufferId, COLOR_PINK);
     renderEnableDepthTest(&globalRenderGroup);
-    renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -4), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
+    renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -5), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
+
+    // drawAndUpdateParticleSystem(&params->particleSystem, params->dt, v3(0, 0, -4), v3(0, 0 ,0), params->cameraPos, params->metresToPixels, resolution);
     
+
     bool isPlayState = drawMenu(&params->menuInfo, params->longTermArena, gameButtons, 0, params->successSound, params->moveSound, params->dt, resolution, params->keyStates->mouseP);
     bool transitioning = updateTransitions(&params->transitionState, resolution, params->dt);
     if(!transitioning && isPlayState) {
         //if updating a transition don't update the game logic, just render the game board. 
-        if(params->createShape) {
+        if(params->createShape || !params->lifePoints) {
             params->currentShape.count = 0;
             bool retryLevel = !params->lifePoints;
             for (int i = 0; i < 4 && !retryLevel; ++i) {
@@ -826,6 +875,7 @@ void gameUpdateAndRender(void *params_) {
                 params->currentShape.coords[params->currentShape.count++] = v2(xAt, yAt);
                 V2 pos = v2(xAt, yAt);
                 if(getBoardState(params, pos) != BOARD_NULL) {
+                    //at the top of the board
                     retryLevel = true;
                     break;
                     //
@@ -834,7 +884,6 @@ void gameUpdateAndRender(void *params_) {
                 }
             }
             if(retryLevel) {
-                params->lifePoints = params->lifePointsMax;
                 setLevelTransition(params, params->currentBlockCount, params->currentLevelType);
             }
 
@@ -849,8 +898,6 @@ void gameUpdateAndRender(void *params_) {
                     TimerReturnInfo info = updateTimer(&extraShape->timer, params->dt);
                     if(info.finished) {
                         turnTimerOn(&extraShape->timer);
-                        
-
                         if(extraShape->onX) {
                             updateWindmillSide(params, extraShape->pos, extraShape->xMax, &extraShape->count, &extraShape->isOut, &extraShape->onX);
                         } else {
@@ -867,6 +914,7 @@ void gameUpdateAndRender(void *params_) {
 
     //Stil render when we are in a transition
     if(isPlayState) {
+        renderXPBarAndHearts(params, resolution);
         for(int boardY = 0; boardY < params->boardHeight; ++boardY) {
             for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
                 RenderInfo bgRenderInfo = calculateRenderInfo(v3(boardX, boardY, -3), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
@@ -905,7 +953,9 @@ void gameUpdateAndRender(void *params_) {
             }
         }
     }
+    
 
+    // outputText(params->font, 0, 400, -1, resolution, "hey˙  हिन् दी df ©˙ \n∆˚ ", rect2f(0, 0, resolution.x, resolution.y), COLOR_BLACK, 1, true);
    drawRenderGroup(&globalRenderGroup);
    
    easyOS_endFrame(resolution, screenDim, &params->dt, params->windowHandle, params->mainFrameBuffer.bufferId, params->backbufferId, params->renderbufferId, &params->lastTime, 1.0f / 60.0f);
@@ -926,8 +976,8 @@ int main(int argc, char *args[]) {
     float idealFrameTime = 1.0f / 60.0f;
 
     ////INIT FONTS
-    char *fontName = concat(globalExeBasePath, "/fonts/Roboto-Regular.ttf");//fonts/Merriweather-Regular.ttf");
-    Font mainFont = initFont(fontName, 32);
+    char *fontName = concat(globalExeBasePath, "/fonts/Khand-Regular.ttf");//Roboto-Regular.ttf");/);
+    Font mainFont = initFont(fontName, 128);
     ///
 
     Arena soundArena = createArena(Megabytes(200));
@@ -942,6 +992,9 @@ int main(int argc, char *args[]) {
     Texture *metalTex = findTextureAsset("elementMetal023.png");
     Texture *explosiveTex = findTextureAsset("elementExplosive049.png");
     Texture *boarderTex = findTextureAsset("elementMetal030.png");
+    Texture *heartFullTex = findTextureAsset("hud_heartFull.png");
+    Texture *heartEmptyTex = findTextureAsset("hud_heartEmpty.png");
+
     assert(metalTex);
     bool running = true;
       
@@ -949,14 +1002,39 @@ int main(int argc, char *args[]) {
     params.solidfyShapeSound = findSoundAsset("slate_sound.wav");
     params.successSound = findSoundAsset("Success2.wav");
     params.explosiveSound = findSoundAsset("explosion.wav");
-    
+    params.experiencePoints = 100;
+
+#if 0 //particle system in background. Was to distracting. 
+    particle_system_settings particleSet = InitParticlesSettings(PARTICLE_SYS_DEFAULT);
+    // pushParticleBitmap(&particleSet, findTextureAsset("leaf1.png"), "stone Tex");
+
+    particleSet.Loop = true;
+    //particleSet.offsetP = v3(0.000000, 0.000000, 0.200000);
+    particleSet.bitmapScale = 1.0f;
+    particleSet.posBias = rect2f(-10.000000, 10, 10.000000, 10);
+    particleSet.VelBias = rect2f(0.000000, -2.000000, 0.000000, -4.000000);
+    particleSet.angleBias = v2(0.000000, 6.280000);
+    particleSet.angleForce = v2(-3.000000, 3.000000);
+    particleSet.collidesWithFloor = false;
+    particleSet.pressureAffected = false;
+
+
+    InitParticleSystem(&params.particleSystem, &particleSet);
+    params.particleSystem.viewType = ORTHO_MATRIX;
+    setParticleLifeSpan(&params.particleSystem, 10.0f);
+    Reactivate(&params.particleSystem);
+    assert(params.particleSystem.Active);
+#endif
+
     params.moveSound = findSoundAsset("menuSound.wav");
+#if 0 //background sound
     params.backgroundSound = findSoundAsset("Illusionist Finale.wav");
 
     //Play and repeat background sound
     PlayingSound *sound = playSound(&soundArena, params.backgroundSound, 0, AUDIO_FOREGROUND);
     sound->nextSound = sound;
     //
+#endif
 
     params.soundArena = &soundArena;
     params.longTermArena = &longTermArena;
@@ -989,6 +1067,8 @@ int main(int argc, char *args[]) {
     params.metalTex = metalTex;
     params.explosiveTex = explosiveTex;
     params.boarderTex = boarderTex;
+    params.heartFullTex = heartFullTex;
+    params.heartEmptyTex = heartEmptyTex;
     params.bgTex = bgTex;
     params.lastTime = SDL_GetTicks();
     params.currentHotIndex = -1;

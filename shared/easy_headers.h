@@ -16,8 +16,9 @@ static GameButton gameButtons[BUTTON_COUNT];
 #include "sdl_audio.h"
 #include "easy_lex.h"
 #include "easy_render.h"
+// #include "easy_camera.h"
 
-// #include "../shared/easy_3d.h"
+// #include "easy_3d.h"
 #include "easy_utf8.h"
 #include "easy_font.h"
 #include "easy_timer.h"
@@ -29,6 +30,7 @@ static GameButton gameButtons[BUTTON_COUNT];
 //#include "easy_sdl_joystick.h"
 #include "easy_perlin.h"
 #include "easy_tweaks.h"
+#include "easy_particle_effects.h"
 #include "easy_os.h"
 #include "easy_animation.h"
 #include "easy_assets.h"

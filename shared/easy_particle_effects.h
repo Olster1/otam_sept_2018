@@ -32,8 +32,6 @@ struct particle
     float angle;
 
     Texture *bitmap;
-
-    GLBufferHandles renderHandle;
 };
 
 struct particle_cel {
@@ -133,7 +131,11 @@ inline void Reactivate(particle_system *System) {
     System->Active = true;
 }
 
-internal inline void drawAndUpdateParticleSystem(particle_system *System, float dt, V3 Origin, V3 Acceleration, V3 camPos, Matrix4 metresToPixels) {
+inline void setParticleLifeSpan(particle_system *partSys, float value) {
+    partSys->creationTimer.period = 1.0f  / value;
+}
+
+internal inline void drawAndUpdateParticleSystem(particle_system *System, float dt, V3 Origin, V3 Acceleration, V3 camPos, Matrix4 metresToPixels, V2 resolution) {
     if(System->Active) {
         float particleLifeSpan = 0;
         float GridScale = 0.4f;
@@ -145,9 +147,9 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
 
         Matrix4 screenMatrix;
         if(System->viewType == PERSPECTIVE_MATRIX) {
-            screenMatrix = projectionMatrixToScreen(bufferWidth, bufferHeight);
+            screenMatrix = projectionMatrixToScreen(resolution.x, resolution.y);
         } else if(System->viewType == ORTHO_MATRIX) {
-            screenMatrix = OrthoMatrixToScreen(bufferWidth, bufferHeight, 1);
+            screenMatrix = OrthoMatrixToScreen(resolution.x, resolution.y);
         }
 
         if(System->Set.type == PARTICLE_SYS_DEFAULT || System->Set.type == PARTICLE_SYS_SCALER) {        
@@ -381,9 +383,9 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
             RenderInfo renderInfo = calculateRenderInfo(v3_plus(Particle->P, Origin), v3(Particle->scale.x*Set->bitmapScale, Particle->scale.y*Set->bitmapScale, 0), camPos, metresToPixels);
 
             if(Bitmap) {
-                openGlTextureCentreDim(&Particle->renderHandle, Bitmap->id, renderInfo.pos, renderInfo.dim.xy, Color, Particle->angle, mat4(), 1, renderInfo.pvm, screenMatrix);    
+                renderTextureCentreDim(Bitmap, renderInfo.pos, renderInfo.dim.xy, Color, Particle->angle, mat4(), renderInfo.pvm, screenMatrix);    
             } else {
-                openGlDrawRing(&Particle->renderHandle, renderInfo.pos, renderInfo.dim.xy, Color, mat4(), 1, renderInfo.pvm, screenMatrix);                
+                //renderDrawRing(&Particle->renderHandle, renderInfo.pos, renderInfo.dim.xy, Color, mat4(), renderInfo.pvm, screenMatrix);                
             }
         }
         System->Set.LifeSpan -= dt;

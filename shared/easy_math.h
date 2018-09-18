@@ -252,6 +252,22 @@ V3 v3_scale(float a, V3 b) {
     V3 result = v3(a*b.x, a*b.y, a*b.z);
     return result;
 }
+
+V3 v3_negate(V3 b) {
+    V3 result = v3(-b.x, -b.y, -b.z);
+    return result;
+}
+
+V3 v3_crossProduct(V3 a, V3 b) {
+    V3 c = v3(0, 0, 0);
+
+    c.x = (a.y*b.z) - (a.z*b.y);
+    c.y = (a.z*b.x) - (a.x*b.z);
+    c.z = (a.x*b.y) - (a.y*b.x);
+
+    return c;
+}
+
 V4 v4_minus(V4 a, V4 b) {
     V4 result = {a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
     return result;
