@@ -258,7 +258,7 @@ void *getElement(Array_Dynamic *array, unsigned int absIndex) {
     
     void *elm = 0;
     PoolInfo info = getPoolInfo(array, absIndex);
-    if(info.pool && info.indexAt < (info.pool->indexAt) && index >= 0 && isElmValid(info.pool, info.indexAt)) {
+    if(info.pool && info.indexAt < (info.pool->indexAt) && info.indexAt >= 0 && isElmValid(info.pool, info.indexAt)) {
         
         elm = info.pool->memory + (info.indexAt*array->sizeofType);
     }

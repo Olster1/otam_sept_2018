@@ -35,9 +35,9 @@ FontSheet *createFontSheet(Font *font, int firstChar, int endChar)
     sheet->minText = firstChar;
     sheet->maxText = endChar;
     sheet->next = 0;
-    int bitmapW = FONT_SIZE;
-    int bitmapH = FONT_SIZE;
-    int numOfPixels = bitmapH*bitmapW;
+    const int bitmapW = FONT_SIZE;
+    const int bitmapH = FONT_SIZE;
+    const int numOfPixels = bitmapH*bitmapW;
     unsigned char temp_bitmap[numOfPixels]; //bakefontbitmap is one byte per pixel. 
     
     //TODO: use platform file io functions instead. 

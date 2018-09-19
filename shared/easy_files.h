@@ -293,10 +293,13 @@ void platformDeleteFile(char *fileName) {
 #ifdef __APPLE__ 
 #include <errno.h>
 #include <sys/stat.h> //for mkdir S_IRWXU
+#elif _WIN32
+#include <shlwapi.h>
 #endif
 
 bool platformCreateDirectory(char *fileName) {
     bool result = false;
+#ifdef __APPLE__
     DIR* dir = opendir(fileName);
     if (dir) {
         closedir(dir);
@@ -308,9 +311,17 @@ bool platformCreateDirectory(char *fileName) {
     } else {
         assert(!"something went wrong");
     }
+#elif _WIN32
+    if (CreateDirectory(fileName, NULL) == 0) {
+        result = true;
+    } else {
+        assert(!"couldn't create directory");
+    }
+#endif
     return result;
 
 }
+
 
 bool platformDoesDirectoryExist(char *fileName) {
     bool result = false;
@@ -321,7 +332,7 @@ bool platformDoesDirectoryExist(char *fileName) {
         closedir(dir);
     }
 #elif _WIN32
-    WIN32_FIND_DATAA fileFindData
+    WIN32_FIND_DATAA fileFindData;
     HANDLE dirHandle = FindFirstFileA(fileName, &fileFindData);
     if(dirHandle != INVALID_HANDLE_VALUE) { 
         result = true;
@@ -376,6 +387,22 @@ void platformCopyFile(char *fileName, char *copyDir) {
 
 }
 
+#ifdef _WIN32
+static HANDLE FindFirstFileInDir(char *dirName, WIN32_FIND_DATAA *fileFindData) {
+    char fileName[MAX_PATH] = "";
+    /* remove '..' sections in path name */
+    if (PathCanonicalizeA(fileName, dirName) == FALSE)
+        return INVALID_HANDLE_VALUE;
+    /* add directory separator + * to get files in the directory */
+    if (strlen(fileName) + 2 > MAX_PATH)
+        return INVALID_HANDLE_VALUE;
+    if (fileName[strlen(fileName)-1] != '/')
+        strcat(fileName, "/");
+    strcat(fileName, "*");
+    return FindFirstFileA(fileName, fileFindData);
+}
+#endif
+
 FileNameOfType getDirectoryFilesOfType_(char *dirName, char *copyDir, char **exts, int count, DirTypeOperation opType) { 
     FileNameOfType fileNames = {};
     #ifdef __APPLE__
@@ -383,9 +410,10 @@ FileNameOfType getDirectoryFilesOfType_(char *dirName, char *copyDir, char **ext
         if(directory) {
             struct dirent *dp = 0;
     #elif _WIN32
-        WIN32_FIND_DATAA fileFindData
-        HANDLE dirHandle = FindFirstFileA(fileName, &fileFindData);
+        WIN32_FIND_DATAA fileFindData;
+        HANDLE dirHandle = FindFirstFileInDir(dirName, &fileFindData);
         if(dirHandle != INVALID_HANDLE_VALUE) {
+            BOOL findResult = true;
             bool firstTurn = true;
     #else 
         assert(!"not implemented");
@@ -397,7 +425,6 @@ FileNameOfType getDirectoryFilesOfType_(char *dirName, char *copyDir, char **ext
                 if (dp) {
                     char *name = dp->d_name;
 #elif _WIN32
-                BOOL findResult = true;
                 if(!firstTurn) {
                     findResult = FindNextFileA(dirHandle, &fileFindData);
                 } else {
@@ -437,7 +464,13 @@ assert(!"not implemented");
                             } break;
                         }
                    }
+#if __APPLE__
                } while (dp);
+#elif _WIN32
+               } while (findResult);
+#else
+               assert(!"not implemented");
+#endif
 #if __APPLE__
             closedir(directory);
 #elif _WIN32
