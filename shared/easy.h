@@ -69,6 +69,7 @@ typedef struct {
 } Arena;
 
 Arena createArena(size_t size) {
+    
     Arena result = {};
     result.memory = calloc(size, 1);
     result.currentSize = 0;
