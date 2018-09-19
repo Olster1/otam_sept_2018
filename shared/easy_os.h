@@ -24,7 +24,7 @@ OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim) {
 #else 
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 #endif
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -276,13 +276,15 @@ AppKeyStates easyOS_processKeyStates(V2 resolution, V2 *screenDim, bool *running
 		    } break;
 		    case SDL_FINGERMOTION: {
 		        SDL_Log("Finger Motion");
-		    } break;
+		     } break;
 		    case SDL_FINGERDOWN: {
 		        SDL_Log("Finger Down");
-			} break;		        
+		    } break;
+		        
 		    case SDL_FINGERUP: {
 		        SDL_Log("Finger Up");
-		    } break;
+		        break;
+		    }
 		}
 		
 	    if (event.type == SDL_WINDOWEVENT) {

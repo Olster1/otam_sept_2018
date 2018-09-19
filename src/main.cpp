@@ -10,7 +10,6 @@
 #include <sdl.h>
 #include "SDL_syswm.h"
 #else 
-//NOTE : a global variable names index seems to be a defined function by sdl.h Newer Gcc picks this up as an error if wehere using it. 
 #include <SDL2/sdl.h>
 #include <SDL2/SDL_syswm.h>
 #endif

@@ -255,8 +255,8 @@ PoolInfo getPoolInfo(Array_Dynamic *array, int absIndex) {
 
 
 void *getElement(Array_Dynamic *array, unsigned int absIndex) {
+    
     void *elm = 0;
-    //TOdo: this was using index as a glogal  
     PoolInfo info = getPoolInfo(array, absIndex);
     if(info.pool && info.indexAt < (info.pool->indexAt) && info.indexAt >= 0 && isElmValid(info.pool, info.indexAt)) {
         

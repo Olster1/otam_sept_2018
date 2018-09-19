@@ -4,13 +4,6 @@
 
 #define PRINT_NUMBER_DRAW_CALLS 0
 
-#if !DESKTOP
-#define GL_TEXTURE_BUFFER                 0x8C2A
-#define RENDER_TEXTURE_BUFFER_ENUM GL_TEXTURE_BUFFER
-#else 
-#define RENDER_TEXTURE_BUFFER_ENUM GL_TEXTURE_BUFFER
-#endif
-
 #if !defined arrayCount
 #define arrayCount(arg) (sizeof(arg) / sizeof(arg[0])) 
 #endif
@@ -868,7 +861,7 @@ void drawVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsig
     glActiveTexture(GL_TEXTURE0);
     renderCheckError();
     
-    glBindTexture(RENDER_TEXTURE_BUFFER_ENUM, PVMId); 
+    glBindTexture(GL_TEXTURE_BUFFER, PVMId); 
     renderCheckError();
     
     GLint colorUniform = getUniformFromProgram(program, "ColorArray").handle;
@@ -880,7 +873,7 @@ void drawVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsig
     glActiveTexture(GL_TEXTURE1);
     renderCheckError();
     
-    glBindTexture(RENDER_TEXTURE_BUFFER_ENUM, colorId); 
+    glBindTexture(GL_TEXTURE_BUFFER, colorId); 
     renderCheckError();
 
     if(uvsId) {
@@ -892,7 +885,7 @@ void drawVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsig
         glActiveTexture(GL_TEXTURE2);
         renderCheckError();
         
-        glBindTexture(RENDER_TEXTURE_BUFFER_ENUM, uvsId); 
+        glBindTexture(GL_TEXTURE_BUFFER, uvsId); 
         renderCheckError();
     }
     
@@ -1199,17 +1192,17 @@ BufferStorage createBufferStorage(InfiniteAlloc *array) {
     glGenBuffers(1, &result.tbo);
     renderCheckError();
     // printf("TBO: %d\n", result.tbo);
-    glBindBuffer(RENDER_TEXTURE_BUFFER_ENUM, result.tbo);
+    glBindBuffer(GL_TEXTURE_BUFFER, result.tbo);
     renderCheckError();
-    glBufferData(RENDER_TEXTURE_BUFFER_ENUM, array->sizeOfMember*array->count, array->memory, GL_DYNAMIC_DRAW);
+    glBufferData(GL_TEXTURE_BUFFER, array->sizeOfMember*array->count, array->memory, GL_DYNAMIC_DRAW);
     renderCheckError();
     
     glGenTextures(1, &result.buffer);
     renderCheckError();
-    glBindTexture(RENDER_TEXTURE_BUFFER_ENUM, result.buffer);
+    glBindTexture(GL_TEXTURE_BUFFER, result.buffer);
     renderCheckError();
     
-    glTexBuffer(RENDER_TEXTURE_BUFFER_ENUM, GL_RGBA32F, result.tbo);
+    glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, result.tbo);
     renderCheckError();
     
     return result;
