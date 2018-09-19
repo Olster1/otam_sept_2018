@@ -1091,4 +1091,5 @@ int main(int argc, char *args[]) {
     }
     easyOS_endProgram(&appInfo);
 	}
+    return 0;
 }

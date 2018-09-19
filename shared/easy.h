@@ -254,7 +254,7 @@ void splice(InputBuffer *buffer, char *string, bool addString) { //if false will
     
     while(*at) {
         
-        if(addString > 0) { //adding
+        if(addString) { //adding
             
             if(buffer->length < (sizeof(buffer->chars) - 1)) {
                 
