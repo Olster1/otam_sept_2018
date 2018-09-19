@@ -10,6 +10,7 @@
 #include <sdl.h>
 #include "SDL_syswm.h"
 #else 
+//NOTE : a global variable names index seems to be a defined function by sdl.h Newer Gcc picks this up as an error if wehere using it. 
 #include <SDL2/sdl.h>
 #include <SDL2/SDL_syswm.h>
 #endif
@@ -20,26 +21,6 @@
 
 #include "easy_transition.h"
 #include "menu.h"
-
-int EventFilter(void* userdata, SDL_Event* event)
-{
-    switch (event->type)
-    {
-        case SDL_FINGERMOTION:
-            SDL_Log("Finger Motion");
-            return 0;
-            
-        case SDL_FINGERDOWN:
-            SDL_Log("Finger Down");
-            return 0;
-            
-        case SDL_FINGERUP:
-            SDL_Log("Finger Up");
-            return 0;
-    }
-    
-    return 1;
-}
 
 typedef enum {
     BOARD_NULL,
