@@ -1,8 +1,16 @@
 #define PI32 3.14159265359
-#define NEAR_CLIP_PLANE 0.1;
-#define FAR_CLIP_PLANE 10000.0f
+#define NEAR_CLIP_PLANE -RENDER_HANDNESS*0.1;
+#define FAR_CLIP_PLANE -RENDER_HANDNESS*10000.0f
+
 
 #define PRINT_NUMBER_DRAW_CALLS 0
+
+#if !DESKTOP
+#define GL_TEXTURE_BUFFER                 0x8C2A
+#define RENDER_TEXTURE_BUFFER_ENUM GL_TEXTURE_BUFFER
+#else 
+#define RENDER_TEXTURE_BUFFER_ENUM GL_TEXTURE_BUFFER
+#endif
 
 #if !defined arrayCount
 #define arrayCount(arg) (sizeof(arg) / sizeof(arg[0])) 
@@ -55,6 +63,7 @@ typedef struct {
 } RenderProgram;
 
 RenderProgram lineProgram;
+RenderProgram phongProgram;
 RenderProgram rectangleProgram;
 RenderProgram rectangleNoGradProgram;
 RenderProgram textureProgram;
@@ -107,6 +116,8 @@ typedef struct {
         };
     };
 } Vertex;
+
+#define getOffsetForVertex(attrib) (void *)(&(((Vertex *)(0))->attrib))
 
 typedef enum {
     SHAPE_RECTANGLE,
@@ -325,6 +336,9 @@ void renderCheckError_(int lineNumber, char *fileName) {
                 break;
             }
         }
+        if(!result.valid) {
+            printf("%s\n", name);
+        }
         assert(result.valid);
         return result;
     }
@@ -447,7 +461,7 @@ RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentSh
         Matrix4 result = {{
                 a1,  0,  0,  0,
                 0,  b1,  0,  0,
-                c1,  d1,  -((farClip + nearClip)/(farClip - nearClip)),  -1, 
+                c1,  d1,  -((farClip + nearClip)/(farClip - nearClip)),  RENDER_HANDNESS, 
                 0, 0,  (-2*nearClip*farClip)/(farClip - nearClip),  0
             }};
         
@@ -465,7 +479,7 @@ RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentSh
         Matrix4 result = {{
                 a,  0,  0,  0,
                 0,  b,  0,  0,
-                0,  0,  -((farClip + nearClip)/(farClip - nearClip)),  -1, 
+                0,  0,  -((farClip + nearClip)/(farClip - nearClip)),  RENDER_HANDNESS, 
                 0, 0,  (-2*nearClip*farClip)/(farClip - nearClip),  0
             }};
         
@@ -583,6 +597,9 @@ void enableRenderer(int width, int height) {
     char *fragShaderRing = concat(append, (char *)"frag_shader_ring.c");
     char *fragShaderShadow = concat(append, (char *)"frag_shader_shadow.c");
     char *fragShaderBlur = concat(append, (char *)"fragment_shader_blur.c");
+
+    char *vertPhong = concat(append, (char *)"vertex_model.c");
+    char *fragPhong = concat(append, (char *)"frag_model.c");
     
     // rectangleNoGradProgram  = createProgramFromFile(vertShaderRect, fragShaderRectNoGrad);
     // renderCheckError();
@@ -591,6 +608,9 @@ void enableRenderer(int width, int height) {
     // renderCheckError();
     
     rectangleProgram = createProgramFromFile(vertShaderRect, fragShaderRect);
+    renderCheckError();
+
+    phongProgram = createProgramFromFile(vertPhong, fragPhong);
     renderCheckError();
     
     textureProgram = createProgramFromFile(vertShaderTex, fragShaderTex);
@@ -861,7 +881,7 @@ void drawVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsig
     glActiveTexture(GL_TEXTURE0);
     renderCheckError();
     
-    glBindTexture(GL_TEXTURE_BUFFER, PVMId); 
+    glBindTexture(RENDER_TEXTURE_BUFFER_ENUM, PVMId); 
     renderCheckError();
     
     GLint colorUniform = getUniformFromProgram(program, "ColorArray").handle;
@@ -873,7 +893,7 @@ void drawVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsig
     glActiveTexture(GL_TEXTURE1);
     renderCheckError();
     
-    glBindTexture(GL_TEXTURE_BUFFER, colorId); 
+    glBindTexture(RENDER_TEXTURE_BUFFER_ENUM, colorId); 
     renderCheckError();
 
     if(uvsId) {
@@ -885,7 +905,7 @@ void drawVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsig
         glActiveTexture(GL_TEXTURE2);
         renderCheckError();
         
-        glBindTexture(GL_TEXTURE_BUFFER, uvsId); 
+        glBindTexture(RENDER_TEXTURE_BUFFER_ENUM, uvsId); 
         renderCheckError();
     }
     
@@ -1192,17 +1212,17 @@ BufferStorage createBufferStorage(InfiniteAlloc *array) {
     glGenBuffers(1, &result.tbo);
     renderCheckError();
     // printf("TBO: %d\n", result.tbo);
-    glBindBuffer(GL_TEXTURE_BUFFER, result.tbo);
+    glBindBuffer(RENDER_TEXTURE_BUFFER_ENUM, result.tbo);
     renderCheckError();
-    glBufferData(GL_TEXTURE_BUFFER, array->sizeOfMember*array->count, array->memory, GL_DYNAMIC_DRAW);
+    glBufferData(RENDER_TEXTURE_BUFFER_ENUM, array->sizeOfMember*array->count, array->memory, GL_DYNAMIC_DRAW);
     renderCheckError();
     
     glGenTextures(1, &result.buffer);
     renderCheckError();
-    glBindTexture(GL_TEXTURE_BUFFER, result.buffer);
+    glBindTexture(RENDER_TEXTURE_BUFFER_ENUM, result.buffer);
     renderCheckError();
     
-    glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, result.tbo);
+    glTexBuffer(RENDER_TEXTURE_BUFFER_ENUM, GL_RGBA32F, result.tbo);
     renderCheckError();
     
     return result;

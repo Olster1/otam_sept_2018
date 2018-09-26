@@ -613,6 +613,9 @@ V2 mat2_project(Matrix2 a, V2 b) {
 
 typedef union {
     struct {
+        float E_[16];
+    };
+    struct {
         float E[4][4];
     };
     struct {
@@ -633,6 +636,108 @@ Matrix4 mat4() {
             0, 0, 1, 0,
             0, 0, 0, 1
         }};
+    return result;
+}
+
+typedef union {
+    union {
+        struct {
+            float E[4];
+        };
+        struct {
+            float r, i, j, k;
+        };
+    };
+} Quaternion;
+
+Quaternion identityQuaternion() {
+    Quaternion result = {};
+    result.r = 1;
+
+    return result;
+}
+
+Matrix4 quaternionToMatrix(Quaternion q) {
+   Matrix4 result = mat4();
+
+   result.E_[0] = 1 - (2*q.j*q.j + 2*q.k*q.k);
+   result.E_[4] = 2*q.i*q.j + 2*q.k*q.r;
+   result.E_[8] = 2*q.i*q.k - 2*q.j*q.r;
+   
+   result.E_[1] = 2*q.i*q.j - 2*q.k*q.r;
+   result.E_[5] = 1 - (2*q.i*q.i  + 2*q.k*q.k);
+   result.E_[9] = 2*q.j*q.k + 2*q.i*q.r;
+
+   result.E_[2] = 2*q.i*q.k + 2*q.j*q.r;
+   result.E_[6] = 2*q.j*q.k - 2*q.i*q.r;
+   result.E_[10] = 1 - (2*q.i*q.i  + 2*q.j*q.j);
+   
+    return result;
+
+}
+
+Quaternion quaternion(float r, float i, float j, float k) {
+    Quaternion result = {};
+    result.r = r;
+    result.i = i;
+    result.j = j;
+    result.k = k;
+
+    return result;   
+}
+
+Quaternion quaternion_mult(Quaternion multiplier, Quaternion q){
+    Quaternion result = {};
+
+    result.r = q.r*multiplier.r - q.i*multiplier.i -
+        q.j*multiplier.j - q.k*multiplier.k;
+    result.i = q.r*multiplier.i + q.i*multiplier.r +
+        q.j*multiplier.k - q.k*multiplier.j;
+    result.j = q.r*multiplier.j + q.j*multiplier.r +
+        q.k*multiplier.i - q.i*multiplier.k;
+    result.k = q.r*multiplier.k + q.k*multiplier.r +
+        q.i*multiplier.j - q.j*multiplier.i;
+
+    return result;
+}
+
+Quaternion addScaledVectorToQuaternion(Quaternion q_, V3 vector, float timeScale) {
+    Quaternion result = q_;
+    Quaternion q = quaternion(0,
+        vector.x * timeScale,
+        vector.y * timeScale,
+        vector.z * timeScale);
+
+    q = quaternion_mult(q_, q);
+    q.r += q.r * 0.5f;
+    q.i += q.i * 0.5f;
+    q.j += q.j * 0.5f;
+    q.k += q.k * 0.5f;
+
+    return q;
+}
+
+Quaternion eulerAnglesToQuaternion(float y, float x, float z) {
+    Quaternion result = {};
+    float h = y / 2;
+    float p = x / 2;
+    float b = z / 2;
+
+    result.r = cos(h)*cos(p)*cos(b) + sin(h)*sin(p)*sin(b);
+    result.i = cos(h)*sin(p)*cos(b) + sin(h)*cos(p)*sin(b);
+    result.j = sin(h)*cos(p)*cos(b) - cos(h)*sin(p)*sin(b);
+    result.k = cos(h)*cos(p)*sin(b) - sin(h)*sin(p)*cos(b);
+
+    return result;
+}
+
+Matrix4 mat4_setOrientationAndPos(Quaternion q, V3 pos) {
+    Matrix4 result = quaternionToMatrix(q);
+
+    result.E_[12] = pos.x;
+    result.E_[13] = pos.y;
+    result.E_[14] = pos.z;
+
     return result;
 }
 
@@ -677,6 +782,7 @@ Matrix4 mat4_transpose(Matrix4 val) {
 }
 
 Matrix4 mat4_axisAngle(V3 axis, float angle) {
+    //NOTE: this is around the wrong way I think, should be transposed
     axis = normalizeV3(axis);
     float x = axis.x;
     float y = axis.y;

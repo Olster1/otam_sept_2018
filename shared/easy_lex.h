@@ -95,6 +95,14 @@ char *lexEatWhiteSpace(char *at) {
 	}
 	return at;
 }
+
+char *lexEatWhiteSpaceExceptNewLine(char *at) {
+	while(*at == ' ' || *at == '\t') {
+		at++;		
+	}
+	return at;
+}
+
 char *lexEatSpaces(char *at) {
 	while(*at == ' ') {
 		at++;		

@@ -6,6 +6,7 @@ typedef struct {
 Timer initTimer(float period) {
     Timer result = {};
     result.period = period;
+    assert(result.value == 0.0f);
     return result;
 }
 
@@ -29,6 +30,7 @@ float getTimerValue01(Timer *timer) {
 typedef struct {
     bool finished; 
     float canonicalVal;
+    float residue; //left over time if we hit the end. 
 } TimerReturnInfo;
 
 TimerReturnInfo updateTimer(Timer *timer, float dt) {
@@ -40,6 +42,8 @@ TimerReturnInfo updateTimer(Timer *timer, float dt) {
             timer->period = defaultPeriod;
         }
         if((timer->value / timer->period) >= 1.0f) {
+            returnInfo.residue = timer->value - timer->period;
+            assert(returnInfo.residue >= 0.0f);
             timer->value = -1; //turn timer off
             returnInfo.canonicalVal = 1; //anyone using this value afterwards wants to know that it finished
             returnInfo.finished = true;

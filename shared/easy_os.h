@@ -24,7 +24,7 @@ OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim) {
 #else 
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
 #endif
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -243,6 +243,8 @@ AppKeyStates easyOS_processKeyStates(V2 resolution, V2 *screenDim, bool *running
 	bool mouseWasDownRight = isDown(gameButtons, BUTTON_RIGHT_MOUSE);
 	bool leftArrowWasDown = isDown(gameButtons, BUTTON_LEFT);
 	bool rightArrowWasDown = isDown(gameButtons, BUTTON_RIGHT);
+	bool upArrowWasDown = isDown(gameButtons, BUTTON_UP);
+	bool downArrowWasDown = isDown(gameButtons, BUTTON_DOWN);
 	bool shiftWasDown = isDown(gameButtons, BUTTON_SHIFT);
 	bool commandWasDown = isDown(gameButtons, BUTTON_COMMAND);
 	bool spaceWasDown = isDown(gameButtons, BUTTON_SPACE);
@@ -275,16 +277,14 @@ AppKeyStates easyOS_processKeyStates(V2 resolution, V2 *screenDim, bool *running
 		        SDL_Log("SDL_APP_WILLENTERFOREGROUND");
 		    } break;
 		    case SDL_FINGERMOTION: {
-		        SDL_Log("Finger Motion");
-		     } break;
-		    case SDL_FINGERDOWN: {
-		        SDL_Log("Finger Down");
+		        // SDL_Log("Finger Motion");
 		    } break;
-		        
+		    case SDL_FINGERDOWN: {
+		        // SDL_Log("Finger Down");
+			} break;		        
 		    case SDL_FINGERUP: {
-		        SDL_Log("Finger Up");
-		        break;
-		    }
+		        // SDL_Log("Finger Up");
+		    } break;
 		}
 		
 	    if (event.type == SDL_WINDOWEVENT) {
@@ -317,13 +317,13 @@ AppKeyStates easyOS_processKeyStates(V2 resolution, V2 *screenDim, bool *running
 	                buttonType = BUTTON_SPACE;
 	            } break;
 	            case SDLK_UP: {
-	                buttonType = BUTTON_UP;
+	                // buttonType = BUTTON_UP;
 	            } break;
 	            case SDLK_ESCAPE: {
 	                buttonType = BUTTON_ESCAPE;
 	            } break;
 	            case SDLK_DOWN: {
-	                buttonType = BUTTON_DOWN;
+	                // buttonType = BUTTON_DOWN;
 	            } break;
 	            case SDLK_1: {
 	                buttonType = BUTTON_1;
@@ -374,11 +374,16 @@ AppKeyStates easyOS_processKeyStates(V2 resolution, V2 *screenDim, bool *running
 
 	bool leftArrowIsDown = keystates[SDL_SCANCODE_LEFT];
 	bool rightArrowIsDown = keystates[SDL_SCANCODE_RIGHT];
+	bool upArrowIsDown = keystates[SDL_SCANCODE_UP];
+	bool downArrowIsDown = keystates[SDL_SCANCODE_DOWN];
+
 	bool shiftIsDown = keystates[SDL_SCANCODE_LSHIFT];
 	bool commandIsDown = keystates[SDL_SCANCODE_LGUI];
 	
 	sdlProcessGameKey(&gameButtons[BUTTON_LEFT], leftArrowIsDown, leftArrowWasDown == leftArrowIsDown);
 	sdlProcessGameKey(&gameButtons[BUTTON_RIGHT], rightArrowIsDown, rightArrowWasDown == rightArrowIsDown);
+	sdlProcessGameKey(&gameButtons[BUTTON_DOWN], downArrowIsDown, downArrowWasDown == downArrowIsDown);
+	sdlProcessGameKey(&gameButtons[BUTTON_UP], upArrowIsDown, upArrowWasDown == upArrowIsDown);
 	sdlProcessGameKey(&gameButtons[BUTTON_SHIFT], shiftIsDown, shiftWasDown == shiftIsDown);
 	sdlProcessGameKey(&gameButtons[BUTTON_COMMAND], commandIsDown, commandWasDown == commandIsDown);
 

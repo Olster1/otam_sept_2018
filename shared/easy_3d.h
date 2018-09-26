@@ -2,7 +2,8 @@ typedef struct {
     GLuint vertices;
     GLuint indexes;
     int facesCount;
-    GlProgram *prog;
+    RenderProgram *prog;
+    VaoHandle vaoHandle;
 } Mesh;
 
 typedef enum {
@@ -290,7 +291,7 @@ Mesh loadObjFile(char *fileName) {
                     }
                     
                 } else if(mode == VERTEX_NULL) {
-                    printf("%s\n", "NO VERTEX MODE SELECTED");
+                    // printf("%s\n", "NO VERTEX MODE SELECTED");
                 }
             } break;
             case LETTER: {
@@ -303,6 +304,7 @@ Mesh loadObjFile(char *fileName) {
                 } else if(stringsMatchN(token->at, token->length, (char *)"vt", 2)) {
                     mode = VERTEX_TEX_UV;
                 } else {
+                    // printf("VERTEX MODE NOT SUPPORTED: %.*s\n", token->length, token->at);
                     mode = VERTEX_NULL;
                 }
             } break;
@@ -312,53 +314,89 @@ Mesh loadObjFile(char *fileName) {
         }
     }
     
-    
+    glGenVertexArrays(1, &result.vaoHandle.vaoHandle);
+    renderCheckError();
+    glBindVertexArray(result.vaoHandle.vaoHandle);
+    renderCheckError();
+
     assert(vertexNormalCount == vertexPosCount);
     
-    glGenBuffers(1, &result.vertices);
-    glBindBuffer(GL_ARRAY_BUFFER, result.vertices);
+    GLuint vertices;
+    glGenBuffers(1, &vertices);
+    renderCheckError();
+    glBindBuffer(GL_ARRAY_BUFFER, vertices);
+    renderCheckError();
     
     glBufferData(GL_ARRAY_BUFFER, vertexCount*sizeof(Vertex), finalInfo.data, GL_STATIC_DRAW);
-    
-    glGenBuffers(1, &result.indexes);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, result.indexes);
+    renderCheckError();
+        
+    GLuint indexes;
+    glGenBuffers(1, &indexes);
+    renderCheckError();
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexes);
+    renderCheckError();
     
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, vertexCount*sizeof(unsigned int), indexData, GL_STATIC_DRAW);
+    renderCheckError();
+    
+    glBindVertexArray(0);
+    renderCheckError();
+    
+    // glDeleteBuffers(1, &vertices);
+    // glDeleteBuffers(1, &indexes);
     
     result.facesCount = faceCount;
     return result;
 }
 
-void renderModel(Mesh *mesh, GLuint vertexAttrib, GLuint normalAttrib, 
-                 Matrix4 modelMatrix, GLuint modelUniform, 
-                 Matrix4 viewMatrix, GLuint viewUniform, 
-                 Matrix4 perspectiveMatrix, GLuint perspectiveUniform, V3 pos, GLuint posUniform) {
+void renderModel(Mesh *mesh,
+                 Matrix4 modelMatrix, 
+                 Matrix4 viewMatrix,
+                 Matrix4 perspectiveMatrix, 
+                 RenderProgram *program) {
     
-    GLenum err;
-    glUseProgram(mesh->prog->glProgram); //INVALID OPENARTION 
-    glUniformMatrix4fv(modelUniform, 1, GL_FALSE, modelMatrix.val);
-    glUniformMatrix4fv(viewUniform, 1, GL_FALSE, viewMatrix.val);
-    glUniformMatrix4fv(perspectiveUniform, 1, GL_FALSE, perspectiveMatrix.val);
-    glUniform3fv(posUniform, 1, (float *)(&pos));
-    
-    //NOTE(Oliver): Here we say use these 
-    glBindBuffer(GL_ARRAY_BUFFER, mesh->vertices);
-    
-    
-    //NOTE(Oliver): Telling opengl how to interpret the data we sent it from the BufferData call.
-    glEnableVertexAttribArray(vertexAttrib);  //NOTE(Oliver): this is an 'in' attribute in the _vertex_ shader
-    glVertexAttribPointer(vertexAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0); 
-    
-    
-    glEnableVertexAttribArray(normalAttrib);
-    glVertexAttribPointer(normalAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (u8 *)(0) + sizeof(float)*3);
-    
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->indexes);
-    glDrawElements(GL_TRIANGLES, mesh->facesCount*3, GL_UNSIGNED_INT, 0); //this is the number or verticies for the count. 
-    
-    glUseProgram(0);
-}
+    glUseProgram(program->glProgram);
+    renderCheckError();
 
-void releaseProgram(GlProgram program) {
-    assert(!"not implemented");    
+    assert(mesh->vaoHandle.vaoHandle);
+    glBindVertexArray(mesh->vaoHandle.vaoHandle);
+    renderCheckError();
+
+    GLuint modelUniform = getUniformFromProgram(program, "model").handle; 
+    assert(modelUniform);
+    GLuint viewUniform = getUniformFromProgram(program, "view").handle; 
+    assert(viewUniform);
+    GLuint perspectiveUniform = getUniformFromProgram(program, "perspective").handle; 
+    // assert(perspectiveUniform);
+
+    glUniformMatrix4fv(modelUniform, 1, GL_FALSE, modelMatrix.val);
+    renderCheckError();
+    glUniformMatrix4fv(viewUniform, 1, GL_FALSE, viewMatrix.val);
+    renderCheckError();
+    glUniformMatrix4fv(perspectiveUniform, 1, GL_FALSE, perspectiveMatrix.val);
+    renderCheckError();
+    
+    GLuint vertexAttrib = getAttribFromProgram(program, "vertex").handle; 
+    // assert(vertexAttrib);
+    // GLuint normalAttrib = getAttribFromProgram(program, "normal").handle; 
+    // assert(normalAttrib);
+
+    glEnableVertexAttribArray(vertexAttrib);  
+    renderCheckError();
+    glVertexAttribPointer(vertexAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), getOffsetForVertex(position)); 
+    renderCheckError();
+    
+    // glEnableVertexAttribArray(normalAttrib);
+    // renderCheckError();
+    // glVertexAttribPointer(normalAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), getOffsetForVertex(normal));
+    // renderCheckError();
+    
+    glDrawElements(GL_TRIANGLES, mesh->facesCount*3, GL_UNSIGNED_INT, 0); //this is the number or verticies for the count. 
+    renderCheckError();
+        
+    glBindVertexArray(0);
+    renderCheckError();
+
+    glUseProgram(0);
+    renderCheckError();
 }

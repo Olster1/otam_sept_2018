@@ -226,13 +226,27 @@ InfiniteAlloc getDataObjects(EasyTokenizer *tokenizer) {
     return types;
 }
 
+static inline float easyText_getIntOrFloat(DataObject obj) {
+    float a = 0;
+    if(obj.type == VAR_FLOAT) {
+        a = obj.floatVal;
+    } else {
+        assert(obj.type == VAR_INT);
+        a = obj.intVal;
+    }
+    return a;
+}
+
 V2 buildV2FromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
     *data = getDataObjects(tokenizer);
     DataObject *objs = (DataObject *)data->memory;
-    assert(objs[0].type == VAR_FLOAT);
-    assert(objs[1].type == VAR_FLOAT);
+    assert(objs[0].type == VAR_FLOAT || objs[0].type == VAR_INT);
+    assert(objs[1].type == VAR_FLOAT || objs[0].type == VAR_INT);
 
-    V2 result = v2(objs[0].floatVal, objs[1].floatVal);
+    float a = easyText_getIntOrFloat(objs[0]);
+    float b = easyText_getIntOrFloat(objs[1]);
+
+    V2 result = v2(a, b);
     return result;
 }
 
