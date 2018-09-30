@@ -340,6 +340,9 @@ AppKeyStates easyOS_processKeyStates(V2 resolution, V2 *screenDim, bool *running
 	            case SDLK_z: {
 	                buttonType = BUTTON_Z;
 	            } break;
+	            case SDLK_r: {
+	                buttonType = BUTTON_R;
+	            } break;
 	            case SDLK_LSHIFT: {
 	                //buttonType = BUTTON_SHIFT;
 	            } break;

@@ -180,6 +180,12 @@ InfiniteAlloc getDataObjects(EasyTokenizer *tokenizer) {
                 data.type = VAR_INT;
                 char charBuffer[256] = {};
                 char *endptr;
+                // int negative = 1;
+                // chat *at = token.at;
+                // if(*at == '-') {  
+                //     negative = -1;
+                //     at++;
+                // }
                 unsigned long value = strtoul(nullTerminateBuffer(charBuffer, token.at, token.size), &endptr, 10);
                 data.intVal = value;
                 addElementInifinteAlloc_(&types, &data);
@@ -232,7 +238,7 @@ static inline float easyText_getIntOrFloat(DataObject obj) {
         a = obj.floatVal;
     } else {
         assert(obj.type == VAR_INT);
-        a = obj.intVal;
+        a = (int)obj.intVal;
     }
     return a;
 }

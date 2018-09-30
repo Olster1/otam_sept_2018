@@ -29,9 +29,28 @@ typedef enum {
     BOARD_INVALID, //For out of bounds 
 } BoardState;
 
+typedef enum {
+    BOARD_VAL_NULL,
+    BOARD_VAL_OLD,
+    BOARD_VAL_ALWAYS,
+    BOARD_VAL_SHAPE0,
+    BOARD_VAL_SHAPE1,
+    BOARD_VAL_SHAPE2,
+    BOARD_VAL_SHAPE3,
+    BOARD_VAL_DYNAMIC, //this is for the obstacles windmill 
+    BOARD_VAL_TRANSIENT, //this isn't used for anything, just to make it so we aren't using the other ones. 
+} BoardValType;
+
+typedef struct {
+    int id;
+
+    V2 pos;
+    BoardValType type; //this is used to keep the images consistent;
+} FitrisBlock;
+
 #define MAX_SHAPE_COUNT 16
 typedef struct {
-    V2 coords[MAX_SHAPE_COUNT];
+    FitrisBlock blocks[MAX_SHAPE_COUNT];
     int count;
     bool valid;
 
@@ -70,20 +89,10 @@ typedef struct {
 
     int count;
 
+    bool timeAffected; //this is if it slows down when the player as grabbed the block 
+
     int max;
 } ExtraShape;
-
-typedef enum {
-    BOARD_VAL_NULL,
-    BOARD_VAL_OLD,
-    BOARD_VAL_ALWAYS,
-    BOARD_VAL_SHAPE0,
-    BOARD_VAL_SHAPE1,
-    BOARD_VAL_SHAPE2,
-    BOARD_VAL_SHAPE3,
-    BOARD_VAL_DYNAMIC, //this is for the obstacles windmill 
-    BOARD_VAL_TRANSIENT, //this isn't used for anything, just to make it so we aren't using the other ones. 
-} BoardValType;
 
 typedef struct {
     BoardValType type;
@@ -100,10 +109,26 @@ typedef struct {
 FUNC(LEVEL_NULL) \
 FUNC(LEVEL_0) \
 FUNC(LEVEL_1) \
-FUNC(LEVEL_COUNT) \
 FUNC(LEVEL_2) \
 FUNC(LEVEL_3) \
 FUNC(LEVEL_4) \
+FUNC(LEVEL_5) \
+FUNC(LEVEL_6) \
+FUNC(LEVEL_7) \
+FUNC(LEVEL_8) \
+FUNC(LEVEL_9) \
+FUNC(LEVEL_10) \
+FUNC(LEVEL_11) \
+FUNC(LEVEL_12) \
+FUNC(LEVEL_13) \
+FUNC(LEVEL_14) \
+FUNC(LEVEL_15) \
+FUNC(LEVEL_16) \
+FUNC(LEVEL_17) \
+FUNC(LEVEL_18) \
+FUNC(LEVEL_19) \
+FUNC(LEVEL_20) \
+FUNC(LEVEL_COUNT) \
 
 typedef enum {
     LEVEL_TYPE(ENUM)
@@ -126,6 +151,7 @@ typedef struct {
     Texture *boarderTex;
     Texture *heartEmptyTex;
     Texture *heartFullTex;
+    Texture *coinTex;
 
     Texture *alienTex[4];
 
@@ -137,6 +163,8 @@ typedef struct {
 
     TransitionState transitionState;
 
+    Timer levelNameTimer;
+
     int lifePoints;
     int lifePointsMax;
     bool wasHitByExplosive; 
@@ -147,8 +175,11 @@ typedef struct {
     bool createShape;
 
     LevelType currentLevelType;
+    char *levelNames[LEVEL_COUNT];
 
     Timer moveTimer;
+
+    float moveTime;
 
     int currentHotIndex;
 
@@ -311,13 +342,57 @@ V2 parseGetBoardDim(char *at) {
                 parsing = false;
             } break;
             default: {
-                xAt++;
+                //Withou this ist seems to only cause a bug on the last line of the baord
+                if(*at != '/') {
+                    xAt++;
+                }
                 at++;
             }
         }
     }   
     result.y = yAt;
     return result;
+}
+
+void loadLevelNames(FrameParams *params) {
+    char *c = concat(globalExeBasePath, "levels/level_names.txt");
+    FileContents contents = getFileContentsNullTerminate(c);
+    
+    assert(contents.memory);
+    assert(contents.valid);
+
+    free(c);
+
+    char **namePtr = 0;
+    EasyTokenizer tokenizer = lexBeginParsing((char *)contents.memory, true);
+    bool parsing = true;
+
+    for(int i = 1; i < LEVEL_COUNT; ++i) {
+        params->levelNames[i] = "Name Not Set!";
+    }
+
+    while(parsing) {
+        EasyToken token = lexGetNextToken(&tokenizer);
+        InfiniteAlloc data = {};
+        switch(token.type) {
+            case TOKEN_NULL_TERMINATOR: {
+                parsing = false;
+            } break;
+            case TOKEN_INTEGER: {
+                char charBuffer[256] = {};
+                nullTerminateBuffer(charBuffer, token.at, token.size);
+                int indexAt = atoi(charBuffer);
+                namePtr = params->levelNames + indexAt;
+            } break;
+            case TOKEN_STRING: {
+                assert(namePtr);
+                *namePtr = nullTerminate(token.at, token.size);
+            } break;
+            default: {
+
+            }
+        }
+    }
 }
 
 //finds a shape from an id. Used for level loading 
@@ -359,7 +434,9 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
     int boardHeight = 0;
     LevelType levelType = LEVEL_NULL;
     bool hasBgImage = false;
+    bool hasLifePoints = false;
     bool parsing = true;
+    bool hasLevelName = true;
     while(parsing) {
         EasyToken token = lexGetNextToken(&tokenizer);
         InfiniteAlloc data = {};
@@ -379,13 +456,6 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                 }
 
                 if(isLevelData) {
-                    if(stringsMatchNullN("type", token.at, token.size)) {
-                        char *name = getStringFromDataObjects(&data, &tokenizer);
-                        int typeAsInt = findEnumValue(name, LevelTypeStrings, arrayCount(LevelTypeStrings));
-                        assert(typeAsInt >= 0);
-                        levelType = (LevelType)typeAsInt;
-                        assert(levelType == levelTypeIn);
-                    }
                     if(stringsMatchNullN("backgroundImage", token.at, token.size)) {
                         char *name = getStringFromDataObjects(&data, &tokenizer);
                         params->bgTex = findTextureAsset(name);
@@ -393,6 +463,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                     }
                     if(stringsMatchNullN("lifePoints", token.at, token.size)) {
                         params->lifePointsMax = getIntFromDataObjects(&data, &tokenizer);
+                        hasLifePoints = true;
                     }
                 }
                 if(stringsMatchNullN("Board", token.at, token.size)) {
@@ -419,6 +490,9 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                         float period = getFloatFromDataObjects(&data, &tokenizer);
                         shape->lagPeriod = period;
                     }
+                    if(stringsMatchNullN("timeAffected", token.at, token.size)) {
+                        shape->timeAffected = getBoolFromDataObjects(&data, &tokenizer);
+                    }
                     if(stringsMatchNullN("beginTimerPeriod", token.at, token.size)) {
                         float period = getFloatFromDataObjects(&data, &tokenizer);
                         shape->lagTimer = initTimer(period);
@@ -440,9 +514,13 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
         }
     }
 
+    //default values if not specified in the level file. 
     if(!hasBgImage) {
-        //default background image
         params->bgTex = findTextureAsset("blue_grass.png");
+    }
+    if(!hasLifePoints) {
+
+        params->lifePointsMax = 0;
     }
 
     char *at = tokenizer.src;
@@ -506,6 +584,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                     ExtraShape *shape = findExtraShape(params, id);
                     shape->pos = v2(xAt, yAt);
                 }
+                xAt++;
                 at++;
                 justNewLine = false;
             }
@@ -580,37 +659,39 @@ bool canShapeMove(FitrisShape *shape, FrameParams *params, MoveType moveType) {
     int bottomMostPos = params->boardHeight;;
     V2 moveVec = getMoveVec(moveType);
     for(int i = 0; i < shape->count; ++i) {
-        V2 pos = shape->coords[i];
+        V2 pos = shape->blocks[i].pos;
         BoardState state = getBoardState(params, v2_plus(pos, moveVec));
         if(!(state == BOARD_NULL || state == BOARD_SHAPE || state == BOARD_EXPLOSIVE)) {
             valid = false;
             break;
         }
-        if(shape->coords[i].x < leftMostPos) {
-            leftMostPos = shape->coords[i].x;
+        if(shape->blocks[i].pos.x < leftMostPos) {
+            leftMostPos = shape->blocks[i].pos.x;
         }
-        if(shape->coords[i].x > rightMostPos) {
-            rightMostPos = shape->coords[i].x;
+        if(shape->blocks[i].pos.x > rightMostPos) {
+            rightMostPos = shape->blocks[i].pos.x;
         }
-        if(shape->coords[i].y < bottomMostPos) {
-            bottomMostPos = shape->coords[i].y;
+        if(shape->blocks[i].pos.y < bottomMostPos) {
+            bottomMostPos = shape->blocks[i].pos.y;
         }
     }
-
-    //Check shape won't move off the board//
-    if(moveType == MOVE_LEFT) {
-        if(leftMostPos > 0 && valid) {
-            result = true;
-        }
-    } else if(moveType == MOVE_RIGHT) {
-        assert(rightMostPos < params->boardWidth);
-        if(rightMostPos < (params->boardWidth - 1) && valid) {
-            result = true;
-        } 
-    } else if(moveType == MOVE_DOWN) { 
-        if(bottomMostPos > 0 && valid) {
-            assert(bottomMostPos < params->boardHeight);
-            result = true;
+    if(shape->count) 
+    {
+        //Check shape won't move off the board//
+        if(moveType == MOVE_LEFT) {
+            if(leftMostPos > 0 && valid) {
+                result = true;
+            }
+        } else if(moveType == MOVE_RIGHT) {
+            assert(rightMostPos < params->boardWidth);
+            if(rightMostPos < (params->boardWidth - 1) && valid) {
+                result = true;
+            } 
+        } else if(moveType == MOVE_DOWN) { 
+            if(bottomMostPos > 0 && valid) {
+                assert(bottomMostPos < params->boardHeight);
+                result = true;
+            }
         }
     }
     return result;
@@ -618,7 +699,7 @@ bool canShapeMove(FitrisShape *shape, FrameParams *params, MoveType moveType) {
 bool isInShape(FitrisShape *shape, V2 pos) {
     bool result = false;
     for(int i = 0; i < shape->count; ++i) {
-      V2 shapePos = shape->coords[i];
+      V2 shapePos = shape->blocks[i].pos;
       if(pos.x == shapePos.x && pos.y == shapePos.y) {
         result = true;
         break;
@@ -635,7 +716,7 @@ typedef struct {
 QueryShapeInfo isRepeatedInShape(FitrisShape *shape, V2 pos, int index) {
     QueryShapeInfo result = {};
     for(int i = 0; i < shape->count; ++i) {
-      V2 shapePos = shape->coords[i];
+      V2 shapePos = shape->blocks[i].pos;
       if(i != index && pos.x == shapePos.x && pos.y == shapePos.y) {
         result.result = true;
         result.index = i;
@@ -648,6 +729,18 @@ QueryShapeInfo isRepeatedInShape(FitrisShape *shape, V2 pos, int index) {
 
 static BoardValType BOARD_VAL_SHAPES[4] = { BOARD_VAL_SHAPE0, BOARD_VAL_SHAPE1, BOARD_VAL_SHAPE2, BOARD_VAL_SHAPE3 };
 
+FitrisBlock *findBlockById(FitrisShape *shape, int id) {
+    FitrisBlock *result = 0;
+    for(int i = 0; i < shape->count; ++i) {
+        if(shape->blocks[i].id == id) {
+            result = shape->blocks + i;
+            break;
+        }
+    }
+    assert(result);
+    return result;
+}
+
 bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
     bool result = canShapeMove(shape, params, moveType);
     if(result) {
@@ -655,10 +748,11 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
 
         assert(!params->wasHitByExplosive);
        // CHECK FOR EXPLOSIVES HIT
-        int indexesHitCount = 0;
-        int indexesHit[MAX_SHAPE_COUNT] = {};
+        int idsHitCount = 0;
+        int idsHit[MAX_SHAPE_COUNT] = {};
+        
         for(int i = 0; i < shape->count; ++i) {
-          V2 oldPos = shape->coords[i];
+          V2 oldPos = shape->blocks[i].pos;
           V2 newPos = v2_plus(oldPos, moveVec);
           BoardState state = getBoardState(params, newPos);
           if(state == BOARD_EXPLOSIVE) {
@@ -667,24 +761,29 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
             params->wasHitByExplosive = true;
             playSound(params->soundArena, params->explosiveSound, 0, AUDIO_FOREGROUND);
             //remove from shapea
-            assert(indexesHitCount < arrayCount(indexesHit));
-            indexesHit[indexesHitCount++] = i;
+            assert(idsHitCount < arrayCount(idsHit));
+            idsHit[idsHitCount++] = shape->blocks[i].id;
             setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    //this is the shape
             setBoardState(params, newPos, BOARD_NULL, BOARD_VAL_TRANSIENT);//this is the bomb position
-          }
+          } 
         }
 
-        for(int hitIndex = 0; hitIndex < indexesHitCount; ++hitIndex) {
-            int indexAt = indexesHit[hitIndex];
-            shape->coords[indexAt] = shape->coords[--shape->count];
+        //NOTE: we have this since our findBlockById wants to search the original shape with the 
+        //full count so we can't change it in the loop
+        int newShapeCount = shape->count; 
+        for(int hitIndex = 0; hitIndex < idsHitCount; ++hitIndex) {
+            int id = idsHit[hitIndex];
+            FitrisBlock *block = findBlockById(shape, id);
+            *block = shape->blocks[--newShapeCount];
         }
+        shape->count = newShapeCount;
 
        for(int i = 0; i < shape->count; ++i) {
-
-            V2 oldPos = shape->coords[i];
+            V2 oldPos = shape->blocks[i].pos;
             V2 newPos = v2_plus(oldPos, moveVec);
-           
+    
             assert(getBoardState(params, oldPos) == BOARD_SHAPE);
+
             BoardState newPosState = getBoardState(params, newPos);
             assert(newPosState == BOARD_SHAPE || newPosState == BOARD_NULL);
 
@@ -692,8 +791,8 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
             if(!info.result) { //dind't just get set by the block in shape before. 
                 setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    
             }
-            setBoardState(params, newPos, BOARD_SHAPE, BOARD_VAL_SHAPES[i]);    
-            shape->coords[i] = newPos;
+            setBoardState(params, newPos, BOARD_SHAPE, shape->blocks[i].type);    
+            shape->blocks[i].pos = newPos;
         }
         playSound(params->soundArena, params->moveSound, 0, AUDIO_FOREGROUND);
     }
@@ -702,7 +801,7 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
 
 void solidfyShape(FitrisShape *shape, FrameParams *params) {
     for(int i = 0; i < shape->count; ++i) {
-        V2 pos = shape->coords[i];
+        V2 pos = shape->blocks[i].pos;
         BoardValue *val = getBoardValue(params, pos);
         if(val->state == BOARD_SHAPE) {
             setBoardState(params, pos, BOARD_STATIC, BOARD_VAL_OLD);
@@ -792,7 +891,7 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
     bool result = true;
 
     for(int i = 0; i < shape->count; ++i) {
-        V2 pos = shape->coords[i];
+        V2 pos = shape->blocks[i].pos;
         if(boardPosAt.x == pos.x && boardPosAt.y == pos.y) {
             result = false;
             break;
@@ -805,20 +904,23 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
         }
     }
     if(result) {
-        V2 oldPos = shape->coords[currentHotIndex];
+        V2 oldPos = shape->blocks[currentHotIndex].pos;
 
         BoardValue *oldVal = getBoardValue(params, oldPos);
         assert(oldVal->state == BOARD_SHAPE);
 
         IslandInfo mainIslandInfo = getShapeIslandCount(shape, oldPos, params);
         assert(mainIslandInfo.count >= 1);
+
         if(mainIslandInfo.count <= 1) {
+            //There is an isolated block
             result = false;
         } else {
-            V2 idPos = mainIslandInfo.poses[1]; //won't be that starting pos. 
-            //temporaialy set the board state to where the shape was to be null, so this can act as a bridge in the flood fill
+            V2 idPos = mainIslandInfo.poses[1]; //won't be that starting pos since the first position will dissapear if it is correct. 
+            //temporaialy set the board state to where the shape was to be null, so this can't act as a bridge in the flood fill
             oldVal->state = BOARD_NULL;
 
+            //set where the board will be to a valid position
             BoardValue *newVal = getBoardValue(params, boardPosAt);
             assert(newVal->state == BOARD_NULL);
             newVal->state = BOARD_SHAPE;
@@ -826,6 +928,7 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
 
             IslandInfo islandInfo = getShapeIslandCount(shape, boardPosAt, params);
 
+            //See if the new pos is part of the same island
             bool found = false;
             for(int index = 0; index < islandInfo.count; ++index) {
                 V2 srchPos = islandInfo.poses[index];
@@ -834,13 +937,13 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
                     break;
                 }
             }
-
-            if(islandInfo.count != mainIslandInfo.count || !found) {
+            //islandInfo.count != mainIslandInfo.count
+            if(!found) {
                 result = false;
             }
             //set the state back to being a shape. 
-            oldVal->state = BOARD_SHAPE;
             newVal->state = BOARD_NULL;
+            oldVal->state = BOARD_SHAPE;
         }
     }
     
@@ -880,21 +983,21 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
 
     bool turnSolid = false;
     bool isHoldingShape = params->currentHotIndex >= 0;
-    float moveTime = params->dt;
+    params->moveTime = params->dt;
     if(isHoldingShape) { 
         params->accumHoldTime += params->dt;
-        moveTime = 0.0f;
+        params->moveTime = 0.0f;
         assert(!params->letGo);
     } 
 
     if(params->letGo) {
         assert(!isHoldingShape);
-        moveTime = params->accumHoldTime;
+        params->moveTime = params->accumHoldTime;
         params->accumHoldTime = 0;
         params->letGo = false;
     }
 
-    TimerReturnInfo timerInfo = updateTimer(&params->moveTimer, moveTime);
+    TimerReturnInfo timerInfo = updateTimer(&params->moveTimer, params->moveTime);
     if(timerInfo.finished) {
         turnTimerOn(&params->moveTimer);
         if(!moveShape(shape, params, MOVE_DOWN)) {
@@ -911,9 +1014,9 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
         
         int hotBlockIndex = -1;
         for(int i = 0; i < shape->count; ++i) {
-            V2 *pos = shape->coords +i;
+            V2 pos = shape->blocks[i].pos;
             
-            RenderInfo renderInfo = calculateRenderInfo(v3(pos->x, pos->y, -1), v3(1, 1, 1), cameraPos, metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(pos.x, pos.y, -1), v3(1, 1, 1), cameraPos, metresToPixels);
 
             Rect2f blockBounds = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             
@@ -929,7 +1032,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                 assert(isDown(gameButtons, BUTTON_LEFT_MOUSE));
                 color = COLOR_GREEN;
             }
-            BoardValue *val = getBoardValue(params, *pos);
+            BoardValue *val = getBoardValue(params, pos);
             assert(val);
             val->color = color;
         }
@@ -950,12 +1053,14 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
             boardPosAt.y = (int)(clamp(0, boardPosAt.y, params->boardHeight -1) + 0.5f);
 
             if(shapeStillConnected(shape, params->currentHotIndex, boardPosAt, params)) {
-                V2 oldPos = shape->coords[params->currentHotIndex];
+                V2 oldPos = shape->blocks[params->currentHotIndex].pos;
                 V2 newPos = boardPosAt;
                 assert(getBoardState(params, oldPos) == BOARD_SHAPE);
+                assert(getBoardState(params, newPos) == BOARD_NULL);
                 setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    
-                setBoardState(params, newPos, BOARD_SHAPE, BOARD_VAL_SHAPES[params->currentHotIndex]);    
-                shape->coords[params->currentHotIndex] = newPos;
+                setBoardState(params, newPos, BOARD_SHAPE, shape->blocks[params->currentHotIndex].type);    
+                shape->blocks[params->currentHotIndex].pos = newPos;
+                assert(getBoardState(params, newPos) == BOARD_SHAPE);
             }
         }
 
@@ -1013,11 +1118,18 @@ void initBoard(FrameParams *params, LevelType levelType) {
     params->extraShapeCount = 0;
     params->experiencePoints = 0;
     params->currentHotIndex = -1;
+    params->maxExperiencePoints = 0;
+    params->glowingLinesCount = 0;
 
     params->createShape = true;   
     params->moveTimer.value = 0;
+    if(params->currentLevelType != levelType) { //not retrying the level
+        params->levelNameTimer = initTimer(1.0f);
+    }
+    params->currentLevelType = levelType;
     createLevelFromFile(params, levelType);
     params->lifePoints = params->lifePointsMax;
+    
 }
 
 typedef struct {
@@ -1029,29 +1141,29 @@ typedef struct {
     LevelType levelType;
     FrameParams *params;
     MenuInfo *info;
-} TransitionDataEndGame;
+    GameMode lastMode;
+    GameMode newMode;
+} TransitionDataStartOrEndGame;
 
 
 
 void transitionCallbackForLevel(void *data_) {
     TransitionDataLevel *trans = (TransitionDataLevel *)data_;
     FrameParams *params = trans->params;
-    params->currentLevelType = trans->levelType;
+
     initBoard(params, trans->levelType);
 } 
 
-void transitionCallbackForEndGame(void *data_) {
-    TransitionDataEndGame *trans = (TransitionDataEndGame *)data_;
+void transitionCallbackForStartOrEndGame(void *data_) {
+    TransitionDataStartOrEndGame *trans = (TransitionDataStartOrEndGame *)data_;
     FrameParams *params = trans->params;
 
-    params->currentLevelType = trans->levelType;
     initBoard(params, trans->levelType);
 
-    trans->info->gameMode = MENU_MODE;
-    trans->info->lastMode = PLAY_MODE;
+    trans->info->gameMode = trans->newMode;
+    trans->info->lastMode = trans->lastMode;
     trans->info->menuCursorAt = 0;
 } 
-
 
 void setLevelTransition(FrameParams *params, LevelType levelType) {
     TransitionDataLevel *data = (TransitionDataLevel *)calloc(sizeof(TransitionDataLevel), 1);
@@ -1060,12 +1172,14 @@ void setLevelTransition(FrameParams *params, LevelType levelType) {
     setTransition_(&params->transitionState, transitionCallbackForLevel, data);
 }
 
-void setEndGameTransition(FrameParams *params, LevelType levelType) {
-    TransitionDataEndGame *data = (TransitionDataEndGame *)calloc(sizeof(TransitionDataEndGame), 1);
+void setStartOrEndGameTransition(FrameParams *params, LevelType levelType, GameMode newMode) {
+    TransitionDataStartOrEndGame *data = (TransitionDataStartOrEndGame *)calloc(sizeof(TransitionDataStartOrEndGame), 1);
     data->params = params;
     data->info = &params->menuInfo;
     data->levelType = levelType;
-    setTransition_(&params->transitionState, transitionCallbackForEndGame, data);
+    data->lastMode = params->menuInfo.gameMode;
+    data->newMode = newMode;
+    setTransition_(&params->transitionState, transitionCallbackForStartOrEndGame, data);
 }
 
 void removeWinLine(FrameParams *params, int lineToRemove) {
@@ -1073,7 +1187,7 @@ void removeWinLine(FrameParams *params, int lineToRemove) {
     for(int winLineIndex = 0; winLineIndex < params->glowingLinesCount; winLineIndex++) {
         int line_yAt = params->glowingLines[winLineIndex];
         if(line_yAt == lineToRemove) {
-            //NOTE: Moving the last one in the array over the one we are removing. 
+            //NOTE: Writing the last one in the array over the one we are removing. 
             params->glowingLines[winLineIndex] = params->glowingLines[--params->glowingLinesCount];
             found = true;
             break;
@@ -1122,7 +1236,7 @@ void updateBoardWinState(FrameParams *params) {
             setLevelTransition(params, nextLevel);
         } else {
             //finished the game -> go back to main menu
-            setEndGameTransition(params, LEVEL_0);
+            setStartOrEndGameTransition(params, LEVEL_0, MENU_MODE);
         }
         
     }
@@ -1260,19 +1374,30 @@ void gameUpdateAndRender(void *params_) {
 
     // drawAndUpdateParticleSystem(&params->particleSystem, params->dt, v3(0, 0, -4), v3(0, 0 ,0), params->cameraPos, params->metresToPixels, resolution);
     
+    V2 mouseP = params->keyStates->mouseP;
+    GameMode currentGameMode = drawMenu(&params->menuInfo, params->longTermArena, gameButtons, 0, params->successSound, params->moveSound, params->dt, resolution, mouseP);
 
-    bool isPlayState = drawMenu(&params->menuInfo, params->longTermArena, gameButtons, 0, params->successSound, params->moveSound, params->dt, resolution, params->keyStates->mouseP);
     bool transitioning = updateTransitions(&params->transitionState, resolution, params->dt);
+    Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
+
+    bool isPlayState = (currentGameMode == PLAY_MODE);
+
     if(!transitioning && isPlayState) {
+        
         //if updating a transition don't update the game logic, just render the game board. 
         bool canDie = params->lifePointsMax > 0;
-        bool retryLevel = !params->lifePoints && canDie;
+        bool retryLevel = ((params->lifePoints <= 0) && canDie) || wasPressed(gameButtons, BUTTON_R);
         if(params->createShape || retryLevel) {
             params->currentShape.count = 0;
             for (int i = 0; i < 4 && !retryLevel; ++i) {
                 int xAt = i % params->boardWidth;
                 int yAt = (params->boardHeight - 1) - (i / params->boardWidth);
-                params->currentShape.coords[params->currentShape.count++] = v2(xAt, yAt);
+                assert(i == params->currentShape.count);
+                FitrisBlock *block = &params->currentShape.blocks[params->currentShape.count++];
+                block->pos = v2(xAt, yAt);
+                block->type = BOARD_VAL_SHAPES[i];
+                block->id = i;
+
                 V2 pos = v2(xAt, yAt);
                 if(getBoardState(params, pos) != BOARD_NULL) {
                     //at the top of the board
@@ -1280,7 +1405,7 @@ void gameUpdateAndRender(void *params_) {
                     break;
                     //
                 } else {
-                    setBoardState(params, pos, BOARD_SHAPE, BOARD_VAL_SHAPES[i]);    
+                    setBoardState(params, pos, BOARD_SHAPE, params->currentShape.blocks[i].type);    
                 }
             }
             if(retryLevel) {
@@ -1291,12 +1416,17 @@ void gameUpdateAndRender(void *params_) {
             params->createShape = false;
         }
 
+
+        updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params);
+
+        bool isHoldingShape = (params->currentHotIndex >= 0);
         for(int extraIndex = 0; extraIndex < params->extraShapeCount; ++extraIndex) {
             ExtraShape *extraShape = params->extraShapes + extraIndex;
 
+            float tUpdate = (extraShape->timeAffected) ? params->moveTime : params->dt;
             float extraTime = params->dt;
             if(!extraShape->active) { 
-                TimerReturnInfo lagInfo = updateTimer(&extraShape->lagTimer, params->dt);
+                TimerReturnInfo lagInfo = updateTimer(&extraShape->lagTimer, tUpdate);
                 if(lagInfo.finished) {
                     turnTimerOn(&extraShape->lagTimer);
                     extraShape->active = true; 
@@ -1305,19 +1435,31 @@ void gameUpdateAndRender(void *params_) {
             } 
 
             if(extraShape->active) {
-                TimerReturnInfo info = updateTimer(&extraShape->timer, extraTime);
+                TimerReturnInfo info = updateTimer(&extraShape->timer, tUpdate);
                 if(info.finished) {
                     turnTimerOn(&extraShape->timer);
                     updateWindmillSide(params, extraShape);
                 }
             }
         }
-        updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params);
+        
         updateBoardWinState(params);
     }
 
     //Stil render when we are in a transition
     if(isPlayState) {
+
+        if(isOn(&params->levelNameTimer)) {
+            TimerReturnInfo nameTimeInfo = updateTimer(&params->levelNameTimer, params->dt);
+            V4 levelNameFontColor = smoothStep00V4(COLOR_NULL, nameTimeInfo.canonicalVal, COLOR_BLACK);
+            float levelNameFontSize = 1.0f;
+            char *title = params->levelNames[params->currentLevelType];
+            float xFontAt = (resolution.x/2) - (getBounds(title, menuMargin, params->font, levelNameFontSize, resolution).x / 2);
+            outputText(params->font, xFontAt, 0.5f*resolution.y, -1, resolution, title, menuMargin, levelNameFontColor, levelNameFontSize, true);
+        }
+        
+        outputText(params->font, 10, 40, -1, resolution, "Press R to reset", menuMargin, COLOR_BLACK, 0.5f, true);
+
         renderXPBarAndHearts(params, resolution);
         for(int boardY = 0; boardY < params->boardHeight; ++boardY) {
             bool isWinLine = checkIsWinLine(params, boardY);
@@ -1364,6 +1506,43 @@ void gameUpdateAndRender(void *params_) {
                 }
             }   
         }
+    } else if(currentGameMode == OVERWORLD_MODE) {
+        float xAt = 0;
+        float yAt = 50;
+        float coint_xAt = 0;
+        float coint_yAt = 0;
+        
+        float fontSize = 0.7f;
+        float lowerY = 0.8f*resolution.y;
+        float nameY = 0.9f*resolution.y;
+        for(int levelIndex = 1; levelIndex < LEVEL_COUNT; ++levelIndex) {
+            char *title = LevelTypeStrings[levelIndex];
+            // RenderInfo levelBlockRenderInfo = calculateRenderInfo(v3(coint_xAt, coint_yAt, -1), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
+            // renderTextureCentreDim(params->coinTex, levelBlockRenderInfo.pos, levelBlockRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), levelBlockRenderInfo.pvm));            
+            Rect2f outputDim = outputText(params->font, xAt, yAt, -1, resolution, title, menuMargin, COLOR_WHITE, fontSize, false);
+            
+            V4 color = COLOR_BLACK;
+            if(inBounds(mouseP, outputDim, BOUNDS_RECT)) {
+                // info->menuCursorAt = menuIndex;
+                color = COLOR_GREEN;
+                char *levelName = params->levelNames[levelIndex];
+                outputText(params->font, 0, nameY, -1, resolution, levelName, menuMargin, COLOR_BLUE, fontSize, true);
+
+                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                    setStartOrEndGameTransition(params, (LevelType)levelIndex, PLAY_MODE);
+                }
+            }
+
+            V2 wordDim = getDim(outputDim);
+            outputText(params->font, xAt, yAt, -1, resolution, title, menuMargin, color, fontSize, true);
+            if(wordDim.y + yAt >= lowerY) {
+                yAt = 0;
+                xAt += wordDim.x + 50;
+            }
+
+            yAt += 50;//fontSize*params->font->fontHeight;
+
+        }
     }
     
 
@@ -1382,7 +1561,7 @@ int main(int argc, char *args[]) {
   assert(appInfo.valid);
     
   if(appInfo.valid) {
-    AppSetupInfo setupInfo = easyOS_setupApp(resolution, "../res/");
+    AppSetupInfo setupInfo = easyOS_setupApp(resolution, RESOURCE_PATH_EXTENSION);
 
     float dt = 1.0f / min((float)setupInfo.refresh_rate, 60.0f); //use monitor refresh rate 
     float idealFrameTime = 1.0f / 60.0f;
@@ -1406,6 +1585,8 @@ int main(int argc, char *args[]) {
     Texture *boarderTex = findTextureAsset("elementMetal030.png");
     Texture *heartFullTex = findTextureAsset("hud_heartFull.png");
     Texture *heartEmptyTex = findTextureAsset("hud_heartEmpty.png");
+    Texture *coinTex = findTextureAsset("coinGold.png");
+    
 
     assert(metalTex);
     bool running = true;
@@ -1471,10 +1652,9 @@ int main(int argc, char *args[]) {
 
     params.bgTex = bgTex;
     initBoard(&params, START_LEVEL);
-    params.currentLevelType = START_LEVEL; //this is from the defines file
+    loadLevelNames(&params);
     
-    
-    params.moveTimer = initTimer(1.0f);
+    params.moveTimer = initTimer(MOVE_INTERVAL);
     params.woodTex = woodTex;
     params.stoneTex = stoneTex;
     params.metalTex = metalTex;
@@ -1482,6 +1662,7 @@ int main(int argc, char *args[]) {
     params.boarderTex = boarderTex;
     params.heartFullTex = heartFullTex;
     params.heartEmptyTex = heartEmptyTex;
+    params.coinTex = coinTex;
     
     params.lastTime = SDL_GetTicks();
     

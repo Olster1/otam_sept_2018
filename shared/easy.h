@@ -206,6 +206,7 @@ typedef enum {
     BUTTON_1,
     BUTTON_F1,
     BUTTON_Z,
+    BUTTON_R,
     BUTTON_COMMAND,
     BUTTON_TILDE,
     //

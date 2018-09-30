@@ -1,8 +1,10 @@
 #define APP_TITLE "Fitris"
+#define RESOURCE_PATH_EXTENSION "../res/" //   ../res/ for developer mode res/ for release bundle
+#define MOVE_INTERVAL 1.0f
 #define FADE_TIMER_INTERVAL 0.3f
 #define SCENE_TRANSITION_TIME 0.3f
-#define START_LEVEL LEVEL_0
-#define START_MENU_MODE MENU_MODE
+#define START_LEVEL LEVEL_5
+#define START_MENU_MODE OVERWORLD_MODE
 #define XP_PER_LINE 100
 #define CAN_ALTER_SHAPE_DIAGONAL 0 //this is if you can move a block to a position only situated diagonally 
 #define CAN_MOVE_WITH_ARROW_KEYS 0

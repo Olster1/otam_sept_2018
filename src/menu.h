@@ -1,16 +1,26 @@
 typedef enum {
     MENU_MODE,
+    OVERWORLD_MODE,
     PAUSE_MODE,
     PLAY_MODE,
     LOAD_MODE,
     SAVE_MODE,
     QUIT_MODE,
     DIED_MODE,
+    CREDITS_MODE,
     SETTINGS_MODE
 } GameMode;
 
 typedef struct {
+    bool notClickable;
+    float size;
+    V4 color;
+} MenuOption;
+
+typedef struct {
+    MenuOption optionSettings[32];
     char *options[32];
+
     int count;
 } MenuOptions;
 
@@ -72,9 +82,17 @@ bool updateMenu(MenuOptions *menuOptions, GameButton *gameButtons, MenuInfo *inf
     return active;
 }
 
+void setMenuOption(MenuOptions *menuOptions, char *title, bool clickable, float size, V4 color) {
+    int indexAt = menuOptions->count++;
+    MenuOption *option = menuOptions->optionSettings + indexAt;
+    menuOptions->options[indexAt] = title;
+
+    option->notClickable = !clickable;
+    option->color = color;
+    option->size = size;
+}
+
 void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info, Lerpf *sizeTimers, float dt, V2 mouseP, bool mouseActive, V2 resolution) {
-    
-    char *titleAt = menuOptions->options[info->menuCursorAt];
     
     if(backgroundTex) {
         renderDisableDepthTest(&globalRenderGroup);
@@ -94,35 +112,54 @@ void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info
         menuIndex < menuOptions->count;
         ++menuIndex) {
         
-        
-        float fontSize = 1.0f;//mapValue(sin(dtValue), -1, 1, 0.7f, 1.2f);
+        MenuOption *option = menuOptions->optionSettings + menuIndex;
+
+        float fontSize = option->size;//mapValue(sin(dtValue), -1, 1, 0.7f, 1.2f);
+        assert(fontSize > 0.0f);
 
         char *title = menuOptions->options[menuIndex];
         float xAt = xAt_ - (getBounds(title, menuMargin, info->font, fontSize, resolution).x / 2);
 
+        bool clickable = !option->notClickable;
 
-        Rect2f outputDim = outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, COLOR_WHITE, fontSize, false);
-        //spread across screen so the mouse hit is more easily
-        outputDim.min.x = 0;
-        outputDim.max.x = resolution.x;
-        //
-        if(inBounds(mouseP, outputDim, BOUNDS_RECT) && mouseActive) {
-            info->menuCursorAt = menuIndex;
+        if(clickable) {
+            Rect2f outputDim = outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, COLOR_WHITE, fontSize, false);
+            //spread across screen so the mouse hit is more easily
+            outputDim.min.x = 0;
+            outputDim.max.x = resolution.x;
+            //
+            if(inBounds(mouseP, outputDim, BOUNDS_RECT) && mouseActive) {
+                info->menuCursorAt = menuIndex;
+            }
         }
 
-        V4 menuItemColor = COLOR_BLUE;
-        
-        if(menuIndex == info->menuCursorAt) {
-            menuItemColor = COLOR_RED;
+        V4 menuItemColor = option->color;
+
+        if(clickable) {
+            if(menuIndex == info->menuCursorAt) {
+                menuItemColor = COLOR_RED;
+            }
         }
         outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, menuItemColor, fontSize, true);
         yAt += yIncrement;
     }
 }
 
-bool drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Texture *backgroundTex, WavFile *submitSound, WavFile *moveSound, float dt, V2 resolution, V2 mouseP) {
+MenuOptions initDefaultMenuOptions() {
+    MenuOptions result = {};
+
+    for(int i = 0; i < arrayCount(result.options); ++i) {
+        MenuOption *opt = result.optionSettings + i;
+        opt->color = COLOR_BLUE;
+        opt->notClickable = false;
+        opt->size = 1.0f;
+    }
+    return result;
+}
+
+GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Texture *backgroundTex, WavFile *submitSound, WavFile *moveSound, float dt, V2 resolution, V2 mouseP) {
     bool isPlayMode = false;
-    MenuOptions menuOptions = {};
+    MenuOptions menuOptions = initDefaultMenuOptions();
 
 
     if(wasPressed(gameButtons, BUTTON_ESCAPE)) {
@@ -157,6 +194,27 @@ bool drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Tex
                 } 
                 
                 info->lastMode = LOAD_MODE;
+            }
+
+        } break;
+        case CREDITS_MODE:{
+
+            V4 creditColor = COLOR_BLACK;
+            setMenuOption(&menuOptions, "Credits", false, 1.0f, creditColor);
+            setMenuOption(&menuOptions, "Programming & Game Design: Oliver Marsh", false, 0.5f, creditColor);
+            setMenuOption(&menuOptions, "Music: Robert Marsh", false, 0.5f, creditColor);
+            setMenuOption(&menuOptions, "Artwork: Kenny Assets", false, 0.5f, creditColor);
+            setMenuOption(&menuOptions, "Sound Effects: ZapSplat", false, 0.5f, creditColor);
+            setMenuOption(&menuOptions, "Go Back", true, 0.5f, COLOR_BLUE);
+            
+            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
+            
+            if(changeMenuKey) {
+                // playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
+                if (info->menuCursorAt == menuOptions.count - 1) {
+                    changeMenuState(info, info->lastMode);
+                } 
+                info->lastMode = CREDITS_MODE;
             }
 
         } break;
@@ -218,7 +276,9 @@ bool drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Tex
         } break;
         case PAUSE_MODE:{
             menuOptions.options[menuOptions.count++] = "Resume";
+            menuOptions.options[menuOptions.count++] = "Back To Overworld";
             menuOptions.options[menuOptions.count++] = "Settings";
+            menuOptions.options[menuOptions.count++] = "Credits";
             menuOptions.options[menuOptions.count++] = "Quit";
             
             mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
@@ -230,9 +290,15 @@ bool drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Tex
                         changeMenuState(info, PLAY_MODE);
                     } break;
                     case 1: {
-                        changeMenuState(info, SETTINGS_MODE);
+                        changeMenuState(info, OVERWORLD_MODE);
                     } break;
                     case 2: {
+                        changeMenuState(info, SETTINGS_MODE);
+                    } break;
+                    case 3: {
+                        changeMenuState(info, CREDITS_MODE);
+                    } break;
+                    case 4: {
                         changeMenuState(info, QUIT_MODE);
                     } break;
                 }
@@ -323,6 +389,9 @@ bool drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Tex
             isPlayMode = true;
             setSoundType(AUDIO_FLAG_MAIN);
         } break;
+        case OVERWORLD_MODE:{
+            isPlayMode = true;
+        } break;
     } 
 
     if(!isPlayMode) {
@@ -343,5 +412,5 @@ bool drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Tex
 
     info->lastMouseP = mouseP;
 
-    return isPlayMode;
+    return info->gameMode;
 }

@@ -1,11 +1,9 @@
 LevelData: {
-	type: "LEVEL_0";
 	backgroundImage: "blue_shroom.png";
 	lifePoints: 0;
+	name: "Easy Beginnings";
 }
 Board: {
-00000
-00000
 	0000
 	0000
 	0000
