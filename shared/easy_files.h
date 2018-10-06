@@ -229,6 +229,20 @@ size_t platformFileSize(char *FileName)
     return Result;
 }
 
+bool platformDoesFileExist(char *FileName) {
+    SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r+");
+        
+    bool result = false;    
+    if(FileHandle) { 
+        SDL_RWclose(FileHandle);
+        result = true; 
+    }
+
+    
+
+    return result;
+}
+
 FileContents platformReadEntireFile(char *FileName, bool nullTerminate) {
     FileContents Result = {};
     SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r+");
@@ -254,15 +268,13 @@ FileContents platformReadEntireFile(char *FileName, bool nullTerminate) {
             Result.valid = false;
             free(Result.memory);
         }
+        SDL_RWclose(FileHandle);
     } else {
         Result.valid = false;
         const char *Error = SDL_GetError();
         printf("%s\n", Error);
         assert(!"Couldn't open file");
     }
-    
-    SDL_RWclose(FileHandle);
-    
     return Result;
 }
 

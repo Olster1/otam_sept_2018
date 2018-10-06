@@ -1,6 +1,8 @@
 LevelData: {
-	lifePoints: 3	
+	lifePoints: 4	
 	backgroundImage: "blue_shroom.png";
+	name: "Find your Way out of this one";
+	groupId: 2;
 }
 Board: {
 	00000

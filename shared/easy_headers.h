@@ -34,3 +34,4 @@ static GameButton gameButtons[BUTTON_COUNT];
 #include "easy_os.h"
 #include "easy_animation.h"
 #include "easy_assets.h"
+#include "easy_tile.h"

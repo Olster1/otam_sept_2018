@@ -1,0 +1,27 @@
+LevelData: {
+	backgroundImage: "blue_shroom.png";
+	name: "The Windmill";
+	groupId: 3;
+	shapeSize: 5;
+	lifePoints: 1;
+}
+Windmill: {
+	id: 1;
+	growDir: 1 0;
+
+	growTimerPeriod: 0.4;
+	beginTimerPeriod: 0.0;
+
+	perpSize: 1;
+	max: 2;
+}
+Board: {
+	00000
+	00000
+	00000
+	00100
+	0000/
+	0000
+	000
+	!!!!!
+}

@@ -31,3 +31,7 @@ void error_printFloat2(char *string, float *values) {
 void error_printFloat3(char *string, float *values) {
 	printf("%s x:%f, y:%f, z:%f\n", string, values[0], values[1], values[2]);
 }
+
+void error_printFloat4(char *string, float *values) {
+    printf("%s x:%f, y:%f, z:%f, w:%f\n", string, values[0], values[1], values[2], values[3]);
+}

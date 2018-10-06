@@ -9,6 +9,7 @@ typedef enum {
     AUDIO_FLAG_NULL,
     AUDIO_FLAG_MENU,
     AUDIO_FLAG_MAIN,
+    AUDIO_FLAG_COUNT,
 } SoundType;
 
 typedef struct {
@@ -49,6 +50,10 @@ typedef struct {
 
 static int channelVolumes_[AUDIO_CHANNEL_COUNT] = {MAX_VOLUME, MAX_VOLUME};
 static VolumeLerp channelVolumesLerps_[AUDIO_CHANNEL_COUNT] = {};
+
+static int parentChannelVolumes_[AUDIO_FLAG_COUNT] = {1, 1, 1};
+static VolumeLerp parentChannelVolumesLerps_[AUDIO_FLAG_COUNT] = {};
+
 static SoundType globalSoundActiveType_ = AUDIO_FLAG_NULL;
 static bool globalSoundOn = true;
 
@@ -70,24 +75,44 @@ void setChannelVolume(AudioChannel channel, int targetVolume, float period) {
     lerpValue->active = true;
 }
 
+void setParentChannelVolume(SoundType channel, int targetVolume, float period) {
+    VolumeLerp *lerpValue = parentChannelVolumesLerps_ + channel;
+    lerpValue->a = parentChannelVolumes_[channel];
+    lerpValue->b = clamp(0, targetVolume, 1);
+    lerpValue->tAt = 0;
+    lerpValue->period = period;
+    lerpValue->active = true;
+}
+
+void updateVolumeLerp(VolumeLerp *lerpVal, int *volumeVal, float dt) {
+    if(lerpVal->active) {
+        float a = (float)lerpVal->a;
+        float b = (float)lerpVal->b;
+
+        lerpVal->tAt += dt;
+        float tValue = lerpVal->tAt / lerpVal->period;
+        float volume = lerp(a, clamp(0, tValue, 1), b);
+        //set channel volume
+        *volumeVal = (int)clamp(0, volume, 128);
+        //
+        if(tValue >= 1) {
+            lerpVal->tAt = 0;
+            lerpVal->active = false;
+        }
+    }
+}
+
 void updateChannelVolumes(float dt) {
     for(int channelAt = 0; channelAt < AUDIO_CHANNEL_COUNT; ++channelAt) {
         VolumeLerp *lerpVal = channelVolumesLerps_ + channelAt;
-        if(lerpVal->active) {
-            float a = (float)lerpVal->a;
-            float b = (float)lerpVal->b;
+        updateVolumeLerp(lerpVal, &channelVolumes_[channelAt], dt);
+        
+    }
 
-            lerpVal->tAt += dt;
-            float tValue = lerpVal->tAt / lerpVal->period;
-            float volume = lerp(a, clamp(0, tValue, 1), b);
-            //set channel volume
-            channelVolumes_[channelAt] = (int)clamp(0, volume, 128);
-            //
-            if(tValue >= 1) {
-                lerpVal->tAt = 0;
-                lerpVal->active = false;
-            }
-        }
+    for(int channelAt = 0; channelAt < AUDIO_FLAG_COUNT; ++channelAt) {
+        VolumeLerp *lerpVal = parentChannelVolumesLerps_ + channelAt;
+        updateVolumeLerp(lerpVal, &parentChannelVolumes_[channelAt], dt);
+        
     }
 }
 
@@ -333,7 +358,7 @@ SDL_AUDIO_CALLBACK(audioCallback) {
             
             int volume = 0;
             if(globalSoundOn) {
-                volume = channelVolumes_[sound->channel];
+                volume = lerp(0, parentChannelVolumes_[sound->soundType], channelVolumes_[sound->channel]);
             }
             SDL_MixAudio(stream, samples, bytesToWrite, volume);
             

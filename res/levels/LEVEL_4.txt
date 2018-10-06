@@ -1,5 +1,7 @@
 LevelData: {
 	backgroundImage: "blue_shroom.png";
+	name: "Castle Pillars";
+	groupId: 2;
 }
 Windmill: {
 	id: 1;

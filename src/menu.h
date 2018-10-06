@@ -33,6 +33,9 @@ typedef struct {
     //TODO: Make this platform independent
     SDL_Window *windowHandle;
 
+    transition_callback *callback;
+    void *callBackData;
+
     TransitionState *transitionState;
 
     V2 lastMouseP;
@@ -49,6 +52,7 @@ void transitionCallbackForMenu(void *data_) {
     trans->info->gameMode = trans->gameMode;
     trans->info->lastMode = trans->lastMode;
     trans->info->menuCursorAt = 0;
+    trans->info->callback(trans->info->callBackData);
 }
 
 void changeMenuState(MenuInfo *info, GameMode mode) {
@@ -161,14 +165,13 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
     bool isPlayMode = false;
     MenuOptions menuOptions = initDefaultMenuOptions();
 
-
-    if(wasPressed(gameButtons, BUTTON_ESCAPE)) {
-        if(info->gameMode == PLAY_MODE) {
-            changeMenuState(info, PAUSE_MODE);
-        } else {
-            changeMenuState(info, PLAY_MODE);
-        }
-    }
+    // if(wasPressed(gameButtons, BUTTON_ESCAPE) && info->gameMode != MENU_MODE) {
+    //     if(info->gameMode == PLAY_MODE) {
+    //         changeMenuState(info, PAUSE_MODE);
+    //     } else {
+    //         changeMenuState(info, PLAY_MODE);
+    //     }
+    // }
     bool mouseActive = false;
     bool changeMenuKey = wasPressed(gameButtons, BUTTON_ENTER) || wasPressed(gameButtons, BUTTON_LEFT_MOUSE);
 
@@ -276,7 +279,6 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
         } break;
         case PAUSE_MODE:{
             menuOptions.options[menuOptions.count++] = "Resume";
-            menuOptions.options[menuOptions.count++] = "Back To Overworld";
             menuOptions.options[menuOptions.count++] = "Settings";
             menuOptions.options[menuOptions.count++] = "Credits";
             menuOptions.options[menuOptions.count++] = "Quit";
@@ -290,15 +292,12 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                         changeMenuState(info, PLAY_MODE);
                     } break;
                     case 1: {
-                        changeMenuState(info, OVERWORLD_MODE);
-                    } break;
-                    case 2: {
                         changeMenuState(info, SETTINGS_MODE);
                     } break;
-                    case 3: {
+                    case 2: {
                         changeMenuState(info, CREDITS_MODE);
                     } break;
-                    case 4: {
+                    case 3: {
                         changeMenuState(info, QUIT_MODE);
                     } break;
                 }

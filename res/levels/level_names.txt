@@ -1,1 +1,9 @@
-1: "Easy Beginnings";
+0: "Easy Beginnings";
+1: "Low Road, High Road";
+2: "Not Too High";
+3: "Closing In";
+4: "Castle Pillars";
+5: "Find your Way out of this one";
+7: "Patience";
+8: "Bombs Galore";
+//Ideas: "Bombs Away"

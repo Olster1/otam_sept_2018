@@ -1,0 +1,15 @@
+LevelData: {
+	name: "Morning Wakeup";
+	groupId: 1;
+	//shapeSize: 5;
+	lifePoints: 3;
+}
+
+Board: {
+	0000
+	0000
+	0!!0
+	0aa0
+	0000
+	000/
+}

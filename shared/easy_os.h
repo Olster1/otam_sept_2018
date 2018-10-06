@@ -222,9 +222,9 @@ void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *window
            newRate = val;
        }
    }
-   *dt_ = newRate; //set the actual dt
+   dt = *dt_ = newRate; //set the actual dt
 #if PRINT_FRAME_RATE
-   printf("%f\n", 1.0f / (timeInFrameMilliSeconds / 1000.0f));
+   printf("%f\n", 1.0f / (dt));
 #endif
    *lastTime = now;
 }

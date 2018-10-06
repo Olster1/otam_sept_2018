@@ -132,7 +132,7 @@ inline void Reactivate(particle_system *System) {
 }
 
 inline void setParticleLifeSpan(particle_system *partSys, float value) {
-    partSys->creationTimer.period = 1.0f  / value;
+    partSys->creationTimer.period = 1.0f / value;
 }
 
 internal inline void drawAndUpdateParticleSystem(particle_system *System, float dt, V3 Origin, V3 Acceleration, V3 camPos, Matrix4 metresToPixels, V2 resolution) {

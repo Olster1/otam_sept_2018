@@ -37,6 +37,8 @@ typedef enum {
     BOARD_VAL_SHAPE1,
     BOARD_VAL_SHAPE2,
     BOARD_VAL_SHAPE3,
+    BOARD_VAL_SHAPE4,
+    BOARD_VAL_GLOW,
     BOARD_VAL_DYNAMIC, //this is for the obstacles windmill 
     BOARD_VAL_TRANSIENT, //this isn't used for anything, just to make it so we aren't using the other ones. 
 } BoardValType;
@@ -82,8 +84,9 @@ typedef struct {
     Timer lagTimer;
     float lagPeriod;
 
-    bool isOut; //going out or in
     bool justFlipped;
+
+    bool isOut; //going out or in
 
     int perpSize;
 
@@ -136,6 +139,38 @@ typedef enum {
 
 static char *LevelTypeStrings[] = { LEVEL_TYPE(STRING) };
 
+typedef enum {
+    LEVEL_STATE_NULL,
+    LEVEL_STATE_COMPLETED,
+    LEVEL_STATE_UNLOCKED,
+    LEVEL_STATE_LOCKED,
+} LevelState;
+
+typedef struct LevelData LevelData;
+typedef struct LevelData {
+    char *name;
+    bool valid;
+
+    LevelType levelType;
+
+    FileContents contents;
+
+    LevelState state;
+
+    //this is for the overworld
+    float angle;
+    float dA;
+    particle_system particleSystem;
+
+    Timer showTimer;
+    //
+
+
+    int groupId;
+
+    LevelData *next; //this is used for the overworld level groups
+} LevelData;
+
 typedef struct {
     Arena *soundArena;
     int boardWidth;
@@ -151,23 +186,36 @@ typedef struct {
     Texture *boarderTex;
     Texture *heartEmptyTex;
     Texture *heartFullTex;
-    Texture *coinTex;
+    Texture *starTex;
+    Texture *treeTex;
+    Texture *waterTex;
+    Texture *mushroomTex;
+    Texture *alienTileTex;
+    Texture *mapTex;
+    Texture *refreshTex;
 
-    Texture *alienTex[4];
+    Texture *alienTex[5];
+    Texture *tilesTex[13];
 
     WavFile *solidfyShapeSound;
     WavFile *moveSound;
+    WavFile *arrangeSound;
     WavFile *backgroundSound;
     WavFile *successSound;
     WavFile *explosiveSound;
+    WavFile *enterLevelSound;
+    WavFile *showLevelsSound;
+    
 
     TransitionState transitionState;
 
     Timer levelNameTimer;
 
+    int startOffset;
     int lifePoints;
     int lifePointsMax;
     bool wasHitByExplosive; 
+    int shapeSize;
 
     int extraShapeCount;
     ExtraShape extraShapes[32];
@@ -175,7 +223,9 @@ typedef struct {
     bool createShape;
 
     LevelType currentLevelType;
-    char *levelNames[LEVEL_COUNT];
+    LevelData levelsData[LEVEL_COUNT];
+    LevelData *levelGroups[LEVEL_COUNT]; //this is for the overworld. 
+    FileContents overworldLayout;
 
     Timer moveTimer;
 
@@ -188,13 +238,24 @@ typedef struct {
     int experiencePoints;
     int maxExperiencePoints;
 
-    particle_system particleSystem;
+    Array_Dynamic particleSystems;
+
+    particle_system overworldParticleSys;
+
+    int *overworldValues;
+    V2 overworldDim;
 
     float accumHoldTime;
     bool letGo;  //let the shape go
 
+    int lastShownGroup; //this is for showing the completed groups in the overworld
+
     int glowingLines[16]; //these are the win lines. We annotate them with a slash in the level markup file
     int glowingLinesCount;
+
+    TileLayouts tileLayout;
+
+    V2 *overworldValuesOffset;
 
     ////////TODO: This stuff below should be in another struct so isn't there for all projects. 
     Arena *longTermArena;
@@ -215,6 +276,8 @@ typedef struct {
     Font *font;
 
     V3 cameraPos;
+    V3 overworldCamera;
+    V3 camVel;
 
     unsigned int lastTime;
     ///////
@@ -287,7 +350,6 @@ ExtraShape *addExtraShape(FrameParams *params) {
     ExtraShape *shape = params->extraShapes + params->extraShapeCount++;
     memset(shape, 0, sizeof(ExtraShape));
     shape->isOut = true;
-    shape->justFlipped = true;
     shape->count = 0;
     shape->active = true;
     shape->perpSize = 0;
@@ -342,7 +404,7 @@ V2 parseGetBoardDim(char *at) {
                 parsing = false;
             } break;
             default: {
-                //Withou this ist seems to only cause a bug on the last line of the baord
+                //Without this ist seems to only cause a bug on the last line of the baord
                 if(*at != '/') {
                     xAt++;
                 }
@@ -352,6 +414,153 @@ V2 parseGetBoardDim(char *at) {
     }   
     result.y = yAt;
     return result;
+}
+
+static inline void parseOverworldBoard(char *at, int *values, V2 dim) {
+    at = lexEatWhiteSpace(at);
+    bool parsing = true;
+    int xAt = 0;
+    int yAt = 0;
+    while(parsing) {
+        at = lexEatWhiteSpaceExceptNewLine(at);
+        
+        switch(*at) {
+            case '\0': {
+                parsing = false;
+            } break;
+            case '\r': 
+            case '\n': {
+                xAt = 0;
+                yAt++;
+                at = lexEatWhiteSpace(at);
+            } break;
+            default: {
+                if(*at != '-') {
+                    values[yAt*(int)dim.x + xAt] = 1;
+                } else {
+                    values[yAt*(int)dim.x + xAt] = 0;
+                }
+
+                xAt++;
+                at++;
+            }
+        }
+    }   
+}
+
+static inline void loadLevelData(FrameParams *params) {
+    char *b_ = concat("levels/", "level_overworld.txt");
+    char *c_ = concat(globalExeBasePath, b_);
+    FileContents overworldContents = getFileContentsNullTerminate(c_);
+    assert(overworldContents.valid);
+    params->overworldLayout = overworldContents;
+    free(b_);
+    free(c_);
+
+    for(int i = 1; i < LEVEL_COUNT; ++i) {
+        char *a = concat(LevelTypeStrings[i], ".txt");
+        char *b = concat("levels/", a);
+        char *c = concat(globalExeBasePath, b);
+        bool isFileValid = platformDoesFileExist(c);
+        params->levelsData[i].valid = isFileValid;
+
+        if(isFileValid) {
+            FileContents contents = getFileContentsNullTerminate(c);
+            LevelData *levelData = params->levelsData + i;
+            levelData->contents = contents;
+            levelData->name = "Name Not Set!";
+            levelData->levelType = (LevelType)i;
+            levelData->state = LEVEL_STATE_LOCKED;
+            levelData->showTimer.value = -1;
+
+            particle_system_settings particleSet = InitParticlesSettings(PARTICLE_SYS_DEFAULT);
+            pushParticleBitmap(&particleSet, findTextureAsset("starGold.png"), "star");
+
+            particleSet.Loop = false;
+            //particleSet.offsetP = v3(0.000000, 0.000000, 0.200000);
+            particleSet.bitmapScale = 0.3f;
+            particleSet.posBias = rect2f(0, 0, 0, 0);
+            particleSet.VelBias = rect2f(-1, -1, 1.000000, 1);
+            particleSet.angleBias = v2(0.000000, 6.280000);
+            particleSet.angleForce = v2(-3.000000, 3.000000);
+            particleSet.collidesWithFloor = false;
+            particleSet.MaxLifeSpan = 2.0f;
+            // particleSet.pressureAffected = false;
+
+            InitParticleSystem(&levelData->particleSystem, &particleSet);
+            // params.overworldParticleSys.MaxParticleCount = 4;
+            levelData->particleSystem.viewType = ORTHO_MATRIX;
+            setParticleLifeSpan(&levelData->particleSystem, 20.0f);
+            // Reactivate(&levelData->particleSystem);
+            // assert(levelData->particleSystem.Active);
+
+            int groupId = 1; //NOTE: if no group id is set, it will default to first group. 
+
+            EasyTokenizer tokenizer = lexBeginParsing((char *)contents.memory, true);
+            bool parsing = true;
+
+           bool isLevelData = false;
+           while(parsing) {
+               EasyToken token = lexGetNextToken(&tokenizer);
+               InfiniteAlloc data = {};
+               switch(token.type) {
+                   case TOKEN_NULL_TERMINATOR: {
+                       parsing = false;
+                   } break;
+                   case TOKEN_WORD: {
+                       if(stringsMatchNullN("LevelData", token.at, token.size)) {
+                           isLevelData = true;
+                       }
+                       if(isLevelData) {
+                           if(stringsMatchNullN("name", token.at, token.size)) {
+                              levelData->name  = getStringFromDataObjects(&data, &tokenizer);
+                           }
+                           if(stringsMatchNullN("groupId", token.at, token.size)) {
+                               groupId = getIntFromDataObjects(&data, &tokenizer);
+                           }
+                       }
+                   } break;
+                   case TOKEN_CLOSE_BRACKET: {
+                    //assume we get all the information in the first block of data.
+                    assert(isLevelData);
+                    parsing = false;
+                   } break;
+                   default: {
+
+                   }
+               }
+           }
+
+           if(groupId == 0) {
+            levelData->state = LEVEL_STATE_UNLOCKED;
+           }
+           levelData->groupId = groupId;
+
+#if CHEAT_MODE
+           //unlock everything
+           levelData->state = LEVEL_STATE_UNLOCKED;
+#endif
+           //NOTE: add the group to the linked list. 
+           //NOTE: We add them in order, so first on will stay at the start of the list. 
+           LevelData **groupListAtPtr = params->levelGroups + groupId;
+           while(*groupListAtPtr) {
+            LevelData *groupListAt = *groupListAtPtr;
+
+            groupListAtPtr = &groupListAt->next;
+           }
+
+            assert(levelData->next == 0);
+
+            *groupListAtPtr = levelData;
+
+            assert(contents.memory);
+            assert(contents.valid);
+        }
+
+        free(a);
+        free(b);
+        free(c);
+    }
 }
 
 void loadLevelNames(FrameParams *params) {
@@ -368,7 +577,7 @@ void loadLevelNames(FrameParams *params) {
     bool parsing = true;
 
     for(int i = 1; i < LEVEL_COUNT; ++i) {
-        params->levelNames[i] = "Name Not Set!";
+        params->levelsData[i].name = "Name Not Set!";
     }
 
     while(parsing) {
@@ -382,7 +591,7 @@ void loadLevelNames(FrameParams *params) {
                 char charBuffer[256] = {};
                 nullTerminateBuffer(charBuffer, token.at, token.size);
                 int indexAt = atoi(charBuffer);
-                namePtr = params->levelNames + indexAt;
+                namePtr = &params->levelsData[indexAt + 1].name;
             } break;
             case TOKEN_STRING: {
                 assert(namePtr);
@@ -412,17 +621,11 @@ ExtraShape *findExtraShape(FrameParams *params, int id) {
 
 void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
 
-    char *a = concat(LevelTypeStrings[levelTypeIn], ".txt");
-    char *b = concat("levels/", a);
-    char *c = concat(globalExeBasePath, b);
-    FileContents contents = getFileContentsNullTerminate(c);
+    FileContents contents = params->levelsData[levelTypeIn].contents;
     
     assert(contents.memory);
     assert(contents.valid);
 
-    free(a);
-    free(b);
-    free(c);
 
     EasyTokenizer tokenizer = lexBeginParsing((char *)contents.memory, true);
 
@@ -437,6 +640,8 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
     bool hasLifePoints = false;
     bool parsing = true;
     bool hasLevelName = true;
+    params->shapeSize = 4; //default to size 4
+    params->startOffset = 0; //default to zero
     while(parsing) {
         EasyToken token = lexGetNextToken(&tokenizer);
         InfiniteAlloc data = {};
@@ -465,6 +670,13 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                         params->lifePointsMax = getIntFromDataObjects(&data, &tokenizer);
                         hasLifePoints = true;
                     }
+                    if(stringsMatchNullN("shapeSize", token.at, token.size)) {
+                        params->shapeSize = getIntFromDataObjects(&data, &tokenizer);
+                    }
+                    if(stringsMatchNullN("startOffset", token.at, token.size)) {
+                        params->startOffset = getIntFromDataObjects(&data, &tokenizer);
+                    }
+                    
                 }
                 if(stringsMatchNullN("Board", token.at, token.size)) {
                     parsing = false;
@@ -571,6 +783,13 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                 xAt++;
                 at++;
                 justNewLine = false;
+            } break;
+            case 'b': {
+                assert(!"invalid code path");
+                // setBoardState(params, v2(xAt, yAt), BOARD_STATIC, BOARD_VAL_GLOW);    
+                // xAt++;
+                // at++;
+                // justNewLine = false;
             } break;
             case '!': {
                 setBoardState(params, v2(xAt, yAt), BOARD_EXPLOSIVE, BOARD_VAL_ALWAYS);    
@@ -727,7 +946,7 @@ QueryShapeInfo isRepeatedInShape(FitrisShape *shape, V2 pos, int index) {
    return result;
 }
 
-static BoardValType BOARD_VAL_SHAPES[4] = { BOARD_VAL_SHAPE0, BOARD_VAL_SHAPE1, BOARD_VAL_SHAPE2, BOARD_VAL_SHAPE3 };
+static BoardValType BOARD_VAL_SHAPES[5] = { BOARD_VAL_SHAPE0, BOARD_VAL_SHAPE1, BOARD_VAL_SHAPE2, BOARD_VAL_SHAPE3, BOARD_VAL_SHAPE4 };
 
 FitrisBlock *findBlockById(FitrisShape *shape, int id) {
     FitrisBlock *result = 0;
@@ -754,12 +973,19 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
         for(int i = 0; i < shape->count; ++i) {
           V2 oldPos = shape->blocks[i].pos;
           V2 newPos = v2_plus(oldPos, moveVec);
+
+          BoardValue *val = getBoardValue(params, oldPos);
+          val->color = COLOR_WHITE;
+
+          BoardValue *newVal = getBoardValue(params, newPos);
+          newVal->color = COLOR_WHITE;
+
           BoardState state = getBoardState(params, newPos);
           if(state == BOARD_EXPLOSIVE) {
             assert(params->lifePointsMax > 0);
             params->lifePoints--;
             params->wasHitByExplosive = true;
-            playSound(params->soundArena, params->explosiveSound, 0, AUDIO_FOREGROUND);
+            playGameSound(params->soundArena, params->explosiveSound, 0, AUDIO_FOREGROUND);
             //remove from shapea
             assert(idsHitCount < arrayCount(idsHit));
             idsHit[idsHitCount++] = shape->blocks[i].id;
@@ -794,7 +1020,7 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
             setBoardState(params, newPos, BOARD_SHAPE, shape->blocks[i].type);    
             shape->blocks[i].pos = newPos;
         }
-        playSound(params->soundArena, params->moveSound, 0, AUDIO_FOREGROUND);
+        playGameSound(params->soundArena, params->moveSound, 0, AUDIO_FOREGROUND);
     }
     return result;
 }
@@ -809,7 +1035,7 @@ void solidfyShape(FitrisShape *shape, FrameParams *params) {
         val->color = COLOR_WHITE;
 
     }
-    playSound(params->soundArena, params->solidfyShapeSound, 0, AUDIO_FOREGROUND);
+    playGameSound(params->soundArena, params->solidfyShapeSound, 0, AUDIO_FOREGROUND);
 }
 
 /* we were using the below code to do a flood fill to see if the shape was connected. But realised I could just see if the new 
@@ -882,6 +1108,10 @@ IslandInfo getShapeIslandCount(FitrisShape *shape, V2 startPos, FrameParams *par
         queryAt = queryAt->next;
     }
     releaseMemoryMark(&memMark);
+    if(info.count > shape->count) {
+        printf("Count At; %d\n", info.count);    
+        printf("Shape Count: %d\n", shape->count);    
+    }
     assert(info.count <= shape->count);
 
     return info;
@@ -953,35 +1183,24 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
 void resetMouseUI(FrameParams *params) {
     if(params->currentHotIndex >= 0) {
         params->letGo = true;
+        V2 pos = params->currentShape.blocks[params->currentHotIndex].pos;
+        BoardValue *val = getBoardValue(params, pos);
+        val->color = COLOR_WHITE;
     }
 
     params->currentHotIndex = -1; //reset hot ui   
-
 }
 
-void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 screenDim, Matrix4 metresToPixels, FrameParams *params) {
-    assert(!params->wasHitByExplosive);
-    assert(!params->createShape);
-    bool areRearranging = (params->currentHotIndex >= 0);
-#if CAN_MOVE_WITH_ARROW_KEYS
-    if(wasPressed(gameButtons, BUTTON_LEFT) && !areRearranging) {
-        moveShape(shape, params, MOVE_LEFT);
-    }
-    if(wasPressed(gameButtons, BUTTON_RIGHT) && !areRearranging) {
-        moveShape(shape, params, MOVE_RIGHT);
-    }
-    if(wasPressed(gameButtons, BUTTON_DOWN) && !areRearranging) {
-        if(moveShape(shape, params, MOVE_DOWN)) {
-            params->moveTimer.value = 0;
-        }
-    }
-#endif
+void changeMenuStateCallback(void *data) {
+    FrameParams *params = (FrameParams *)data;
+    resetMouseUI(params);
+}
 
+static inline void updateShapeMoveTime(FitrisShape *shape, FrameParams *params) {
     if(wasReleased(gameButtons, BUTTON_LEFT_MOUSE)) {
         resetMouseUI(params);
     }
-
-    bool turnSolid = false;
+    
     bool isHoldingShape = params->currentHotIndex >= 0;
     params->moveTime = params->dt;
     if(isHoldingShape) { 
@@ -996,6 +1215,16 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
         params->accumHoldTime = 0;
         params->letGo = false;
     }
+}
+
+void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 screenDim, Matrix4 metresToPixels, FrameParams *params) {
+    assert(!params->wasHitByExplosive);
+    assert(!params->createShape);
+
+
+    bool isHoldingShape = params->currentHotIndex >= 0;
+
+    bool turnSolid = false;
 
     TimerReturnInfo timerInfo = updateTimer(&params->moveTimer, params->moveTime);
     if(timerInfo.finished) {
@@ -1053,8 +1282,14 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
             boardPosAt.y = (int)(clamp(0, boardPosAt.y, params->boardHeight -1) + 0.5f);
 
             if(shapeStillConnected(shape, params->currentHotIndex, boardPosAt, params)) {
+                playGameSound(params->soundArena, params->arrangeSound, 0, AUDIO_FOREGROUND);
+
                 V2 oldPos = shape->blocks[params->currentHotIndex].pos;
                 V2 newPos = boardPosAt;
+
+                BoardValue *oldVal = getBoardValue(params, oldPos);
+                oldVal->color = COLOR_WHITE;
+
                 assert(getBoardState(params, oldPos) == BOARD_SHAPE);
                 assert(getBoardState(params, newPos) == BOARD_NULL);
                 setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    
@@ -1100,6 +1335,9 @@ Texture *getBoardTex(BoardValue *boardVal, BoardState boardState, BoardValType t
                     case BOARD_VAL_SHAPE3: {
                         tex = params->alienTex[3];
                     } break;
+                    case BOARD_VAL_SHAPE4: {
+                        tex = params->alienTex[4];
+                    } break;
                     default: {
                         assert(!"invalid path");
                     }
@@ -1120,6 +1358,8 @@ void initBoard(FrameParams *params, LevelType levelType) {
     params->currentHotIndex = -1;
     params->maxExperiencePoints = 0;
     params->glowingLinesCount = 0;
+    params->accumHoldTime = 0;
+    params->letGo = false;  
 
     params->createShape = true;   
     params->moveTimer.value = 0;
@@ -1138,8 +1378,9 @@ typedef struct {
 } TransitionDataLevel;
 
 typedef struct {
-    LevelType levelType;
+    TransitionDataLevel levelData;
     FrameParams *params;
+
     MenuInfo *info;
     GameMode lastMode;
     GameMode newMode;
@@ -1152,17 +1393,33 @@ void transitionCallbackForLevel(void *data_) {
     FrameParams *params = trans->params;
 
     initBoard(params, trans->levelType);
+    resetMouseUI(params);
 } 
 
 void transitionCallbackForStartOrEndGame(void *data_) {
     TransitionDataStartOrEndGame *trans = (TransitionDataStartOrEndGame *)data_;
-    FrameParams *params = trans->params;
 
-    initBoard(params, trans->levelType);
+    transitionCallbackForLevel(&trans->levelData);
 
     trans->info->gameMode = trans->newMode;
     trans->info->lastMode = trans->lastMode;
     trans->info->menuCursorAt = 0;
+    setParentChannelVolume(AUDIO_FLAG_MAIN, 1, 1);
+    setParentChannelVolume(AUDIO_FLAG_MENU, 0, 1);
+} 
+
+void transitionCallbackForBackToOverworld(void *data_) {
+    TransitionDataStartOrEndGame *trans = (TransitionDataStartOrEndGame *)data_;
+    FrameParams *params = trans->params;
+    for(int i = 0; i < LEVEL_COUNT; ++i) {
+        params->levelsData[i].angle = 0;
+        params->levelsData[i].dA = 0;
+    }
+    trans->info->gameMode = trans->newMode;
+    trans->info->lastMode = trans->lastMode;
+    trans->info->menuCursorAt = 0;
+    setParentChannelVolume(AUDIO_FLAG_MENU, 1, 1);
+    setParentChannelVolume(AUDIO_FLAG_MAIN, 0, 1);
 } 
 
 void setLevelTransition(FrameParams *params, LevelType levelType) {
@@ -1172,13 +1429,25 @@ void setLevelTransition(FrameParams *params, LevelType levelType) {
     setTransition_(&params->transitionState, transitionCallbackForLevel, data);
 }
 
+void setBackToOverworldTransition(FrameParams *params) {
+    TransitionDataStartOrEndGame *data = (TransitionDataStartOrEndGame *)calloc(sizeof(TransitionDataStartOrEndGame), 1);
+    data->info = &params->menuInfo;
+    data->lastMode = params->menuInfo.gameMode;
+    data->newMode = OVERWORLD_MODE;
+    data->params = params;
+    setTransition_(&params->transitionState, transitionCallbackForBackToOverworld, data);
+    
+}
+
 void setStartOrEndGameTransition(FrameParams *params, LevelType levelType, GameMode newMode) {
     TransitionDataStartOrEndGame *data = (TransitionDataStartOrEndGame *)calloc(sizeof(TransitionDataStartOrEndGame), 1);
-    data->params = params;
+    data->levelData.params = params;
+    data->levelData.levelType = levelType;
+
     data->info = &params->menuInfo;
-    data->levelType = levelType;
     data->lastMode = params->menuInfo.gameMode;
     data->newMode = newMode;
+    //this one is different to just setLevelTransition since it changes game mode as well. 
     setTransition_(&params->transitionState, transitionCallbackForStartOrEndGame, data);
 }
 
@@ -1218,7 +1487,7 @@ void updateBoardWinState(FrameParams *params) {
                     setBoardState(params, v2(boardX, boardY), BOARD_NULL, BOARD_VAL_OLD);
                 }
             }
-            // playSound(params->soundArena, params->successSound, 0, AUDIO_FOREGROUND);
+            // playGameSound(params->soundArena, params->successSound, 0, AUDIO_FOREGROUND);
             removeWinLine(params, boardY);
             increment = false;
         }
@@ -1230,15 +1499,57 @@ void updateBoardWinState(FrameParams *params) {
 
     if(params->glowingLinesCount == 0) {
         int levelAsInt = (int)params->currentLevelType;
-        levelAsInt++;
-        LevelType nextLevel = (LevelType)levelAsInt;
-        if(nextLevel < LEVEL_COUNT) {
-            setLevelTransition(params, nextLevel);
-        } else {
-            //finished the game -> go back to main menu
-            setStartOrEndGameTransition(params, LEVEL_0, MENU_MODE);
+
+        assert(params->levelsData[levelAsInt].valid);
+        int originalGroup = params->levelsData[levelAsInt].groupId;
+
+        params->levelsData[levelAsInt].state = LEVEL_STATE_COMPLETED;
+
+        LevelData *listAt = params->levelGroups[originalGroup];
+        assert(listAt);
+        bool completedGroup = true;
+        LevelType nextLevel;
+        while(listAt) {
+            completedGroup &= (listAt->state == LEVEL_STATE_COMPLETED);
+            if(!completedGroup) {
+                nextLevel = listAt->levelType;
+                assert(listAt->levelType < LEVEL_COUNT);
+                break;
+            }
+            listAt = listAt->next;
         }
-        
+
+        bool goToNextLevel = true;
+        if(completedGroup) {
+            //This assumes groups have to be consecutive ie. have to have group 0, 1, 2, 3 can't 
+            //miss any ie. 0, 2, 4
+            int nextGroup = originalGroup + 1;
+            LevelData *nextGroupListAt = params->levelGroups[nextGroup];
+            if(!nextGroupListAt) {
+                setStartOrEndGameTransition(params, LEVEL_0, MENU_MODE);
+                goToNextLevel = false;
+            } else {
+                nextLevel = (LevelType)nextGroupListAt->levelType;    
+                
+                assert(params->levelsData[nextLevel].groupId == nextGroup);
+                assert(nextGroup > originalGroup);
+
+                //NOTE: Unlock the next group
+                listAt = params->levelGroups[nextGroup];
+                assert(listAt == nextGroupListAt);
+                while(listAt) {
+                    if(listAt->state == LEVEL_STATE_LOCKED) {
+                        //this is since we can go back and complete levels again. 
+                        listAt->state = LEVEL_STATE_UNLOCKED;
+                    }
+                    listAt = listAt->next;
+                }
+            }
+        }
+
+        if(goToNextLevel) {
+            setLevelTransition(params, nextLevel); 
+        }
     }
 }
 
@@ -1247,6 +1558,7 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
     while(repeat) { //this is for when we get blocked 
         repeat = false;
         int beginCount = shape->count;
+        assert(shape->count <= shape->max);
         bool beginOut = shape->isOut;
         BoardState stateToSet;
         
@@ -1258,48 +1570,64 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
             stateToSet = BOARD_NULL;
             addend = -1;
         }
-        bool justFlipped = shape->justFlipped;
+
         if(!shape->justFlipped) {
-            shape->count += addend;
+            shape->count += addend;        
+
         } else {
             shape->justFlipped = false;
         }
 
-        V2 shift = v2(shape->growDir.x*shape->count, shape->growDir.y*shape->count); 
-        V2 newPos = v2_plus(shape->pos, shift);
+        BoardState toBoardState = BOARD_INVALID;
+        assert(shape->count >= 0 && shape->count <= shape->max);
+        V2 newPos = v2(0, 0); //doesn't matter what we set it to because only things with a count use it, just as to be in bounds
+        if(shape->count) {
+            //minus one since count of one means we are setting the shapes position block
+            V2 shift = v2(shape->growDir.x*(shape->count - 1), shape->growDir.y*(shape->count - 1)); 
+            newPos = v2_plus(shape->pos, shift);
 
-        BoardState toBoardState = getBoardState(params, newPos);
+            toBoardState = getBoardState(params, newPos);
+        }
+
         bool settingBlock = (toBoardState == BOARD_NULL && stateToSet == BOARD_STATIC);
         bool isInBounds = inBoardBounds(params, newPos);
         bool blocked = (toBoardState != BOARD_NULL && stateToSet == BOARD_STATIC);
         if(blocked || !isInBounds) {
             assert(shape->isOut);
-            shape->isOut = false;
-            shape->justFlipped = true;
-
+            assert(!"false");
             if(shape->count == 0) {
                 assert(stateToSet != BOARD_NULL);
                 shape->isOut = true;
+                for(int i = 0; i < shape->perpSize; ++i) {
+                    shape->growDir = perp(shape->growDir);
+                }
             } else {
+                shape->isOut = false;
                 repeat = true;
+                shape->justFlipped = true;
                 shape->count--;
+                assert(!"false");
             }
         } else {
+            assert(stateToSet != BOARD_INVALID);
+            assert(shape->count > 0);
             assert(isInBounds);
             if(settingBlock || stateToSet == BOARD_NULL) {
+                printf("%d\n", toBoardState);
                 if(stateToSet == BOARD_NULL) { assert(toBoardState == BOARD_STATIC); }
                 setBoardState(params, newPos, stateToSet, BOARD_VAL_DYNAMIC);
+
             }
         }
 
-        if(shape->count == (shape->max) && !justFlipped) {
+        assert(shape->max > 0);
+        if(shape->count == shape->max) {
             shape->isOut = false;
             shape->justFlipped = true;
         }
-        if(shape->count == 0 && !justFlipped) {
+        if(shape->count == 0) {
             assert(!shape->isOut);
             shape->isOut = true;
-            shape->justFlipped = true;
             for(int i = 0; i < shape->perpSize; ++i) {
                 shape->growDir = perp(shape->growDir);
             }
@@ -1355,7 +1683,43 @@ bool checkIsWinLine(FrameParams *params, int lineCheckAt) {
     return result;
 }
 
+static inline Texture *getTileTex(FrameParams *params, int xAt, int yAt) {
+    int spots[9] = {};
+    int xMin = xAt - 1;
+    int yMin = yAt - 1;
+    for(int yIndex = 0; yIndex < 3; ++yIndex) {
+        for(int xIndex = 0; xIndex < 3; ++xIndex) {
+            int value = 0;
+            int x = xMin + xIndex;
+            int y = yMin + yIndex;
+            if(x >= 0 && y >= 0 && x < params->overworldDim.x && y < params->overworldDim.y) {
+                value = params->overworldValues[y*(int)params->overworldDim.x + x];
+            } else {
+                assert(!(yIndex == 1 && xIndex == 1));
+            }
+            //flip them round since we display the board top to bottom
+            spots[(2 - yIndex)*3 + xIndex] = value;
+        }
+    }
+    assert(spots[4] == 1);
+
+    // for(int i = 0; i < 9; ++i) {
+    //     if(i == 3 || i == 6) {
+    //         printf("\n");
+    //     }
+    //     printf("%d", spots[i]);
+        
+    // }
+    // printf("\n");
+    // printf("\n");
+    tile_pos_type tiletType = easyTile_getTileType(&params->tileLayout, spots);
+    int tileIndex = (int)tiletType;
+    Texture *tileTex = params->tilesTex[tileIndex];
+    return tileTex;
+}
+
 void gameUpdateAndRender(void *params_) {
+
     FrameParams *params = (FrameParams *)params_;
     V2 screenDim = *params->screenDim;
     V2 resolution = *params->resolution;
@@ -1370,11 +1734,17 @@ void gameUpdateAndRender(void *params_) {
     clearBufferAndBind(params->backbufferId, COLOR_BLACK);
     clearBufferAndBind(params->mainFrameBuffer.bufferId, COLOR_PINK);
     renderEnableDepthTest(&globalRenderGroup);
-    renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -5), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
+    if(params->menuInfo.gameMode != OVERWORLD_MODE) {
+        renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -5), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
+    }
 
-    // drawAndUpdateParticleSystem(&params->particleSystem, params->dt, v3(0, 0, -4), v3(0, 0 ,0), params->cameraPos, params->metresToPixels, resolution);
+    for(int partIndex = 0; partIndex < params->particleSystems.count; ++partIndex) {
+        // drawAndUpdateParticleSystem(&params->particleSystem, params->dt, v3(0, 0, -4), v3(0, 0 ,0), params->cameraPos, params->metresToPixels, resolution);
+    }
+
     
     V2 mouseP = params->keyStates->mouseP;
+
     GameMode currentGameMode = drawMenu(&params->menuInfo, params->longTermArena, gameButtons, 0, params->successSound, params->moveSound, params->dt, resolution, mouseP);
 
     bool transitioning = updateTransitions(&params->transitionState, resolution, params->dt);
@@ -1382,15 +1752,38 @@ void gameUpdateAndRender(void *params_) {
 
     bool isPlayState = (currentGameMode == PLAY_MODE);
 
-    if(!transitioning && isPlayState) {
+    float helpTextY = 40;
+
+    bool retryButtonPressed = false;    
+    if(isPlayState) {
+        
+        { //refresh level button
+            RenderInfo renderInfo = calculateRenderInfo(v3(-9, 5, -1), v3(0.7f, 0.7f, 1), v3(0, 0, 0), params->metresToPixels);
+            
+            Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+
+            if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
+                    retryButtonPressed = true;
+                }
+            }
+
+            // renderDrawRectOutlineCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm));            
+            renderTextureCentreDim(params->refreshTex, renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+        }   
+    }
+
+    if(!transitioning && isPlayState) {   
         
         //if updating a transition don't update the game logic, just render the game board. 
         bool canDie = params->lifePointsMax > 0;
-        bool retryLevel = ((params->lifePoints <= 0) && canDie) || wasPressed(gameButtons, BUTTON_R);
+        bool retryLevel = ((params->lifePoints <= 0) && canDie) || wasPressed(gameButtons, BUTTON_R) || retryButtonPressed; 
         if(params->createShape || retryLevel) {
-            params->currentShape.count = 0;
-            for (int i = 0; i < 4 && !retryLevel; ++i) {
-                int xAt = i % params->boardWidth;
+            if(!retryLevel) {
+                params->currentShape.count = 0;
+            }
+            for (int i = 0; i < params->shapeSize && !retryLevel; ++i) {
+                int xAt = i % params->boardWidth + params->startOffset;
                 int yAt = (params->boardHeight - 1) - (i / params->boardWidth);
                 assert(i == params->currentShape.count);
                 FitrisBlock *block = &params->currentShape.blocks[params->currentShape.count++];
@@ -1414,12 +1807,11 @@ void gameUpdateAndRender(void *params_) {
 
             params->moveTimer.value = 0;
             params->createShape = false;
+            // assert(params->currentShape.count > 0);
         }
 
+        updateShapeMoveTime(&params->currentShape, params);
 
-        updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params);
-
-        bool isHoldingShape = (params->currentHotIndex >= 0);
         for(int extraIndex = 0; extraIndex < params->extraShapeCount; ++extraIndex) {
             ExtraShape *extraShape = params->extraShapes + extraIndex;
 
@@ -1442,6 +1834,7 @@ void gameUpdateAndRender(void *params_) {
                 }
             }
         }
+        updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params);
         
         updateBoardWinState(params);
     }
@@ -1449,16 +1842,30 @@ void gameUpdateAndRender(void *params_) {
     //Stil render when we are in a transition
     if(isPlayState) {
 
+        { //Back to overworld button
+            RenderInfo renderInfo = calculateRenderInfo(v3(9, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            
+            Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+
+            if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
+                    setBackToOverworldTransition(params);
+                }
+            }
+
+            renderTextureCentreDim(params->mapTex, renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+        }
+
         if(isOn(&params->levelNameTimer)) {
             TimerReturnInfo nameTimeInfo = updateTimer(&params->levelNameTimer, params->dt);
             V4 levelNameFontColor = smoothStep00V4(COLOR_NULL, nameTimeInfo.canonicalVal, COLOR_BLACK);
             float levelNameFontSize = 1.0f;
-            char *title = params->levelNames[params->currentLevelType];
+            char *title = params->levelsData[params->currentLevelType].name;
             float xFontAt = (resolution.x/2) - (getBounds(title, menuMargin, params->font, levelNameFontSize, resolution).x / 2);
             outputText(params->font, xFontAt, 0.5f*resolution.y, -1, resolution, title, menuMargin, levelNameFontColor, levelNameFontSize, true);
         }
-        
-        outputText(params->font, 10, 40, -1, resolution, "Press R to reset", menuMargin, COLOR_BLACK, 0.5f, true);
+
+        //outputText(params->font, 10, helpTextY, -1, resolution, "Press R to reset", menuMargin, COLOR_BLACK, 0.5f, true);
 
         renderXPBarAndHearts(params, resolution);
         for(int boardY = 0; boardY < params->boardHeight; ++boardY) {
@@ -1508,41 +1915,193 @@ void gameUpdateAndRender(void *params_) {
         }
     } else if(currentGameMode == OVERWORLD_MODE) {
         float xAt = 0;
-        float yAt = 50;
+        float yAt = 0;
         float coint_xAt = 0;
         float coint_yAt = 0;
-        
+
         float fontSize = 0.7f;
         float lowerY = 0.8f*resolution.y;
         float nameY = 0.9f*resolution.y;
-        for(int levelIndex = 1; levelIndex < LEVEL_COUNT; ++levelIndex) {
-            char *title = LevelTypeStrings[levelIndex];
-            // RenderInfo levelBlockRenderInfo = calculateRenderInfo(v3(coint_xAt, coint_yAt, -1), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
-            // renderTextureCentreDim(params->coinTex, levelBlockRenderInfo.pos, levelBlockRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), levelBlockRenderInfo.pvm));            
-            Rect2f outputDim = outputText(params->font, xAt, yAt, -1, resolution, title, menuMargin, COLOR_WHITE, fontSize, false);
-            
-            V4 color = COLOR_BLACK;
-            if(inBounds(mouseP, outputDim, BOUNDS_RECT)) {
-                // info->menuCursorAt = menuIndex;
-                color = COLOR_GREEN;
-                char *levelName = params->levelNames[levelIndex];
-                outputText(params->font, 0, nameY, -1, resolution, levelName, menuMargin, COLOR_BLUE, fontSize, true);
+        float ySpace = 1.0f;
+        float xSpace = ySpace;
 
-                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
-                    setStartOrEndGameTransition(params, (LevelType)levelIndex, PLAY_MODE);
-                }
+        static V2 lastMouseP = {};
+        if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+            lastMouseP = mouseP;
+        }
+
+        V3 accel = v3(0, 0, 0);
+        if(isDown(gameButtons, BUTTON_LEFT_MOUSE)) {
+            accel.xy = v2_scale(1000.0f, normalizeV2(v2_minus(mouseP, lastMouseP)));
+            accel.x *= -1; 
+        }
+
+        params->camVel = v3_plus(v3_scale(params->dt, accel), params->camVel);
+        params->camVel = v3_minus(params->camVel, v3_scale(0.6f, params->camVel));
+        params->overworldCamera = v3_plus(v3_scale(params->dt, params->camVel), params->overworldCamera);
+
+        //rounding so it doens't get weired about the rendering 
+        params->overworldCamera.x = ((int)(params->overworldCamera.x*10)) / 10.0f;
+        params->overworldCamera.y = ((int)(params->overworldCamera.y*10)) / 10.0f;
+        //
+
+        lastMouseP = mouseP;
+
+        char *at = (char *)params->overworldLayout.memory;
+
+        LevelData *levelsAtStore[LEVEL_COUNT] = {};
+        bool finished[LEVEL_COUNT] = {};
+
+
+        float waterDim = 2.0f;
+        for(int yVal = -6; yVal < 6; ++yVal) {
+            for(int xVal = -8; xVal < 8; ++xVal) {
+
+                RenderInfo extraRenderInfo = calculateRenderInfo(v3(waterDim*xVal, waterDim*yVal, -3), v3(waterDim, waterDim, 1), v3(0, 0, 0), params->metresToPixels);
+                renderTextureCentreDim(params->waterTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
             }
-
-            V2 wordDim = getDim(outputDim);
-            outputText(params->font, xAt, yAt, -1, resolution, title, menuMargin, color, fontSize, true);
-            if(wordDim.y + yAt >= lowerY) {
-                yAt = 0;
-                xAt += wordDim.x + 50;
-            }
-
-            yAt += 50;//fontSize*params->font->fontHeight;
 
         }
+        bool playedSound = false;
+        // drawAndUpdateParticleSystem(&params->overworldParticleSys, params->dt, v3(0, 0, -4), v3(0, 0 ,0), params->cameraPos, params->metresToPixels, resolution);
+        int highestGroupId = params->lastShownGroup;
+        at = lexEatWhiteSpace(at);
+        bool parsing = true;
+        while(parsing) {
+            at = lexEatWhiteSpaceExceptNewLine(at);
+            switch(*at) {
+                case '\0': {
+                    parsing = false;
+                } break;
+                case '\r': 
+                case '\n': {
+                    xAt = 0;
+                    yAt++;
+                    at = lexEatWhiteSpace(at);
+                } break;
+                case '$':
+                case '#':
+                case '%':
+                case '!': {
+                    V2 offset = params->overworldValuesOffset[(int)(yAt*params->overworldDim.x) + (int)xAt];
+                    float xVal = xSpace*xAt + xSpace*offset.x;
+                    float yVal = ySpace*yAt + ySpace*offset.y;
+                    if(*at == '#') {
+                        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, 1.5f*ySpace, 1), params->overworldCamera, params->metresToPixels);
+                        renderTextureCentreDim(params->treeTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+                    }
+                    if(*at == '$') {
+                        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, ySpace, 1), params->overworldCamera, params->metresToPixels);
+                        renderTextureCentreDim(params->alienTileTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+                    }
+                    if(*at == '%') {
+                        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, ySpace, 1), params->overworldCamera, params->metresToPixels);
+                        renderTextureCentreDim(params->mushroomTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+                    }
+                    RenderInfo renderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), params->overworldCamera, params->metresToPixels);
+                    renderTextureCentreDim(getTileTex(params, xSpace*xAt, ySpace*yAt), renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+                    xAt++;
+                    at++;
+                } break;
+                default: {
+                    if(lexIsNumeric(*at)) {
+                        int groupId = (int)((*at) - 48);
+                        if(!finished[groupId]) {
+                            LevelData *levelAt = levelsAtStore[groupId];
+                            if(levelAt) {
+                                //move to the next one
+                                levelAt = levelAt->next;
+                                if(!levelAt) {
+                                    finished[groupId] = true;
+                                }
+                                
+                            } else {
+                                //NOTE: set up the level group store 
+                                levelAt = params->levelGroups[groupId];
+                            }
+                            levelsAtStore[groupId] = levelAt;
+
+                            //make sure we haven't over specified in the overworld layout
+                            if(levelAt && levelAt->state != LEVEL_STATE_LOCKED) {
+
+                                if(groupId > params->lastShownGroup) {
+                                    if(highestGroupId < groupId) {
+                                        highestGroupId = groupId;
+                                    }
+                                    if(!playedSound) {
+                                        playGameSound(params->soundArena, params->showLevelsSound, 0, AUDIO_FOREGROUND);
+                                        playedSound = false;
+                                    }
+                                    levelAt->showTimer = initTimer(2.0f);
+                                    Reactivate(&levelAt->particleSystem);
+                                    levelAt->dA = 10;
+                                }
+
+                                TimerReturnInfo timeInfo = updateTimer(&levelAt->showTimer, params->dt);
+                                float scale = smoothStep00(1, timeInfo.canonicalVal, 2.0f);
+
+                                if(timeInfo.finished) {
+                                    // levelAt->dA = 0;   
+                                }
+
+                                //Update Level icon
+                                
+                                // levelAt->angle += params->dt*levelAt->dA;
+                                    levelAt->angle = lerp(0, timeInfo.canonicalVal, 4*PI32);
+                                
+
+                                drawAndUpdateParticleSystem(&levelAt->particleSystem, params->dt, v3(xSpace*xAt, ySpace*yAt, -1), v3(0, 0 ,0), params->overworldCamera, params->metresToPixels, resolution);
+                                
+                                RenderInfo renderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -1), v3(scale*1, scale*1, 1), params->overworldCamera, params->metresToPixels);
+                                
+                                V4 color = COLOR_PINK;
+                                switch(levelAt->state) {
+                                    case LEVEL_STATE_COMPLETED: {
+                                        color = COLOR_GREEN;
+                                    } break;
+                                    case LEVEL_STATE_UNLOCKED: {
+                                        color = COLOR_YELLOW;
+                                    } break;
+                                    case LEVEL_STATE_LOCKED: {
+                                        color = COLOR_GREY;
+                                    } break;
+                                    default: {
+                                        assert(!"invalid code path");
+                                    }
+                                }
+
+                                Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+
+                                if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                                    //Output the levels name
+                                    char *levelName = levelAt->name;
+                                    Rect2f outputNameDim = outputText(params->font, 0, 0, -1, resolution, levelName, menuMargin, COLOR_WHITE, fontSize, false);
+                                    V2 nameDim = getDim(outputNameDim);
+                                    outputText(params->font, 0.5f*(resolution.x - nameDim.x), nameY, -1, resolution, levelName, menuMargin, COLOR_BLUE, fontSize, true);
+
+                                    if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && levelAt->state != LEVEL_STATE_LOCKED) {
+                                        // float torqueForce = 1000.0f;
+                                        // levelAt->dA += params->dt*torqueForce;
+                                        playGameSound(params->soundArena, params->enterLevelSound, 0, AUDIO_FOREGROUND);
+                                        
+                                        setStartOrEndGameTransition(params, levelAt->levelType, PLAY_MODE);
+                                    }
+                                }
+
+                                renderTextureCentreDim(params->starTex, renderInfo.pos, renderInfo.dim.xy, color, levelAt->angle, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+                                
+                            }    
+                        }
+                        RenderInfo tileRenderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), params->overworldCamera, params->metresToPixels);
+                            renderTextureCentreDim(getTileTex(params, xSpace*xAt, ySpace*yAt), tileRenderInfo.pos, tileRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), tileRenderInfo.pvm)); 
+                    }
+                    xAt++;
+                    at++;
+                }
+            }
+        }
+
+        params->lastShownGroup = highestGroupId;
     }
     
 
@@ -1585,54 +2144,105 @@ int main(int argc, char *args[]) {
     Texture *boarderTex = findTextureAsset("elementMetal030.png");
     Texture *heartFullTex = findTextureAsset("hud_heartFull.png");
     Texture *heartEmptyTex = findTextureAsset("hud_heartEmpty.png");
-    Texture *coinTex = findTextureAsset("coinGold.png");
+    Texture *starTex = findTextureAsset("starGold.png");
+    Texture *treeTex = findTextureAsset("tree3.png");
+    Texture *mushroomTex = findTextureAsset("mushrooomTile.png");
+    Texture *waterTex = findTextureAsset("waterTile.png");
+    Texture *alienTileTex = findTextureAsset("alienTile.png");
+    Texture *mapTex = findTextureAsset("map.png");
+    Texture *refreshTex = findTextureAsset("refresh.png");
     
 
     assert(metalTex);
     bool running = true;
+
+    LevelType startLevel = LEVEL_0;
+
+    Tweaker tweaker = {};
+    if(refreshTweakFile(concat(globalExeBasePath, "../src/tweakFile.txt"), &tweaker)) {
+            char *startLevelStr = getStringFromTweakData(&tweaker, "startingLevel");
+            assert(startLevelStr);
+            for(int i = 0; i < arrayCount(LevelTypeStrings); ++i) {
+                if(cmpStrNull(LevelTypeStrings[i], startLevelStr)) {
+                    startLevel = (LevelType)i;
+                }
+            }
+    }
       
     FrameParams params = {};
     params.solidfyShapeSound = findSoundAsset("slate_sound.wav");
     params.successSound = findSoundAsset("Success2.wav");
     params.explosiveSound = findSoundAsset("explosion.wav");
+    params.showLevelsSound = findSoundAsset("showLevels.wav");
+    initArray(&params.particleSystems, particle_system);
+
+    params.lastShownGroup = -1;
     
 
     params.alienTex[0] = findTextureAsset("alienGreen.png");
     params.alienTex[1] = findTextureAsset("alienYellow.png");
     params.alienTex[2] = findTextureAsset("alienBlue.png");
     params.alienTex[3] = findTextureAsset("alienPink.png");
+    params.alienTex[4] = findTextureAsset("alienBeige.png");
+
+    params.tilesTex[0] = findTextureAsset("tileTopLeft.png");
+    params.tilesTex[1] = findTextureAsset("tileTopMiddle.png");
+    params.tilesTex[2] = findTextureAsset("tileTopRight.png");
+
+    params.tilesTex[3] = findTextureAsset("tileMiddleLeft.png");
+    params.tilesTex[4] = findTextureAsset("tileMiddleMiddle.png");
+    params.tilesTex[5] = findTextureAsset("tileMiddleRight.png");
+
+    params.tilesTex[6] = findTextureAsset("tileBottomLeft.png");
+    params.tilesTex[7] = findTextureAsset("tileBottomMiddle.png");
+    params.tilesTex[8] = findTextureAsset("tileBottomRight.png");
+
+    params.tilesTex[9] = findTextureAsset("tileCenterTopLeft.png");
+    params.tilesTex[10] = findTextureAsset("tileCenterTopRight.png");
+    params.tilesTex[11] = findTextureAsset("tileCenterLeftBottom.png");
+    params.tilesTex[12] = findTextureAsset("tileCenterRightBottom.png");
+
+    params.tileLayout = easyTile_initLayouts();
 
 #if 0 //particle system in background. Was to distracting. 
     particle_system_settings particleSet = InitParticlesSettings(PARTICLE_SYS_DEFAULT);
-    // pushParticleBitmap(&particleSet, findTextureAsset("leaf1.png"), "stone Tex");
+    pushParticleBitmap(&particleSet, findTextureAsset("cloud1.png"), "cloud1");
+    pushParticleBitmap(&particleSet, findTextureAsset("cloud2.png"), "cloud1");
+    pushParticleBitmap(&particleSet, findTextureAsset("cloud3.png"), "cloud1");
+    pushParticleBitmap(&particleSet, findTextureAsset("cloud4.png"), "cloud1");
 
     particleSet.Loop = true;
     //particleSet.offsetP = v3(0.000000, 0.000000, 0.200000);
-    particleSet.bitmapScale = 1.0f;
-    particleSet.posBias = rect2f(-10.000000, 10, 10.000000, 10);
-    particleSet.VelBias = rect2f(0.000000, -2.000000, 0.000000, -4.000000);
-    particleSet.angleBias = v2(0.000000, 6.280000);
-    particleSet.angleForce = v2(-3.000000, 3.000000);
+    particleSet.bitmapScale = 3.0f;
+    particleSet.posBias = rect2f(-10.000000, 0, 10.000000, 10);
+    particleSet.VelBias = rect2f(-0.02000, 0.000000, -1.000000, 0.000000);
+    // particleSet.angleBias = v2(0.000000, 6.280000);
+    // particleSet.angleForce = v2(-3.000000, 3.000000);
     particleSet.collidesWithFloor = false;
     particleSet.pressureAffected = false;
 
 
-    InitParticleSystem(&params.particleSystem, &particleSet);
-    params.particleSystem.viewType = ORTHO_MATRIX;
-    setParticleLifeSpan(&params.particleSystem, 10.0f);
-    Reactivate(&params.particleSystem);
-    assert(params.particleSystem.Active);
+    InitParticleSystem(&params.overworldParticleSys, &particleSet);
+    params.overworldParticleSys.MaxParticleCount = 4;
+    params.overworldParticleSys.viewType = ORTHO_MATRIX;
+    setParticleLifeSpan(&params.overworldParticleSys, 0.01f);
+    Reactivate(&params.overworldParticleSys);
+    assert(params.overworldParticleSys.Active);
 #endif
 
     params.moveSound = findSoundAsset("menuSound.wav");
-#if 1 //background sound
+    params.arrangeSound = findSoundAsset("click2.wav");
+
     params.backgroundSound = findSoundAsset("Fitris_Soundtrack.wav");//
+    params.enterLevelSound = findSoundAsset("click2.wav");
 
     //Play and repeat background sound
-    PlayingSound *sound = playSound(&soundArena, params.backgroundSound, 0, AUDIO_FOREGROUND);
+    PlayingSound *sound = playGameSound(&soundArena, params.backgroundSound, 0, AUDIO_BACKGROUND);
     sound->nextSound = sound;
+
+    PlayingSound *menuSound = playMenuSound(&soundArena, findSoundAsset("wind.wav"), 0, AUDIO_BACKGROUND);
+    menuSound->nextSound = menuSound;
     //
-#endif
 
     params.soundArena = &soundArena;
     params.longTermArena = &longTermArena;
@@ -1651,8 +2261,27 @@ int main(int argc, char *args[]) {
     params.screenRelativeSize = setupInfo.screenRelativeSize;
 
     params.bgTex = bgTex;
-    initBoard(&params, START_LEVEL);
-    loadLevelNames(&params);
+
+    GameMode startGameMode = START_MENU_MODE;
+    if(startGameMode == PLAY_MODE) {
+        parentChannelVolumes_[AUDIO_FLAG_MENU] = 0;
+    } else {
+        parentChannelVolumes_[AUDIO_FLAG_MAIN] = 0;
+    }
+    
+    loadLevelData(&params);
+    initBoard(&params, startLevel);
+    
+    char *at = (char *)params.overworldLayout.memory;
+    assert(at);
+    params.overworldDim = parseGetBoardDim(at);
+    int boardCellSize = params.overworldDim.x*params.overworldDim.y;
+    params.overworldValues = (int *)calloc(boardCellSize*sizeof(int), 1);
+    params.overworldValuesOffset = (V2 *)calloc(boardCellSize*sizeof(V2), 1);
+    for(int i = 0; i < boardCellSize; ++i) {
+        params.overworldValuesOffset[i] = v2(getRandNum01() / 2, getRandNum01() / 2);
+    }
+    parseOverworldBoard(at, params.overworldValues, params.overworldDim);
     
     params.moveTimer = initTimer(MOVE_INTERVAL);
     params.woodTex = woodTex;
@@ -1662,11 +2291,18 @@ int main(int argc, char *args[]) {
     params.boarderTex = boarderTex;
     params.heartFullTex = heartFullTex;
     params.heartEmptyTex = heartEmptyTex;
-    params.coinTex = coinTex;
+    params.starTex = starTex;
+    params.treeTex = treeTex;
+    params.waterTex = waterTex;
+    params.mushroomTex = mushroomTex;
+    params.alienTileTex = alienTileTex;
+    params.mapTex = mapTex;
+    params.refreshTex = refreshTex;
     
     params.lastTime = SDL_GetTicks();
     
     params.cameraPos = v3(0, 0, 0);
+    params.overworldCamera = v3(6, 2.5f, 0);
 
     TransitionState transState = {};
     transState.transitionSound = findSoundAsset("click.wav");
@@ -1679,8 +2315,11 @@ int main(int argc, char *args[]) {
     menuInfo.font = &mainFont;
     menuInfo.windowHandle = appInfo.windowHandle; 
     menuInfo.running = &running;
-    menuInfo.lastMode = menuInfo.gameMode = START_MENU_MODE; //from the defines file
+    menuInfo.lastMode = menuInfo.gameMode = startGameMode; //from the defines file
     menuInfo.transitionState = &params.transitionState;
+    menuInfo.callback = changeMenuStateCallback;
+    menuInfo.callBackData = &params;
+
     params.menuInfo = menuInfo;
         
     //
@@ -1701,6 +2340,20 @@ int main(int argc, char *args[]) {
       gameUpdateAndRender(&params);
 #endif
     }
+
+    for(int levelIndex = 0; levelIndex < LEVEL_COUNT; ++levelIndex) {
+        LevelData data = params.levelsData[levelIndex];
+        if(data.valid) {
+            if(data.name) {
+                //NOTE: should be able to do this once we have a name for every level. But not really neccessary!
+                // free(data.name);
+            }
+            if(data.contents.memory) {
+                free(data.contents.memory);
+            }
+        }
+    }
+
     easyOS_endProgram(&appInfo);
 	}
     return 0;

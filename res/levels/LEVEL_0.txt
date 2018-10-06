@@ -1,6 +1,7 @@
 LevelData: {
 	backgroundImage: "blue_shroom.png";
 	lifePoints: 0;
+	groupId: 0;
 	name: "Easy Beginnings";
 }
 Board: {
