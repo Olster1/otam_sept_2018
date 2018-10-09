@@ -201,12 +201,10 @@ typedef struct {
     
 } RenderGroup;
 
-RenderGroup initRenderGroup() {
-    RenderGroup result = {};
-    result.items = initInfinteAlloc(RenderItem);
-    result.currentDepthTest = true;
-    result.blendFuncType = BLEND_FUNC_STANDARD;
-    return result;  
+void initRenderGroup(RenderGroup *group) {
+    group->items = initInfinteAlloc(RenderItem);
+    group->currentDepthTest = true;
+    group->blendFuncType = BLEND_FUNC_STANDARD;
 }
 
 void setFrameBufferId(RenderGroup *group, int bufferId) {
@@ -230,7 +228,8 @@ static RenderGroup globalRenderGroup = {};
 
 void pushRenderItem(VaoHandle *handles, RenderGroup *group, Vertex *triangleData, int triCount, unsigned int *indicesData, int indexCount, RenderProgram *program, ShapeType type, Texture *texture, Matrix4 PVM, V4 color, float zAt) {
     if(!isInfinteAllocActive(&group->items)) {
-        group->items = initInfinteAlloc(RenderItem);
+        initRenderGroup(group);
+        // group->items = initInfinteAlloc(RenderItem);
     }
     
     RenderItem *info = (RenderItem *)addElementInifinteAlloc_(&group->items, 0);

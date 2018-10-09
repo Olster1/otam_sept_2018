@@ -6,9 +6,10 @@ in float zAt;
 out vec4 color;
 void main (void) {
 	vec4 texColor = texture(tex, texUV_out);
-	float alpha = 1.0;//smoothstep(1, -0.4, zAt); 
+	float alpha = texColor.w;
 	float a = zAt;
-	alpha *= texColor.w;
-	texColor *= alpha;
-    color = colorOut*texColor;
+	vec4 b = colorOut*colorOut.w;
+	vec4 c = b*texColor;
+	c *= alpha;
+    color = c;
 }

@@ -162,7 +162,11 @@ typedef struct LevelData {
     float dA;
     particle_system particleSystem;
 
+    bool hasPlayedHoverSound;
     Timer showTimer;
+
+    int glyphCount;
+    GlyphInfo glyphs[3];
     //
 
 
@@ -193,6 +197,8 @@ typedef struct {
     Texture *alienTileTex;
     Texture *mapTex;
     Texture *refreshTex;
+    Texture *muteTex;
+    Texture *speakerTex;
 
     Texture *alienTex[5];
     Texture *tilesTex[13];
@@ -274,6 +280,7 @@ typedef struct {
     GLuint renderbufferId;
 
     Font *font;
+    Font *numberFont;
 
     V3 cameraPos;
     V3 overworldCamera;
@@ -472,6 +479,18 @@ static inline void loadLevelData(FrameParams *params) {
             levelData->levelType = (LevelType)i;
             levelData->state = LEVEL_STATE_LOCKED;
             levelData->showTimer.value = -1;
+            levelData->glyphCount = 0;
+
+            if(i < 10) {
+                levelData->glyphs[levelData->glyphCount++] = easyFont_getGlyph(params->numberFont, (u32)(i + 48));
+            } else if(i < 100) {
+                int firstUnicode = (i / 10) + 48;
+                int secondUnicode = (i % 10) + 48;
+                levelData->glyphs[levelData->glyphCount++] = easyFont_getGlyph(params->numberFont, (u32)firstUnicode);
+                levelData->glyphs[levelData->glyphCount++] = easyFont_getGlyph(params->numberFont, (u32)secondUnicode);
+            } else {
+                assert(!"invalid case");
+            }
 
             particle_system_settings particleSet = InitParticlesSettings(PARTICLE_SYS_DEFAULT);
             pushParticleBitmap(&particleSet, findTextureAsset("starGold.png"), "star");
@@ -1404,8 +1423,8 @@ void transitionCallbackForStartOrEndGame(void *data_) {
     trans->info->gameMode = trans->newMode;
     trans->info->lastMode = trans->lastMode;
     trans->info->menuCursorAt = 0;
-    setParentChannelVolume(AUDIO_FLAG_MAIN, 1, 1);
-    setParentChannelVolume(AUDIO_FLAG_MENU, 0, 1);
+    setParentChannelVolume(AUDIO_FLAG_MAIN, 1, SCENE_MUSIC_TRANSITION_TIME);
+    setSoundType(AUDIO_FLAG_MAIN);
 } 
 
 void transitionCallbackForBackToOverworld(void *data_) {
@@ -1418,8 +1437,9 @@ void transitionCallbackForBackToOverworld(void *data_) {
     trans->info->gameMode = trans->newMode;
     trans->info->lastMode = trans->lastMode;
     trans->info->menuCursorAt = 0;
-    setParentChannelVolume(AUDIO_FLAG_MENU, 1, 1);
-    setParentChannelVolume(AUDIO_FLAG_MAIN, 0, 1);
+    assert(parentChannelVolumes_[AUDIO_FLAG_MENU] == 0);
+    setParentChannelVolume(AUDIO_FLAG_MENU, 1, SCENE_MUSIC_TRANSITION_TIME);
+    setSoundType(AUDIO_FLAG_MENU);
 } 
 
 void setLevelTransition(FrameParams *params, LevelType levelType) {
@@ -1435,6 +1455,7 @@ void setBackToOverworldTransition(FrameParams *params) {
     data->lastMode = params->menuInfo.gameMode;
     data->newMode = OVERWORLD_MODE;
     data->params = params;
+    setParentChannelVolume(AUDIO_FLAG_MAIN, 0, SCENE_MUSIC_TRANSITION_TIME);
     setTransition_(&params->transitionState, transitionCallbackForBackToOverworld, data);
     
 }
@@ -1447,6 +1468,8 @@ void setStartOrEndGameTransition(FrameParams *params, LevelType levelType, GameM
     data->info = &params->menuInfo;
     data->lastMode = params->menuInfo.gameMode;
     data->newMode = newMode;
+
+    setParentChannelVolume(AUDIO_FLAG_MENU, 0, SCENE_MUSIC_TRANSITION_TIME);
     //this one is different to just setLevelTransition since it changes game mode as well. 
     setTransition_(&params->transitionState, transitionCallbackForStartOrEndGame, data);
 }
@@ -1548,7 +1571,16 @@ void updateBoardWinState(FrameParams *params) {
         }
 
         if(goToNextLevel) {
+            if(completedGroup) {
+#if GO_TO_NEXT_GROUP_AUTO
             setLevelTransition(params, nextLevel); 
+#else
+            setBackToOverworldTransition(params);
+#endif
+        } else {
+            setLevelTransition(params, nextLevel); 
+        }
+            
         }
     }
 }
@@ -1733,7 +1765,10 @@ void gameUpdateAndRender(void *params_) {
     // 
     clearBufferAndBind(params->backbufferId, COLOR_BLACK);
     clearBufferAndBind(params->mainFrameBuffer.bufferId, COLOR_PINK);
+    // initRenderGroup(&globalRenderGroup);
     renderEnableDepthTest(&globalRenderGroup);
+    setBlendFuncType(&globalRenderGroup, BLEND_FUNC_STANDARD);
+
     if(params->menuInfo.gameMode != OVERWORLD_MODE) {
         renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -5), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
     }
@@ -1758,18 +1793,20 @@ void gameUpdateAndRender(void *params_) {
     if(isPlayState) {
         
         { //refresh level button
-            RenderInfo renderInfo = calculateRenderInfo(v3(-9, 5, -1), v3(0.7f, 0.7f, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(-9, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
 
+            V4 uiColor = COLOR_WHITE;
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                uiColor = COLOR_GREEN;//hexARGBTo01Color(0xFFFF7575);
                 if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
                     retryButtonPressed = true;
                 }
             }
 
             // renderDrawRectOutlineCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm));            
-            renderTextureCentreDim(params->refreshTex, renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+            renderTextureCentreDim(params->refreshTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
         }   
     }
 
@@ -1839,22 +1876,48 @@ void gameUpdateAndRender(void *params_) {
         updateBoardWinState(params);
     }
 
+
+    if(isPlayState || currentGameMode == OVERWORLD_MODE) {
+        { //Sound Button
+            RenderInfo renderInfo = calculateRenderInfo(v3(7, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            
+            Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+            V4 uiColor = COLOR_WHITE;
+            if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                uiColor = COLOR_GREEN;//hexARGBTo01Color(0xFFFF7575);
+                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
+                    globalSoundOn = !globalSoundOn;
+                    // changeMenuState(&params->menuInfo, SETTINGS_MODE);
+                }
+            }
+
+            Texture *currentSoundTex = (globalSoundOn) ? params->speakerTex : params->muteTex;
+
+            renderTextureCentreDim(currentSoundTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+        }
+    }
+
     //Stil render when we are in a transition
     if(isPlayState) {
 
+        
         { //Back to overworld button
             RenderInfo renderInfo = calculateRenderInfo(v3(9, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
-
+            V4 uiColor = COLOR_WHITE;
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                uiColor = COLOR_GREEN;//hexARGBTo01Color(0xFFFF7575);
                 if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
                     setBackToOverworldTransition(params);
+
                 }
             }
 
-            renderTextureCentreDim(params->mapTex, renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+            renderTextureCentreDim(params->mapTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
         }
+
+        
 
         if(isOn(&params->levelNameTimer)) {
             TimerReturnInfo nameTimeInfo = updateTimer(&params->levelNameTimer, params->dt);
@@ -2029,7 +2092,7 @@ void gameUpdateAndRender(void *params_) {
                                         highestGroupId = groupId;
                                     }
                                     if(!playedSound) {
-                                        playGameSound(params->soundArena, params->showLevelsSound, 0, AUDIO_FOREGROUND);
+                                        playMenuSound(params->soundArena, params->showLevelsSound, 0, AUDIO_FOREGROUND);
                                         playedSound = false;
                                     }
                                     levelAt->showTimer = initTimer(2.0f);
@@ -2052,7 +2115,8 @@ void gameUpdateAndRender(void *params_) {
 
                                 drawAndUpdateParticleSystem(&levelAt->particleSystem, params->dt, v3(xSpace*xAt, ySpace*yAt, -1), v3(0, 0 ,0), params->overworldCamera, params->metresToPixels, resolution);
                                 
-                                RenderInfo renderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -1), v3(scale*1, scale*1, 1), params->overworldCamera, params->metresToPixels);
+                                V3 starLocation = v3(xSpace*xAt, ySpace*yAt, -1);
+                                RenderInfo renderInfo = calculateRenderInfo(starLocation, v3(scale*1, scale*1, 1), params->overworldCamera, params->metresToPixels);
                                 
                                 V4 color = COLOR_PINK;
                                 switch(levelAt->state) {
@@ -2070,11 +2134,19 @@ void gameUpdateAndRender(void *params_) {
                                     }
                                 }
 
-                                Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+                                V2 dim = renderInfo.transformDim.xy;
+                                dim.x /= scale;
+                                dim.y /= scale;
+                                Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, dim);
 
                                 if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
                                     //Output the levels name
                                     char *levelName = levelAt->name;
+                                    if(!levelAt->hasPlayedHoverSound) {
+                                        playMenuSound(params->soundArena, params->arrangeSound, 0, AUDIO_BACKGROUND);    
+                                        levelAt->hasPlayedHoverSound = true;
+                                    }
+                                    
                                     Rect2f outputNameDim = outputText(params->font, 0, 0, -1, resolution, levelName, menuMargin, COLOR_WHITE, fontSize, false);
                                     V2 nameDim = getDim(outputNameDim);
                                     outputText(params->font, 0.5f*(resolution.x - nameDim.x), nameY, -1, resolution, levelName, menuMargin, COLOR_BLUE, fontSize, true);
@@ -2086,9 +2158,31 @@ void gameUpdateAndRender(void *params_) {
                                         
                                         setStartOrEndGameTransition(params, levelAt->levelType, PLAY_MODE);
                                     }
+                                } else {
+                                    levelAt->hasPlayedHoverSound = false;
                                 }
 
+                                
                                 renderTextureCentreDim(params->starTex, renderInfo.pos, renderInfo.dim.xy, color, levelAt->angle, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+
+                                float glyphSize = scale*0.2f;
+                                V3 numLocation = v3(starLocation.x, starLocation.y, -0.8f);//make sure its in front of star
+                                if(levelAt->glyphCount > 1) {
+                                    float gOffset = levelAt->glyphCount*glyphSize;
+                                    numLocation.x = numLocation.x - gOffset/2 + (glyphSize/2); //to get half way
+                                }
+                                for(int gIndex = 0; gIndex < levelAt->glyphCount; ++gIndex) {
+                                    Texture tempTex = {};
+                                    GlyphInfo glyph = levelAt->glyphs[gIndex];
+                                    tempTex.id = glyph.textureHandle;
+                                    tempTex.uvCoords = glyph.uvCoords;
+                                    V3 thisNumLocation = numLocation;
+                                    thisNumLocation.x += gIndex*glyphSize;
+
+                                    RenderInfo renderInfo = calculateRenderInfo(thisNumLocation, v3(glyphSize, glyphSize, 1), params->overworldCamera, params->metresToPixels);
+                                    renderTextureCentreDim(&tempTex, renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+                                }
+                                
                                 
                             }    
                         }
@@ -2128,6 +2222,7 @@ int main(int argc, char *args[]) {
     ////INIT FONTS
     char *fontName = concat(globalExeBasePath, "/fonts/Khand-Regular.ttf");//Roboto-Regular.ttf");/);
     Font mainFont = initFont(fontName, 128);
+    Font numberFont = initFont(concat(globalExeBasePath, "/fonts/UbuntuMono-Regular.ttf"), 42);
     ///
 
     Arena soundArena = createArena(Megabytes(200));
@@ -2136,24 +2231,10 @@ int main(int argc, char *args[]) {
     loadAndAddImagesToAssets("img/");
     loadAndAddSoundsToAssets("sounds/", &setupInfo.audioSpec);
 
-    Texture *stoneTex = findTextureAsset("elementStone023.png");
-    Texture *woodTex = findTextureAsset("elementWood022.png");
-    Texture *bgTex = findTextureAsset("blue_grass.png");
-    Texture *metalTex = findTextureAsset("elementMetal023.png");
-    Texture *explosiveTex = findTextureAsset("elementExplosive049.png");
-    Texture *boarderTex = findTextureAsset("elementMetal030.png");
-    Texture *heartFullTex = findTextureAsset("hud_heartFull.png");
-    Texture *heartEmptyTex = findTextureAsset("hud_heartEmpty.png");
-    Texture *starTex = findTextureAsset("starGold.png");
-    Texture *treeTex = findTextureAsset("tree3.png");
-    Texture *mushroomTex = findTextureAsset("mushrooomTile.png");
-    Texture *waterTex = findTextureAsset("waterTile.png");
-    Texture *alienTileTex = findTextureAsset("alienTile.png");
-    Texture *mapTex = findTextureAsset("map.png");
-    Texture *refreshTex = findTextureAsset("refresh.png");
     
 
-    assert(metalTex);
+    
+
     bool running = true;
 
     LevelType startLevel = LEVEL_0;
@@ -2170,6 +2251,26 @@ int main(int argc, char *args[]) {
     }
       
     FrameParams params = {};
+
+    Texture *stoneTex = findTextureAsset("elementStone023.png");
+    Texture *woodTex = findTextureAsset("elementWood022.png");
+    Texture *bgTex = findTextureAsset("blue_grass.png");
+    Texture *metalTex = findTextureAsset("elementMetal023.png");
+    Texture *explosiveTex = findTextureAsset("elementExplosive049.png");
+    Texture *boarderTex = findTextureAsset("elementMetal030.png");
+    Texture *heartFullTex = findTextureAsset("hud_heartFull.png");
+    Texture *heartEmptyTex = findTextureAsset("hud_heartEmpty.png");
+    Texture *starTex = findTextureAsset("starGold.png");
+    Texture *treeTex = findTextureAsset("tree3.png");
+    Texture *mushroomTex = findTextureAsset("mushrooomTile.png");
+    Texture *waterTex = findTextureAsset("waterTile.png");
+    Texture *alienTileTex = findTextureAsset("alienTile.png");
+    Texture *mapTex = findTextureAsset("placeholder.png");
+    Texture *refreshTex = findTextureAsset("reload.png");
+    params.muteTex = findTextureAsset("mute.png");
+    params.speakerTex = findTextureAsset("speaker.png");
+
+
     params.solidfyShapeSound = findSoundAsset("slate_sound.wav");
     params.successSound = findSoundAsset("Success2.wav");
     params.explosiveSound = findSoundAsset("explosion.wav");
@@ -2241,6 +2342,7 @@ int main(int argc, char *args[]) {
     sound->nextSound = sound;
 
     PlayingSound *menuSound = playMenuSound(&soundArena, findSoundAsset("wind.wav"), 0, AUDIO_BACKGROUND);
+    menuSound->volume = 0.6f;
     menuSound->nextSound = menuSound;
     //
 
@@ -2258,6 +2360,7 @@ int main(int argc, char *args[]) {
     AppKeyStates keyStates = {};
     params.keyStates = &keyStates;
     params.font = &mainFont;
+    params.numberFont = &numberFont;
     params.screenRelativeSize = setupInfo.screenRelativeSize;
 
     params.bgTex = bgTex;
@@ -2265,8 +2368,12 @@ int main(int argc, char *args[]) {
     GameMode startGameMode = START_MENU_MODE;
     if(startGameMode == PLAY_MODE) {
         parentChannelVolumes_[AUDIO_FLAG_MENU] = 0;
+        parentChannelVolumes_[AUDIO_FLAG_MAIN] = 1;
+        setSoundType(AUDIO_FLAG_MAIN);
     } else {
         parentChannelVolumes_[AUDIO_FLAG_MAIN] = 0;
+        parentChannelVolumes_[AUDIO_FLAG_MENU] = 1;
+        setSoundType(AUDIO_FLAG_MENU);
     }
     
     loadLevelData(&params);

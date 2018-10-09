@@ -162,6 +162,7 @@ MenuOptions initDefaultMenuOptions() {
 }
 
 GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Texture *backgroundTex, WavFile *submitSound, WavFile *moveSound, float dt, V2 resolution, V2 mouseP) {
+    Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
     bool isPlayMode = false;
     MenuOptions menuOptions = initDefaultMenuOptions();
 
@@ -309,39 +310,79 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             unsigned int windowFlags = SDL_GetWindowFlags(info->windowHandle);
             
             bool isFullScreen = (windowFlags & SDL_WINDOW_FULLSCREEN);
-            char *fullScreenOption = isFullScreen ? (char *)"Exit Full Screen" : (char *)"Full Screen";
-            char *soundOption = globalSoundOn ? (char *)"Turn Off Sound" : (char *)"Turn On Sound";
-            menuOptions.options[menuOptions.count++] = fullScreenOption;
-            menuOptions.options[menuOptions.count++] = soundOption;
-            menuOptions.options[menuOptions.count++] = "Go Back";
-            
-            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
-            
-            if(changeMenuKey) {
-                // playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
-                switch (info->menuCursorAt) {
-                    case 0: {
-                        if(isFullScreen) {
-                            // TODO(Oliver): Change this to handle resolution change. Have to query the current window size to adjust screen size. 
-                            if(SDL_SetWindowFullscreen(info->windowHandle, false) < 0) {
-                                printf("couldn't un-set to full screen\n");
-                            }
-                        } else {
-                            if(SDL_SetWindowFullscreen(info->windowHandle, SDL_WINDOW_FULLSCREEN) < 0) {
-                                printf("couldn't set to full screen\n");
-                            }
-                        }
-                    } break;
-                    case 1: {
-                        globalSoundOn = !globalSoundOn;
-                    } break;
-                    case 2: {
-                        changeMenuState(info, info->lastMode);
-                    } break;
 
+
+            float zMenuAt = -1;
+            float zMenuAtBack = zMenuAt - 0.2f;
+            RenderInfo renderInfo;
+            float yAt = 0.4f*resolution.y;
+            float xAt = 0.5f*resolution.x;
+
+            float backWidth = 0.4f*resolution.y;
+            float backHeight = info->font->fontHeight;
+            float yoffset = info->font->fontHeight/8;
+
+            
+            float boxSize = 30;
+            float menuFontSize = 0.5f;
+            
+            renderInfo = calculateRenderInfo(v3(xAt, yAt - yoffset, zMenuAt), v3(boxSize, boxSize, 1), v3(0, 0, 0), mat4());
+            Texture *checkBoxTex = (isFullScreen) ? findTextureAsset("UIBox.png") : findTextureAsset("UIBox_empty.png");
+            Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+
+            V4 color = COLOR_WHITE;
+            if(inBounds(mouseP, outputDim, BOUNDS_RECT)) {
+                color = COLOR_GREEN;
+                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                    if(isFullScreen) {
+                       if(SDL_SetWindowFullscreen(info->windowHandle, false) < 0) {
+                           printf("couldn't un-set to full screen\n");
+                       }
+                   } else {
+                       if(SDL_SetWindowFullscreen(info->windowHandle, SDL_WINDOW_FULLSCREEN) < 0) {
+                           printf("couldn't set to full screen\n");
+                       }
+                   }
                 }
-                info->menuCursorAt = 0;
             }
+
+            
+            renderTextureCentreDim(checkBoxTex, renderInfo.pos, renderInfo.dim.xy, color, 0, mat4TopLeftToBottomLeft(resolution.y), mat4(), Mat4Mult(OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), renderInfo.pvm)); 
+            xAt += boxSize;
+            
+            outputText(info->font, xAt, yAt, zMenuAt, resolution, "Fullscreen", menuMargin, COLOR_BLACK, menuFontSize, true);
+            yAt += 100;
+            xAt = 0.5f*resolution.x;
+
+            renderInfo = calculateRenderInfo(v3(xAt, yAt - yoffset, zMenuAt), v3(boxSize, boxSize, 1), v3(0, 0, 0), mat4());
+            checkBoxTex = (globalSoundOn) ? findTextureAsset("UIBox.png") : findTextureAsset("UIBox_empty.png");
+            outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+
+            color = COLOR_WHITE;
+            if(inBounds(mouseP, outputDim, BOUNDS_RECT)) {
+                color = COLOR_GREEN;
+                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                   globalSoundOn = !globalSoundOn;
+                }
+            }
+
+            
+            renderTextureCentreDim(checkBoxTex, renderInfo.pos, renderInfo.dim.xy, color, 0, mat4TopLeftToBottomLeft(resolution.y), mat4(), Mat4Mult(OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), renderInfo.pvm)); 
+            xAt += boxSize;
+
+            outputText(info->font, xAt, yAt, zMenuAt, resolution, "Sound", menuMargin, COLOR_BLACK, menuFontSize, true);
+            float backDim = 80;
+
+            outputDim = rect2fCenterDimV2(v2(backDim, backDim), v2(backDim, backDim));
+
+            if(inBounds(mouseP, outputDim, BOUNDS_RECT)) {
+                color = COLOR_GREEN;
+                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                   changeMenuState(info, PLAY_MODE);
+                }
+            }
+
+            renderTextureCentreDim(findTextureAsset("back.png"), v3(backDim, backDim, zMenuAt), v2(backDim, backDim), COLOR_WHITE, 0, mat4TopLeftToBottomLeft(resolution.y), mat4(), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y)); 
         } break;
         case MENU_MODE:{
             char *title = APP_TITLE;
@@ -364,7 +405,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             outputText(info->font, xAt, 0.7f*resolution.y, -1, resolution, secondTitle, menuMargin, color, fontSize, true);
 
             if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
-                changeMenuState(info, PLAY_MODE);
+                changeMenuState(info, OVERWORLD_MODE);
             }
             // menuOptions.options[menuOptions.count++] = "Play";
             // menuOptions.options[menuOptions.count++] = "Quit";

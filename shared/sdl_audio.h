@@ -43,15 +43,15 @@ typedef enum {
 typedef struct {
     float tAt; //0 to 1
     float period;
-    int a;
-    int b;
+    float a;
+    float b;
     bool active;
 } VolumeLerp;
 
 static int channelVolumes_[AUDIO_CHANNEL_COUNT] = {MAX_VOLUME, MAX_VOLUME};
 static VolumeLerp channelVolumesLerps_[AUDIO_CHANNEL_COUNT] = {};
 
-static int parentChannelVolumes_[AUDIO_FLAG_COUNT] = {1, 1, 1};
+static float parentChannelVolumes_[AUDIO_FLAG_COUNT] = {1, 1, 1};
 static VolumeLerp parentChannelVolumesLerps_[AUDIO_FLAG_COUNT] = {};
 
 static SoundType globalSoundActiveType_ = AUDIO_FLAG_NULL;
@@ -66,7 +66,7 @@ void setSoundType(SoundType type) {
     globalSoundActiveType_ = type;
 }
 
-void setChannelVolume(AudioChannel channel, int targetVolume, float period) {
+void setChannelVolume(AudioChannel channel, float targetVolume, float period) {
     VolumeLerp *lerpValue = channelVolumesLerps_ + channel;
     lerpValue->a = channelVolumes_[channel];
     lerpValue->b = clamp(0, targetVolume, 128);
@@ -75,7 +75,7 @@ void setChannelVolume(AudioChannel channel, int targetVolume, float period) {
     lerpValue->active = true;
 }
 
-void setParentChannelVolume(SoundType channel, int targetVolume, float period) {
+void setParentChannelVolume(SoundType channel, float targetVolume, float period) {
     VolumeLerp *lerpValue = parentChannelVolumesLerps_ + channel;
     lerpValue->a = parentChannelVolumes_[channel];
     lerpValue->b = clamp(0, targetVolume, 1);
@@ -84,7 +84,7 @@ void setParentChannelVolume(SoundType channel, int targetVolume, float period) {
     lerpValue->active = true;
 }
 
-void updateVolumeLerp(VolumeLerp *lerpVal, int *volumeVal, float dt) {
+void updateVolumeLerp(VolumeLerp *lerpVal, void *volumeVal_, float dt, bool isInt) {
     if(lerpVal->active) {
         float a = (float)lerpVal->a;
         float b = (float)lerpVal->b;
@@ -93,7 +93,14 @@ void updateVolumeLerp(VolumeLerp *lerpVal, int *volumeVal, float dt) {
         float tValue = lerpVal->tAt / lerpVal->period;
         float volume = lerp(a, clamp(0, tValue, 1), b);
         //set channel volume
-        *volumeVal = (int)clamp(0, volume, 128);
+        if(isInt) {
+            int *volumeVal = (int *)volumeVal_;
+            *volumeVal = (int)clamp(0, volume, 128);    
+        } else {
+            float *volumeVal = (float *)volumeVal_;
+            *volumeVal = (float)clamp(0, volume, 1);    
+        }
+        
         //
         if(tValue >= 1) {
             lerpVal->tAt = 0;
@@ -105,13 +112,13 @@ void updateVolumeLerp(VolumeLerp *lerpVal, int *volumeVal, float dt) {
 void updateChannelVolumes(float dt) {
     for(int channelAt = 0; channelAt < AUDIO_CHANNEL_COUNT; ++channelAt) {
         VolumeLerp *lerpVal = channelVolumesLerps_ + channelAt;
-        updateVolumeLerp(lerpVal, &channelVolumes_[channelAt], dt);
+        updateVolumeLerp(lerpVal, &channelVolumes_[channelAt], dt, true);
         
     }
 
     for(int channelAt = 0; channelAt < AUDIO_FLAG_COUNT; ++channelAt) {
         VolumeLerp *lerpVal = parentChannelVolumesLerps_ + channelAt;
-        updateVolumeLerp(lerpVal, &parentChannelVolumes_[channelAt], dt);
+        updateVolumeLerp(lerpVal, &parentChannelVolumes_[channelAt], dt, false);
         
     }
 }
@@ -123,6 +130,7 @@ typedef struct PlayingSound {
     bool active;
     AudioChannel channel;
     SoundType soundType;
+    float volume; //percent of original volume
     
     PlayingSound *nextSound;
     
@@ -225,6 +233,7 @@ PlayingSound *playSound(Arena *arena, WavFile *wavFile, PlayingSound *nextSoundT
     playingSounds = result;
     
     result->active = true;
+    result->volume = 1.0f;
     result->channel = channel;
     result->nextSound = nextSoundToPlay;
     result->bytesAt = 0;
@@ -347,7 +356,7 @@ SDL_AUDIO_CALLBACK(audioCallback) {
         ) {
         bool advancePtr = true;
         PlayingSound *sound = *soundPrt;
-        bool isSoundType = isSoundTypeSet(sound->soundType) || sound->soundType == AUDIO_FLAG_NULL;
+        bool isSoundType = true;//isSoundTypeSet(sound->soundType) || sound->soundType == AUDIO_FLAG_NULL;
         if(sound->active && isSoundType) {
             unsigned char *samples = sound->wavFile->data + sound->bytesAt;
             int remainingBytes = sound->wavFile->size - sound->bytesAt;
@@ -358,7 +367,11 @@ SDL_AUDIO_CALLBACK(audioCallback) {
             
             int volume = 0;
             if(globalSoundOn) {
-                volume = lerp(0, parentChannelVolumes_[sound->soundType], channelVolumes_[sound->channel]);
+                volume = lerp(0, parentChannelVolumes_[sound->soundType], lerp(0, sound->volume, channelVolumes_[sound->channel]));
+                if(volume == 0) {
+                    // printf("%s\n", "NO SOUNDS");    
+                }
+                
             }
             SDL_MixAudio(stream, samples, bytesToWrite, volume);
             

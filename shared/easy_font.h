@@ -126,7 +126,34 @@ typedef struct {
     int index;
     V2 lastXY;
     u32 textureHandle;
+    Rect2f uvCoords;
 } GlyphInfo;
+
+
+static inline GlyphInfo easyFont_getGlyph(Font *font, u32 unicodePoint) {
+    GlyphInfo glyph = {};
+    FontSheet *sheet = findFontSheet(font, unicodePoint);
+    assert(sheet);
+
+    if(unicodePoint != '\n') {
+        if (((int)(unicodePoint) >= sheet->minText && (int)(unicodePoint) < sheet->maxText)) {
+            stbtt_aligned_quad q  = {};
+
+            float x = 0;
+            float y = 0;
+            stbtt_GetBakedQuad(sheet->cdata, FONT_SIZE, FONT_SIZE, unicodePoint - sheet->minText, &x,&y,&q, 1);
+            
+            glyph.textureHandle = sheet->handle;
+            glyph.q = q;
+            glyph.uvCoords = rect2f(q.s0, q.t1, q.s1, q.t0);
+
+        } else {
+            assert(!"invalid code path");
+        }
+    }
+    return glyph;
+
+}
 
 //This does unicode now 
 Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, char *text_, Rect2f margin, V4 color, float size, CursorInfo *cursorInfo, bool display) {

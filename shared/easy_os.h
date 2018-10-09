@@ -191,7 +191,8 @@ void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *window
 	renderCheckError();
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, compositedFrameBufferId); 
 	renderCheckError();
-	glBlitFramebuffer(0, 0, resolution.x, resolution.y, wResidue, yResidue, screenDim.x - wResidue, screenDim.y - yResidue, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+	// glBlitFramebuffer(0, 0, resolution.x, resolution.y, wResidue, yResidue, screenDim.x - wResidue, screenDim.y - yResidue, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+	glBlitFramebuffer(0, 0, resolution.x, resolution.y, 0, 0, screenDim.x, screenDim.y, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 	renderCheckError();                    
 	///////
    glViewport(0, 0, screenDim.x, screenDim.y);
