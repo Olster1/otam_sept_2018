@@ -811,6 +811,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                 // justNewLine = false;
             } break;
             case '!': {
+                assert(params->lifePointsMax > 0);
                 setBoardState(params, v2(xAt, yAt), BOARD_EXPLOSIVE, BOARD_VAL_ALWAYS);    
                 at++;
                 xAt++;
@@ -1173,8 +1174,7 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
             BoardValue *newVal = getBoardValue(params, boardPosAt);
             assert(newVal->state == BOARD_NULL);
             newVal->state = BOARD_SHAPE;
-            ////   
-
+            ////   This code isn't needed anymore. Just used for the assert below. 
             IslandInfo islandInfo = getShapeIslandCount(shape, boardPosAt, params);
 
             //See if the new pos is part of the same island
@@ -1186,9 +1186,13 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
                     break;
                 }
             }
-            //islandInfo.count != mainIslandInfo.count
-            if(!found) {
+            ////
+
+            IslandInfo mainIslandInfo_after = getShapeIslandCount(shape, idPos, params);
+            if(mainIslandInfo_after.count < mainIslandInfo.count) {
                 result = false;
+            } else {
+                assert(found);
             }
             //set the state back to being a shape. 
             newVal->state = BOARD_NULL;
@@ -1796,10 +1800,19 @@ void gameUpdateAndRender(void *params_) {
             RenderInfo renderInfo = calculateRenderInfo(v3(-9, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+            static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
+            
+            float lerpPeriod = 0.3f;
+            if(!updateLerpV4(&cLerp, params->dt, LINEAR)) {
+                if(!easyLerp_isAtDefault(&cLerp)) {
+                    setLerpInfoV4_s(&cLerp, COLOR_WHITE, 0.01, &cLerp.value);
+                }
 
-            V4 uiColor = COLOR_WHITE;
+            }
+
+            V4 uiColor = cLerp.value;
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
-                uiColor = COLOR_GREEN;//hexARGBTo01Color(0xFFFF7575);
+                setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
                 if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
                     retryButtonPressed = true;
                 }
@@ -1882,9 +1895,18 @@ void gameUpdateAndRender(void *params_) {
             RenderInfo renderInfo = calculateRenderInfo(v3(7, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
-            V4 uiColor = COLOR_WHITE;
+            static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
+            
+            if(!updateLerpV4(&cLerp, params->dt, LINEAR)) {
+                if(!easyLerp_isAtDefault(&cLerp)) {
+                    setLerpInfoV4_s(&cLerp, COLOR_WHITE, 0.01, &cLerp.value);
+                }
+
+            }
+
+            V4 uiColor = cLerp.value;
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
-                uiColor = COLOR_GREEN;//hexARGBTo01Color(0xFFFF7575);
+                setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
                 if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
                     globalSoundOn = !globalSoundOn;
                     // changeMenuState(&params->menuInfo, SETTINGS_MODE);
@@ -1905,9 +1927,17 @@ void gameUpdateAndRender(void *params_) {
             RenderInfo renderInfo = calculateRenderInfo(v3(9, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
-            V4 uiColor = COLOR_WHITE;
+            static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
+            
+            if(!updateLerpV4(&cLerp, params->dt, LINEAR)) {
+                if(!easyLerp_isAtDefault(&cLerp)) {
+                    setLerpInfoV4_s(&cLerp, COLOR_WHITE, 0.01, &cLerp.value);
+                }
+            }
+
+            V4 uiColor = cLerp.value;
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
-                uiColor = COLOR_GREEN;//hexARGBTo01Color(0xFFFF7575);
+                setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
                 if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
                     setBackToOverworldTransition(params);
 
@@ -2228,17 +2258,14 @@ int main(int argc, char *args[]) {
     Arena soundArena = createArena(Megabytes(200));
     Arena longTermArena = createArena(Megabytes(200));
 
+    //easyTextureAtlas_createTextureAtlas("img/", appInfo.windowHandle);
     loadAndAddImagesToAssets("img/");
     loadAndAddSoundsToAssets("sounds/", &setupInfo.audioSpec);
-
-    
-
-    
 
     bool running = true;
 
     LevelType startLevel = LEVEL_0;
-
+    GameMode startMode = START_MENU_MODE;
     Tweaker tweaker = {};
     if(refreshTweakFile(concat(globalExeBasePath, "../src/tweakFile.txt"), &tweaker)) {
             char *startLevelStr = getStringFromTweakData(&tweaker, "startingLevel");
@@ -2246,6 +2273,14 @@ int main(int argc, char *args[]) {
             for(int i = 0; i < arrayCount(LevelTypeStrings); ++i) {
                 if(cmpStrNull(LevelTypeStrings[i], startLevelStr)) {
                     startLevel = (LevelType)i;
+                }
+            }
+
+            char *startModeStr = getStringFromTweakData(&tweaker, "startMode");
+            assert(startModeStr);
+            for(int i = 0; i < arrayCount(GameModeTypeStrings); ++i) {
+                if(cmpStrNull(GameModeTypeStrings[i], startModeStr)) {
+                    startMode = (GameMode)i;
                 }
             }
     }
@@ -2365,7 +2400,7 @@ int main(int argc, char *args[]) {
 
     params.bgTex = bgTex;
 
-    GameMode startGameMode = START_MENU_MODE;
+    GameMode startGameMode = startMode;
     if(startGameMode == PLAY_MODE) {
         parentChannelVolumes_[AUDIO_FLAG_MENU] = 0;
         parentChannelVolumes_[AUDIO_FLAG_MAIN] = 1;

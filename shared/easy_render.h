@@ -226,6 +226,10 @@ void setBlendFuncType(RenderGroup *group, BlendFuncType type) {
 
 static RenderGroup globalRenderGroup = {};
 
+void renderSetViewPort(float x0, float y0, float x1, float y1) {
+    glViewport(x0, y0, x1, y1);
+}
+
 void pushRenderItem(VaoHandle *handles, RenderGroup *group, Vertex *triangleData, int triCount, unsigned int *indicesData, int indexCount, RenderProgram *program, ShapeType type, Texture *texture, Matrix4 PVM, V4 color, float zAt) {
     if(!isInfinteAllocActive(&group->items)) {
         initRenderGroup(group);

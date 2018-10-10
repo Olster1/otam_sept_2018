@@ -1,15 +1,20 @@
+#define GAME_MODE_TYPE(FUNC) \
+FUNC(MENU_MODE) \
+FUNC(OVERWORLD_MODE) \
+FUNC(PAUSE_MODE) \
+FUNC(PLAY_MODE) \
+FUNC(LOAD_MODE) \
+FUNC(SAVE_MODE) \
+FUNC(QUIT_MODE) \
+FUNC(DIED_MODE) \
+FUNC(CREDITS_MODE) \
+FUNC(SETTINGS_MODE) \
+
 typedef enum {
-    MENU_MODE,
-    OVERWORLD_MODE,
-    PAUSE_MODE,
-    PLAY_MODE,
-    LOAD_MODE,
-    SAVE_MODE,
-    QUIT_MODE,
-    DIED_MODE,
-    CREDITS_MODE,
-    SETTINGS_MODE
+    GAME_MODE_TYPE(ENUM)
 } GameMode;
+
+static char *GameModeTypeStrings[] = { GAME_MODE_TYPE(STRING) };
 
 typedef struct {
     bool notClickable;

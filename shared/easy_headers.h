@@ -35,3 +35,4 @@ static GameButton gameButtons[BUTTON_COUNT];
 #include "easy_animation.h"
 #include "easy_assets.h"
 #include "easy_tile.h"
+#include "easy_texture_atlas.h"

@@ -8,6 +8,7 @@
 #define START_MENU_MODE PLAY_MODE
 #define XP_PER_LINE 100
 #define GO_TO_NEXT_GROUP_AUTO 0
+#define UI_BUTTON_COLOR COLOR_YELLOW
 #define CAN_ALTER_SHAPE_DIAGONAL 0 //this is if you can move a block to a position only situated diagonally 
 #define OPENGL_BACKEND 1
 #define RENDER_BACKEND OPENGL_BACKEND
@@ -16,8 +17,6 @@
 /***************************
 	-> fix windmills
 	-> time for waiting - use for loop for windmill
-	-> flood fill - check if the islands are the same size
 	-> texture atlas 
 	-> bombs can be on windmills 
-	-> make settings ui
 ****************************/

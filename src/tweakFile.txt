@@ -1,2 +1,3 @@
-startingLevel: "LEVEL_0";
+startingLevel: "LEVEL_14";
 globalSoundOn: true;
+startMode: "PLAY_MODE";

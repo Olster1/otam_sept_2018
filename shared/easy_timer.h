@@ -88,6 +88,7 @@ typedef struct {
     int lineNumber;
     
     V4 value; //can point to this if it wants
+    V4 defaultVal;
     V4 *val;
     Timer timer;
 } LerpV4;
@@ -299,10 +300,18 @@ void setLerpInfoV3_s_(LerpV3 *f, V3 b, float period, V3 *val, int lineNumber) {
 #define setLerpInfoV3_s(f, b, period, val) setLerpInfoV3_s_(f, b, period, val, __LINE__) 
 
 
-LerpV4 initLerpV4() {
+LerpV4 initLerpV4(V4 color) {
     LerpV4 a = {};
     a.timer.value = -1; //turn off timer;
+    a.value = color;
+    a.val = &a.value;
+    a.defaultVal = color;
     return a;
+}
+
+bool easyLerp_isAtDefault(LerpV4 *l) {
+    bool result = v4Equal(*l->val, l->defaultVal);
+    return result;
 }
 
 LerpV3 initLerpV3() {
