@@ -532,7 +532,8 @@ static inline void loadLevelData(FrameParams *params) {
                        }
                        if(isLevelData) {
                            if(stringsMatchNullN("name", token.at, token.size)) {
-                              levelData->name  = getStringFromDataObjects(&data, &tokenizer);
+                                char *stringToCopy = getStringFromDataObjects(&data, &tokenizer);
+                                levelData->name = nullTerminate(stringToCopy, strlen(stringToCopy));
                            }
                            if(stringsMatchNullN("groupId", token.at, token.size)) {
                                groupId = getIntFromDataObjects(&data, &tokenizer);
@@ -2258,8 +2259,9 @@ int main(int argc, char *args[]) {
     Arena soundArena = createArena(Megabytes(200));
     Arena longTermArena = createArena(Megabytes(200));
 
-    //easyTextureAtlas_createTextureAtlas("img/", appInfo.windowHandle);
-    loadAndAddImagesToAssets("img/");
+    // easyTextureAtlas_createTextureAtlas("img/", "atlas/", appInfo.windowHandle, &longTermArena);
+    // loadAndAddImagesToAssets("img/");
+    easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/textureAtlas_1"));
     loadAndAddSoundsToAssets("sounds/", &setupInfo.audioSpec);
 
     bool running = true;

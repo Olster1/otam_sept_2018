@@ -680,6 +680,23 @@ typedef struct {
     GLuint depthId;
 } FrameBuffer;
 
+
+void renderReadPixels(u32 bufferId, int x0, int y0,
+             int x1,
+             int y1,
+             u32 layout,
+             u32 format,
+             u8 *stream) {
+
+    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)bufferId);
+
+    glReadPixels(x0, y0,
+                 x1, y1,
+                 layout,
+                 format,
+                 stream);
+}
+
 void renderDeleteTextures(int count, GLuint *handle) {
 	glDeleteTextures(1, handle);
 }
@@ -1057,7 +1074,8 @@ void getQuadVertexes(Vertex *triangleData) { //has to be length of four
     triangleData[3].texUV = v2(1, 1);
 }
 
-void renderDrawRectOutlineCenterDim(V3 center, V2 dim, V4 color, float rot, Matrix4 offsetTransform, Matrix4 projectionMatrix) {
+#define renderDrawRectOutlineCenterDim(center, dim, color, rot, offsetTransform, projectionMatrix) renderDrawRectOutlineCenterDim_(center, dim, color, rot, offsetTransform, projectionMatrix, 0.1f)
+void renderDrawRectOutlineCenterDim_(V3 center, V2 dim, V4 color, float rot, Matrix4 offsetTransform, Matrix4 projectionMatrix, float thickness) {
     V3 deltaP = transformPositionV3(center, offsetTransform);
     
     float a1 = cos(rot);
@@ -1096,8 +1114,6 @@ void renderDrawRectOutlineCenterDim(V3 center, V2 dim, V4 color, float rot, Matr
         v2(0, -halfDim.y),
     };
     
-    float thickness = 0.1;
-
     Vertex triangleData[4] = {};
     if(!globalQuadVaoHandle.valid) {
         getQuadVertexes(triangleData);
@@ -1273,7 +1289,8 @@ void sortItems(RenderGroup *group) {
     //this is a bubble sort. I think this is typically a bit slow. 
     bool sorted = false;
     int max = (group->items.count - 1);
-    for (int index = 0; index < max; ++index) {
+    for (int index = 0; index < max;) {
+        bool incrementIndex = true;
         RenderItem *infoA = (RenderItem *)getElementFromAlloc_(&group->items, index);
         RenderItem *infoB = (RenderItem *)getElementFromAlloc_(&group->items, index + 1);
         assert(infoA && infoB);
@@ -1287,6 +1304,11 @@ void sortItems(RenderGroup *group) {
         if(index == (max - 1) && sorted) {
             index = 0; 
             sorted = false;
+            incrementIndex = false;
+        }
+
+        if(incrementIndex) {
+            index++;
         }
     }
 }
