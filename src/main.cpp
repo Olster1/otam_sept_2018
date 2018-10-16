@@ -228,6 +228,8 @@ typedef struct {
 
     bool createShape;
 
+    bool wasHoldingShape;
+
     LevelType currentLevelType;
     LevelData levelsData[LEVEL_COUNT];
     LevelData *levelGroups[LEVEL_COUNT]; //this is for the overworld. 
@@ -268,6 +270,7 @@ typedef struct {
     float dt;
     SDL_Window *windowHandle;
     AppKeyStates *keyStates;
+    AppKeyStates *playStateKeyStates;
     FrameBuffer mainFrameBuffer;
     Matrix4 metresToPixels;
     Matrix4 pixelsToMeters;
@@ -1221,24 +1224,29 @@ void changeMenuStateCallback(void *data) {
 }
 
 static inline void updateShapeMoveTime(FitrisShape *shape, FrameParams *params) {
-    if(wasReleased(gameButtons, BUTTON_LEFT_MOUSE)) {
+    if(wasReleased(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
         resetMouseUI(params);
     }
-    
     bool isHoldingShape = params->currentHotIndex >= 0;
     params->moveTime = params->dt;
+    
     if(isHoldingShape) { 
-        params->accumHoldTime += params->dt;
+        if(!params->wasHoldingShape) {
+            params->accumHoldTime = params->moveTimer.period - params->moveTimer.value;
+            assert(params->accumHoldTime >= 0);
+        }
         params->moveTime = 0.0f;
         assert(!params->letGo);
     } 
+    params->wasHoldingShape = isHoldingShape;
 
     if(params->letGo) {
         assert(!isHoldingShape);
         params->moveTime = params->accumHoldTime;
         params->accumHoldTime = 0;
         params->letGo = false;
-    }
+        
+    } 
 }
 
 void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 screenDim, Matrix4 metresToPixels, FrameParams *params) {
@@ -1253,6 +1261,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
     TimerReturnInfo timerInfo = updateTimer(&params->moveTimer, params->moveTime);
     if(timerInfo.finished) {
         turnTimerOn(&params->moveTimer);
+         params->moveTimer.value = timerInfo.residue;
         if(!moveShape(shape, params, MOVE_DOWN)) {
             turnSolid = true;
         }
@@ -1282,7 +1291,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                 }
             }
             if(params->currentHotIndex == i) {
-                assert(isDown(gameButtons, BUTTON_LEFT_MOUSE));
+                assert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
                 color = COLOR_GREEN;
             }
             BoardValue *val = getBoardValue(params, pos);
@@ -1290,7 +1299,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
             val->color = color;
         }
 
-        if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && hotBlockIndex >= 0) {
+        if(wasPressed(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE) && hotBlockIndex >= 0) {
             params->currentHotIndex = hotBlockIndex;
 
         }
@@ -1592,11 +1601,10 @@ void updateBoardWinState(FrameParams *params) {
 
 void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
     bool repeat = true;
+    bool repeatedYet = false;
     while(repeat) { //this is for when we get blocked 
         repeat = false;
-        int beginCount = shape->count;
         assert(shape->count <= shape->max);
-        bool beginOut = shape->isOut;
         BoardState stateToSet;
         
         int addend = 0;
@@ -1608,61 +1616,65 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
             addend = -1;
         }
 
+        bool wasJustFlipped = shape->justFlipped;
         if(!shape->justFlipped) {
             shape->count += addend;        
-
         } else {
             shape->justFlipped = false;
         }
 
-        BoardState toBoardState = BOARD_INVALID;
-        assert(shape->count >= 0 && shape->count <= shape->max);
-        V2 newPos = v2(0, 0); //doesn't matter what we set it to because only things with a count use it, just as to be in bounds
-        if(shape->count) {
-            //minus one since count of one means we are setting the shapes position block
+        if(shape->count != 0) {
+            BoardState toBoardState = BOARD_INVALID;
+            assert(shape->count >= 0 && shape->count <= shape->max);
             V2 shift = v2(shape->growDir.x*(shape->count - 1), shape->growDir.y*(shape->count - 1)); 
-            newPos = v2_plus(shape->pos, shift);
+            V2 newPos = v2_plus(shape->pos, shift);
 
             toBoardState = getBoardState(params, newPos);
-        }
 
-        bool settingBlock = (toBoardState == BOARD_NULL && stateToSet == BOARD_STATIC);
-        bool isInBounds = inBoardBounds(params, newPos);
-        bool blocked = (toBoardState != BOARD_NULL && stateToSet == BOARD_STATIC);
-        if(blocked || !isInBounds) {
-            assert(shape->isOut);
-            assert(!"false");
-            if(shape->count == 0) {
-                assert(stateToSet != BOARD_NULL);
-                shape->isOut = true;
-                for(int i = 0; i < shape->perpSize; ++i) {
-                    shape->growDir = perp(shape->growDir);
+            bool settingBlock = (toBoardState == BOARD_NULL && stateToSet == BOARD_STATIC);
+            bool isInBounds = inBoardBounds(params, newPos);
+            bool blocked = (toBoardState != BOARD_NULL && stateToSet == BOARD_STATIC);
+            if(blocked || !isInBounds) {
+                assert(shape->isOut);
+                if(shape->count == 1) {
+                    assert(stateToSet != BOARD_NULL);
+                    shape->isOut = true;
+                    for(int i = 0; i < shape->perpSize; ++i) {
+                        shape->growDir = perp(shape->growDir);
+                    }
+                    shape->count = 0;
+                } else {
+                    shape->isOut = false;
+                    repeat = true;
+                    shape->justFlipped = true;
+                    shape->count--;
                 }
             } else {
-                shape->isOut = false;
-                repeat = true;
-                shape->justFlipped = true;
-                shape->count--;
-                assert(!"false");
+                assert(shape->count > 0);
+                assert(stateToSet != BOARD_INVALID);
+                
+                assert(isInBounds);
+                if(settingBlock || stateToSet == BOARD_NULL) {
+                    // printf("%d\n", toBoardState);
+                    // printf("%d\n", shape->count);
+                    if(stateToSet == BOARD_NULL) { assert(toBoardState == BOARD_STATIC); }
+                    setBoardState(params, newPos, stateToSet, BOARD_VAL_DYNAMIC);
+
+                }
+            }
+
+            assert(shape->max > 0);
+
+            if(shape->count == shape->max) {
+                if(!wasJustFlipped) {
+                    shape->isOut = false;
+                    shape->justFlipped = true;
+                } else {
+                    assert(!shape->isOut);
+                }
             }
         } else {
-            assert(stateToSet != BOARD_INVALID);
-            assert(shape->count > 0);
-            assert(isInBounds);
-            if(settingBlock || stateToSet == BOARD_NULL) {
-                printf("%d\n", toBoardState);
-                if(stateToSet == BOARD_NULL) { assert(toBoardState == BOARD_STATIC); }
-                setBoardState(params, newPos, stateToSet, BOARD_VAL_DYNAMIC);
-
-            }
-        }
-
-        assert(shape->max > 0);
-        if(shape->count == shape->max) {
-            shape->isOut = false;
-            shape->justFlipped = true;
-        }
-        if(shape->count == 0) {
+            assert(shape->count == 0);
             assert(!shape->isOut);
             shape->isOut = true;
             for(int i = 0; i < shape->perpSize; ++i) {
@@ -1672,6 +1684,11 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
             if(shape->lagTimer.period != 0.0f) {
                 shape->active = false; //we lag for a bit. 
             }
+        }
+
+        if(shape->count == 0 && !repeatedYet) {
+            repeat = true;
+            repeatedYet = true;
         }
     }
 }
@@ -1764,6 +1781,7 @@ void gameUpdateAndRender(void *params_) {
     //ceneter the camera
     params->cameraPos.xy = v2_scale(0.5f, v2((float)params->boardWidth - 1, (float)params->boardHeight - 1));
 
+    easyOS_processKeyStates(params->keyStates, resolution, params->screenDim, params->menuInfo.running);
     //make this platform independent
     easyOS_beginFrame(resolution);
     //////CLEAR BUFFERS
@@ -1781,11 +1799,10 @@ void gameUpdateAndRender(void *params_) {
     for(int partIndex = 0; partIndex < params->particleSystems.count; ++partIndex) {
         // drawAndUpdateParticleSystem(&params->particleSystem, params->dt, v3(0, 0, -4), v3(0, 0 ,0), params->cameraPos, params->metresToPixels, resolution);
     }
-
     
     V2 mouseP = params->keyStates->mouseP;
 
-    GameMode currentGameMode = drawMenu(&params->menuInfo, params->longTermArena, gameButtons, 0, params->successSound, params->moveSound, params->dt, resolution, mouseP);
+    GameMode currentGameMode = drawMenu(&params->menuInfo, params->longTermArena, params->keyStates->gameButtons, 0, params->successSound, params->moveSound, params->dt, resolution, mouseP);
 
     bool transitioning = updateTransitions(&params->transitionState, resolution, params->dt);
     Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
@@ -1814,7 +1831,7 @@ void gameUpdateAndRender(void *params_) {
             V4 uiColor = cLerp.value;
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
                 setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
-                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
+                if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
                     retryButtonPressed = true;
                 }
             }
@@ -1823,73 +1840,98 @@ void gameUpdateAndRender(void *params_) {
             renderTextureCentreDim(params->refreshTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
         }   
     }
-
+    
     if(!transitioning && isPlayState) {   
-        
+        float dtLeft = params->dt;
+        float oldDt = params->dt;
+        float increment = 1.0f / 480.0f;
+        while(dtLeft > 0.0f) {
+            easyOS_processKeyStates(params->playStateKeyStates, resolution, params->screenDim, params->menuInfo.running);
+
+            params->dt = min(increment, dtLeft);
+            assert(params->dt > 0.0f);
         //if updating a transition don't update the game logic, just render the game board. 
-        bool canDie = params->lifePointsMax > 0;
-        bool retryLevel = ((params->lifePoints <= 0) && canDie) || wasPressed(gameButtons, BUTTON_R) || retryButtonPressed; 
-        if(params->createShape || retryLevel) {
-            if(!retryLevel) {
-                params->currentShape.count = 0;
-            }
-            for (int i = 0; i < params->shapeSize && !retryLevel; ++i) {
-                int xAt = i % params->boardWidth + params->startOffset;
-                int yAt = (params->boardHeight - 1) - (i / params->boardWidth);
-                assert(i == params->currentShape.count);
-                FitrisBlock *block = &params->currentShape.blocks[params->currentShape.count++];
-                block->pos = v2(xAt, yAt);
-                block->type = BOARD_VAL_SHAPES[i];
-                block->id = i;
+            bool canDie = params->lifePointsMax > 0;
+            bool retryLevel = ((params->lifePoints <= 0) && canDie) || wasPressed(params->keyStates->gameButtons, BUTTON_R) || retryButtonPressed; 
+            if(params->createShape || retryLevel) {
+                if(!retryLevel) {
+                    params->currentShape.count = 0;
+                }
+                for (int i = 0; i < params->shapeSize && !retryLevel; ++i) {
+                    int xAt = i % params->boardWidth + params->startOffset;
+                    int yAt = (params->boardHeight - 1) - (i / params->boardWidth);
+                    assert(i == params->currentShape.count);
+                    FitrisBlock *block = &params->currentShape.blocks[params->currentShape.count++];
+                    block->pos = v2(xAt, yAt);
+                    block->type = BOARD_VAL_SHAPES[i];
+                    block->id = i;
 
-                V2 pos = v2(xAt, yAt);
-                if(getBoardState(params, pos) != BOARD_NULL) {
-                    //at the top of the board
-                    retryLevel = true;
-                    break;
-                    //
-                } else {
-                    setBoardState(params, pos, BOARD_SHAPE, params->currentShape.blocks[i].type);    
+                    V2 pos = v2(xAt, yAt);
+                    if(getBoardState(params, pos) != BOARD_NULL) {
+                        //at the top of the board
+                        retryLevel = true;
+                        break;
+                        //
+                    } else {
+                        setBoardState(params, pos, BOARD_SHAPE, params->currentShape.blocks[i].type);    
+                    }
+                }
+                if(retryLevel) {
+                    if(!params->transitionState.currentTransition) 
+                    {
+                        setLevelTransition(params, params->currentLevelType);
+                    }
+                }
+
+                params->moveTimer.value = 0;
+                params->createShape = false;
+                // assert(params->currentShape.count > 0);
+
+            }
+                
+            updateShapeMoveTime(&params->currentShape, params);
+
+            for(int extraIndex = 0; extraIndex < params->extraShapeCount; ++extraIndex) {
+                ExtraShape *extraShape = params->extraShapes + extraIndex;
+
+                float tUpdate = (extraShape->timeAffected) ? params->moveTime : params->dt;
+                
+                while(tUpdate > 0.0f) {
+                    assert(params->dt >= 0);
+                    
+                    float dt = min(increment, tUpdate);
+                    assert(dt <= params->dt);
+
+                    if(!extraShape->active && extraShape->lagTimer.period > 0.0f) { 
+                        TimerReturnInfo lagInfo = updateTimer(&extraShape->lagTimer, dt);
+                        if(lagInfo.finished) {
+                            turnTimerOn(&extraShape->lagTimer);
+                            extraShape->lagTimer.value = lagInfo.residue;
+                            extraShape->active = true; 
+                        }
+                    } 
+
+                    if(extraShape->active) {
+                        if(params->moveTime > 0.0f) {
+                        }
+                        TimerReturnInfo info = updateTimer(&extraShape->timer, dt);
+                        if(info.finished) {
+                            turnTimerOn(&extraShape->timer);
+                            updateWindmillSide(params, extraShape);
+                            extraShape->timer.value = info.residue;
+                        }
+                    }
+                    tUpdate -= dt;
+                    assert(tUpdate >= 0.0f);
                 }
             }
-            if(retryLevel) {
-                setLevelTransition(params, params->currentLevelType);
-            }
-
-            params->moveTimer.value = 0;
-            params->createShape = false;
-            // assert(params->currentShape.count > 0);
+            updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params);
+            updateBoardWinState(params);
+            dtLeft -= params->dt;
+            assert(dtLeft >= 0.0f);
         }
-
-        updateShapeMoveTime(&params->currentShape, params);
-
-        for(int extraIndex = 0; extraIndex < params->extraShapeCount; ++extraIndex) {
-            ExtraShape *extraShape = params->extraShapes + extraIndex;
-
-            float tUpdate = (extraShape->timeAffected) ? params->moveTime : params->dt;
-            float extraTime = params->dt;
-            if(!extraShape->active) { 
-                TimerReturnInfo lagInfo = updateTimer(&extraShape->lagTimer, tUpdate);
-                if(lagInfo.finished) {
-                    turnTimerOn(&extraShape->lagTimer);
-                    extraShape->active = true; 
-                    extraTime = lagInfo.residue;
-                }
-            } 
-
-            if(extraShape->active) {
-                TimerReturnInfo info = updateTimer(&extraShape->timer, tUpdate);
-                if(info.finished) {
-                    turnTimerOn(&extraShape->timer);
-                    updateWindmillSide(params, extraShape);
-                }
-            }
-        }
-        updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params);
-        
-        updateBoardWinState(params);
+        params->dt = oldDt;
     }
-
 
     if(isPlayState || currentGameMode == OVERWORLD_MODE) {
         { //Sound Button
@@ -1908,7 +1950,7 @@ void gameUpdateAndRender(void *params_) {
             V4 uiColor = cLerp.value;
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
                 setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
-                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
+                if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
                     globalSoundOn = !globalSoundOn;
                     // changeMenuState(&params->menuInfo, SETTINGS_MODE);
                 }
@@ -1939,7 +1981,7 @@ void gameUpdateAndRender(void *params_) {
             V4 uiColor = cLerp.value;
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
                 setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
-                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
+                if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
                     setBackToOverworldTransition(params);
 
                 }
@@ -2020,12 +2062,12 @@ void gameUpdateAndRender(void *params_) {
         float xSpace = ySpace;
 
         static V2 lastMouseP = {};
-        if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+        if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
             lastMouseP = mouseP;
         }
 
         V3 accel = v3(0, 0, 0);
-        if(isDown(gameButtons, BUTTON_LEFT_MOUSE)) {
+        if(isDown(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
             accel.xy = v2_scale(1000.0f, normalizeV2(v2_minus(mouseP, lastMouseP)));
             accel.x *= -1; 
         }
@@ -2182,7 +2224,7 @@ void gameUpdateAndRender(void *params_) {
                                     V2 nameDim = getDim(outputNameDim);
                                     outputText(params->font, 0.5f*(resolution.x - nameDim.x), nameY, -1, resolution, levelName, menuMargin, COLOR_BLUE, fontSize, true);
 
-                                    if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE) && levelAt->state != LEVEL_STATE_LOCKED) {
+                                    if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && levelAt->state != LEVEL_STATE_LOCKED) {
                                         // float torqueForce = 1000.0f;
                                         // levelAt->dA += params->dt*torqueForce;
                                         playGameSound(params->soundArena, params->enterLevelSound, 0, AUDIO_FOREGROUND);
@@ -2308,7 +2350,7 @@ int main(int argc, char *args[]) {
     params.speakerTex = findTextureAsset("speaker.png");
 
 
-    params.solidfyShapeSound = findSoundAsset("slate_sound.wav");
+    params.solidfyShapeSound = findSoundAsset("thud.wav");
     params.successSound = findSoundAsset("Success2.wav");
     params.explosiveSound = findSoundAsset("explosion.wav");
     params.showLevelsSound = findSoundAsset("showLevels.wav");
@@ -2396,6 +2438,8 @@ int main(int argc, char *args[]) {
     params.pixelsToMeters = setupInfo.pixelsToMeters;
     AppKeyStates keyStates = {};
     params.keyStates = &keyStates;
+    AppKeyStates playStateKeyStates = {};
+    params.playStateKeyStates = &playStateKeyStates;
     params.font = &mainFont;
     params.numberFont = &numberFont;
     params.screenRelativeSize = setupInfo.screenRelativeSize;
@@ -2479,7 +2523,6 @@ int main(int argc, char *args[]) {
     
     while(running) {
         
-    	keyStates = easyOS_processKeyStates(resolution, &screenDim, &running);
 #if DESKTOP
       gameUpdateAndRender(&params);
 #endif

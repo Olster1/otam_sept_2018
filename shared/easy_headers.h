@@ -7,7 +7,6 @@
 #include "easy.h"
 
 static char* globalExeBasePath;
-static GameButton gameButtons[BUTTON_COUNT];
 
 #include "easy_files.h"
 #include "easy_math.h"

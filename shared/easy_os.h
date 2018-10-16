@@ -231,31 +231,32 @@ void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *window
 }
 
 typedef struct {
+	GameButton gameButtons[BUTTON_COUNT];
+
 	V2 mouseP;
 	V2 mouseP_yUp;
 
 	int scrollWheelY;
 } AppKeyStates;
 
-AppKeyStates easyOS_processKeyStates(V2 resolution, V2 *screenDim, bool *running) {
-	AppKeyStates state = {};
+static inline void easyOS_processKeyStates(AppKeyStates *state, V2 resolution, V2 *screenDim, bool *running) {
 	//Save state of last frame game buttons 
-	bool mouseWasDown = isDown(gameButtons, BUTTON_LEFT_MOUSE);
-	bool mouseWasDownRight = isDown(gameButtons, BUTTON_RIGHT_MOUSE);
-	bool leftArrowWasDown = isDown(gameButtons, BUTTON_LEFT);
-	bool rightArrowWasDown = isDown(gameButtons, BUTTON_RIGHT);
-	bool upArrowWasDown = isDown(gameButtons, BUTTON_UP);
-	bool downArrowWasDown = isDown(gameButtons, BUTTON_DOWN);
-	bool shiftWasDown = isDown(gameButtons, BUTTON_SHIFT);
-	bool commandWasDown = isDown(gameButtons, BUTTON_COMMAND);
-	bool spaceWasDown = isDown(gameButtons, BUTTON_SPACE);
+	bool mouseWasDown = isDown(state->gameButtons, BUTTON_LEFT_MOUSE);
+	bool mouseWasDownRight = isDown(state->gameButtons, BUTTON_RIGHT_MOUSE);
+	bool leftArrowWasDown = isDown(state->gameButtons, BUTTON_LEFT);
+	bool rightArrowWasDown = isDown(state->gameButtons, BUTTON_RIGHT);
+	bool upArrowWasDown = isDown(state->gameButtons, BUTTON_UP);
+	bool downArrowWasDown = isDown(state->gameButtons, BUTTON_DOWN);
+	bool shiftWasDown = isDown(state->gameButtons, BUTTON_SHIFT);
+	bool commandWasDown = isDown(state->gameButtons, BUTTON_COMMAND);
+	bool spaceWasDown = isDown(state->gameButtons, BUTTON_SPACE);
 	/////
-	zeroArray(gameButtons);
+	zeroArray(state->gameButtons);
 	
-	assert(gameButtons[BUTTON_LEFT_MOUSE].transitionCount == 0);
+	assert(state->gameButtons[BUTTON_LEFT_MOUSE].transitionCount == 0);
 	//ask player for new input
 	SDL_Event event;
-	state.scrollWheelY = 0;
+	state->scrollWheelY = 0;
 	
 	while( SDL_PollEvent( &event ) != 0 ) {
         switch(event.type) {
@@ -300,7 +301,7 @@ AppKeyStates easyOS_processKeyStates(V2 resolution, V2 *screenDim, bool *running
 	    }  else if( event.type == SDL_QUIT ) {
 	        *running = false;
 	    } else if(event.type == SDL_MOUSEWHEEL) {
-	        state.scrollWheelY = event.wheel.y;
+	        state->scrollWheelY = event.wheel.y;
 	    } else if(event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
 	        
 	        SDL_Keycode keyCode = event.key.keysym.sym;
@@ -364,7 +365,7 @@ AppKeyStates easyOS_processKeyStates(V2 resolution, V2 *screenDim, bool *running
 	            } break;
 	        }
 	        if(buttonType) {
-	            sdlProcessGameKey(&gameButtons[buttonType], isDown, repeated);
+	            sdlProcessGameKey(&state->gameButtons[buttonType], isDown, repeated);
 	        }
 	        
 	    } else if( event.type == SDL_TEXTINPUT ) {
@@ -384,28 +385,27 @@ AppKeyStates easyOS_processKeyStates(V2 resolution, V2 *screenDim, bool *running
 	bool shiftIsDown = keystates[SDL_SCANCODE_LSHIFT];
 	bool commandIsDown = keystates[SDL_SCANCODE_LGUI];
 	
-	sdlProcessGameKey(&gameButtons[BUTTON_LEFT], leftArrowIsDown, leftArrowWasDown == leftArrowIsDown);
-	sdlProcessGameKey(&gameButtons[BUTTON_RIGHT], rightArrowIsDown, rightArrowWasDown == rightArrowIsDown);
-	sdlProcessGameKey(&gameButtons[BUTTON_DOWN], downArrowIsDown, downArrowWasDown == downArrowIsDown);
-	sdlProcessGameKey(&gameButtons[BUTTON_UP], upArrowIsDown, upArrowWasDown == upArrowIsDown);
-	sdlProcessGameKey(&gameButtons[BUTTON_SHIFT], shiftIsDown, shiftWasDown == shiftIsDown);
-	sdlProcessGameKey(&gameButtons[BUTTON_COMMAND], commandIsDown, commandWasDown == commandIsDown);
+	sdlProcessGameKey(&state->gameButtons[BUTTON_LEFT], leftArrowIsDown, leftArrowWasDown == leftArrowIsDown);
+	sdlProcessGameKey(&state->gameButtons[BUTTON_RIGHT], rightArrowIsDown, rightArrowWasDown == rightArrowIsDown);
+	sdlProcessGameKey(&state->gameButtons[BUTTON_DOWN], downArrowIsDown, downArrowWasDown == downArrowIsDown);
+	sdlProcessGameKey(&state->gameButtons[BUTTON_UP], upArrowIsDown, upArrowWasDown == upArrowIsDown);
+	sdlProcessGameKey(&state->gameButtons[BUTTON_SHIFT], shiftIsDown, shiftWasDown == shiftIsDown);
+	sdlProcessGameKey(&state->gameButtons[BUTTON_COMMAND], commandIsDown, commandWasDown == commandIsDown);
 
 	int mouseX, mouseY;
 
 	unsigned int mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-	
+
 	float screenDimX = screenDim->x;
 	float screenDimY = screenDim->y;
-	state.mouseP = v2(mouseX/screenDimX*resolution.x, mouseY/screenDimY*resolution.y);
+	state->mouseP = v2(mouseX/screenDimX*resolution.x, mouseY/screenDimY*resolution.y);
 	
-	state.mouseP_yUp = v2_minus(v2(state.mouseP.x, -1*state.mouseP.y + resolution.y), v2_scale(0.5f, resolution));
+	state->mouseP_yUp = v2_minus(v2(state->mouseP.x, -1*state->mouseP.y + resolution.y), v2_scale(0.5f, resolution));
 
 	bool leftMouseDown = mouseState & SDL_BUTTON_LMASK;
-	sdlProcessGameKey(&gameButtons[BUTTON_LEFT_MOUSE], leftMouseDown, leftMouseDown == mouseWasDown);
+	sdlProcessGameKey(&state->gameButtons[BUTTON_LEFT_MOUSE], leftMouseDown, leftMouseDown == mouseWasDown);
 	
 	bool rightMouseDown = mouseState & SDL_BUTTON_RMASK;
-	sdlProcessGameKey(&gameButtons[BUTTON_RIGHT_MOUSE], rightMouseDown, rightMouseDown == mouseWasDownRight);
-
-	return state;
+	sdlProcessGameKey(&state->gameButtons[BUTTON_RIGHT_MOUSE], rightMouseDown, rightMouseDown == mouseWasDownRight);
+	
 }

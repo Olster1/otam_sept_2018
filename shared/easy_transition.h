@@ -36,6 +36,8 @@ SceneTransition *setTransition_(TransitionState *state, transition_callback *cal
     trans->callback = callback;
     trans->direction = true;
 
+    trans->next = state->currentTransition;
+
     state->currentTransition = trans;
 
     return trans;
@@ -72,10 +74,9 @@ bool updateTransitions(TransitionState *transState, V2 resolution, float dt) {
                 turnTimerOn(&trans->timer);
             } else {
                 //finished the transition
+                transState->currentTransition = trans->next;
                 trans->next = transState->freeListTransitions;
                 transState->freeListTransitions = trans;
-
-                transState->currentTransition = 0;
             }
         }
     
