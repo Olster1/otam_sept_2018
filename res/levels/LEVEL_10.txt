@@ -1,6 +1,7 @@
+//blocks and blombs
 LevelData: {
 	name: "Morning Wakeup";
-	groupId: 1;
+	groupId: 2;
 	//shapeSize: 5;
 	lifePoints: 3;
 }

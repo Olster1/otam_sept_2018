@@ -23,6 +23,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include "easy_shaders.h"
+
 #define PROJECTION_TYPE(FUNC) \
 FUNC(PERSPECTIVE_MATRIX) \
 FUNC(ORTHO_MATRIX) \
@@ -276,7 +278,7 @@ RenderProgram createRenderProgram(char *vShaderSource, char *fShaderSource) {
     RenderProgram result = {};
     
     result.valid = true;
-    
+        
     result.glShaderV = glCreateShader(GL_VERTEX_SHADER);
     result.glShaderF = glCreateShader(GL_FRAGMENT_SHADER);
     
@@ -421,17 +423,21 @@ void renderCheckError_(int lineNumber, char *fileName) {
     }
     
     
-RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentShaderFilename) {
-    FileContents vertShader = loadShader(vertexShaderFilename);
-    FileContents fragShader= loadShader(fragmentShaderFilename);
-    
+RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentShaderFilename, bool isFileName) {
+    char *vertMemory = vertexShaderFilename;
+    char *fragMemory = fragmentShaderFilename;
+    if(isFileName) {
+        vertMemory = (char *)loadShader(vertexShaderFilename).memory;
+        fragMemory= (char *)loadShader(fragmentShaderFilename).memory;
+    } 
+        
 #if DESKTOP
     char *shaderVersion = "#version 150\n";
 #else
     char *shaderVersion = "#version 300 es\nprecision mediump float;\n";
 #endif
-    char *vertStream = concat(shaderVersion, (char *)vertShader.memory);
-    char *fragStream = concat(shaderVersion, (char *)fragShader.memory);
+    char *vertStream = concat(shaderVersion, vertMemory);
+    char *fragStream = concat(shaderVersion, fragMemory);
     
     RenderProgram result = createRenderProgram(vertStream, fragStream);
     
@@ -440,8 +446,10 @@ RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentSh
     
     free(vertStream);
     free(fragStream);
-    free(vertShader.memory);
-    free(fragShader.memory);
+    if(isFileName) {
+        free(vertMemory);
+        free(fragMemory);
+    }
 
     return result;
 }
@@ -585,57 +593,59 @@ void enableRenderer(int width, int height) {
     
     char *append = concat(globalExeBasePath, (char *)"shaders/");
     
-    char *vertShaderLine = concat(append, (char *)"vertex_shader_line.glsl");
-    //printf("%s\n", vertShaderLine);
-    char *fragShaderLine = concat(append, (char *)"frag_shader_line.glsl");
+    // char *vertShaderLine = concat(append, (char *)"vertex_shader_line.glsl");
+    // //printf("%s\n", vertShaderLine);
+    // char *fragShaderLine = concat(append, (char *)"frag_shader_line.glsl");
     
-    char *vertShaderTex = concat(append, (char *)"vertex_shader_texture.c");
-    char *vertShaderRect = concat(append, (char *)"vertex_shader_rectangle.c");
-    char *fragShaderRect = concat(append, (char *)"fragment_shader_rectangle.glsl");
-    char *fragShaderTex = concat(append, (char *)"fragment_shader_texture.c");
-    char *fragShaderCirle = concat(append, (char *)"fragment_shader_circle.glsl");
-    char *fragShaderRectNoGrad = concat(append, (char *)"fragment_shader_rectangle_noGrad.glsl");
-    char *fragShaderFilter = concat(append, (char *)"fragment_shader_texture_filter.glsl");
-    char *fragShaderLight = concat(append, (char *)"fragment_shader_point_light.glsl");
-    char *fragShaderRing = concat(append, (char *)"frag_shader_ring.c");
-    char *fragShaderShadow = concat(append, (char *)"frag_shader_shadow.c");
-    char *fragShaderBlur = concat(append, (char *)"fragment_shader_blur.c");
+    // char *vertShaderTex = concat(append, (char *)"vertex_shader_texture.c");
+    // char *vertShaderRect = concat(append, (char *)"vertex_shader_rectangle.c");
+    // char *fragShaderRect = concat(append, (char *)"fragment_shader_rectangle.glsl");
+    // char *fragShaderTex = concat(append, (char *)"fragment_shader_texture.c");
+    // char *fragShaderCirle = concat(append, (char *)"fragment_shader_circle.glsl");
+    // char *fragShaderRectNoGrad = concat(append, (char *)"fragment_shader_rectangle_noGrad.glsl");
+    // char *fragShaderFilter = concat(append, (char *)"fragment_shader_texture_filter.glsl");
+    // char *fragShaderLight = concat(append, (char *)"fragment_shader_point_light.glsl");
+    // char *fragShaderRing = concat(append, (char *)"frag_shader_ring.c");
+    // char *fragShaderShadow = concat(append, (char *)"frag_shader_shadow.c");
+    // char *fragShaderBlur = concat(append, (char *)"fragment_shader_blur.c");
 
-    char *vertPhong = concat(append, (char *)"vertex_model.c");
-    char *fragPhong = concat(append, (char *)"frag_model.c");
+    // char *vertPhong = concat(append, (char *)"vertex_model.c");
+    // char *fragPhong = concat(append, (char *)"frag_model.c");
     
-    // rectangleNoGradProgram  = createProgramFromFile(vertShaderRect, fragShaderRectNoGrad);
+    // rectangleNoGradProgram  = createProgramFromFile(vertex_shader_rectangle_shader, fragShaderRectNoGrad);
     // renderCheckError();
     
     // lineProgram = createProgramFromFile(vertShaderLine, fragShaderLine);
     // renderCheckError();
-    
-    rectangleProgram = createProgramFromFile(vertShaderRect, fragShaderRect);
+
+        
+    rectangleProgram = createProgramFromFile(vertex_shader_rectangle_shader, fragment_shader_rectangle_shader, false);
     renderCheckError();
 
-    phongProgram = createProgramFromFile(vertPhong, fragPhong);
+    phongProgram = createProgramFromFile(vertex_model_shader, frag_model_shader, false);
     renderCheckError();
     
-    textureProgram = createProgramFromFile(vertShaderTex, fragShaderTex);
+    textureProgram = createProgramFromFile(vertex_shader_texture_shader, fragment_shader_texture_shader, false);
     renderCheckError();
     
     // filterProgram = createProgramFromFile(vertShaderTex, fragShaderFilter);
     // renderCheckError();
     
-    // circleProgram = createProgramFromFile(vertShaderRect, fragShaderCirle);
+    // circleProgram = createProgramFromFile(vertex_shader_rectangle_shader, fragShaderCirle);
     // renderCheckError();
     
-    // lightProgram = createProgramFromFile(vertShaderRect, fragShaderLight);
+    // lightProgram = createProgramFromFile(vertex_shader_rectangle_shader, fragShaderLight);
     // renderCheckError();
     
-    // ringProgram = createProgramFromFile(vertShaderRect, fragShaderRing);
+    // ringProgram = createProgramFromFile(vertex_shader_rectangle_shader, fragShaderRing);
     // renderCheckError();
     
-    // shadowProgram = createProgramFromFile(vertShaderRect, fragShaderShadow);
+    // shadowProgram = createProgramFromFile(vertex_shader_rectangle_shader, fragShaderShadow);
     // renderCheckError();
     
-    // blurProgram = createProgramFromFile(vertShaderRect, fragShaderBlur);
+    // blurProgram = createProgramFromFile(vertex_shader_rectangle_shader, fragShaderBlur);
     // renderCheckError();
+    // free(append);
 #endif
 }
 

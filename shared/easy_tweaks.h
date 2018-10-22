@@ -36,7 +36,7 @@ TweakVar *addTweakVar(Tweaker *tweaker, char *name, InfiniteAlloc *data) {
 
 TweakVar *findTweakVar(Tweaker *tweaker, char *name) {
 	TweakVar *result = 0;
-	for(int i = 0; i < tweaker->varCount; ++i) {
+	for(int i = 0; i < tweaker->varCount && !result; ++i) {
 		TweakVar *var = tweaker->vars + i;
 		if(cmpStrNull(var->name, name)) {
 			result = var;
@@ -145,7 +145,6 @@ bool refreshTweakFile(char *fileName, Tweaker *tweaker) {
 
 		EasyTokenizer tokenizer = lexBeginParsing((char *)contents.memory, true);
 
-		InfiniteAlloc data = {};
 		bool parsing = true;
 		while(parsing) {
 		    EasyToken token = lexGetNextToken(&tokenizer);
@@ -156,6 +155,7 @@ bool refreshTweakFile(char *fileName, Tweaker *tweaker) {
 		        } break;
 		        case TOKEN_WORD: {
 		        	data = getDataObjects(&tokenizer);
+
 		        	char *name = nullTerminate(token.at, token.size);
 		        	addTweakVar(tweaker, name, &data);
 		        } break;

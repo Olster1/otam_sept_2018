@@ -1,7 +1,7 @@
 LevelData: {
 	backgroundImage: "blue_shroom.png";
 	name: "The Ledge";
-	groupId: 3;
+	groupId: 5;
 	shapeSize: 5;
 	lifePoints: 1;
 }

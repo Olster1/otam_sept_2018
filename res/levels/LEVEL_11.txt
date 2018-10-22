@@ -1,3 +1,4 @@
+//blocks and bombs
 LevelData: {
 	name: "Impassable";
 	groupId: 2;

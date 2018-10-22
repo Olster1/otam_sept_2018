@@ -52,12 +52,26 @@ typedef struct {
     MenuInfo *info;
 } MenuTransitionData;
 
+static inline SoundType getAudioFlagForGameMode(GameMode gameMode) {
+    SoundType audioFlag = AUDIO_FLAG_MENU;
+    if(gameMode == PLAY_MODE) {
+        audioFlag = AUDIO_FLAG_MAIN;
+    } else if(gameMode == MENU_MODE) {
+        audioFlag = AUDIO_FLAG_START_SCREEN;
+    }
+    return audioFlag;
+}
+
 void transitionCallbackForMenu(void *data_) {
     MenuTransitionData *trans = (MenuTransitionData *)data_;
     trans->info->gameMode = trans->gameMode;
     trans->info->lastMode = trans->lastMode;
     trans->info->menuCursorAt = 0;
     trans->info->callback(trans->info->callBackData);
+
+    SoundType newFlag = getAudioFlagForGameMode(trans->gameMode);
+    setParentChannelVolume(newFlag, 1, SCENE_MUSIC_TRANSITION_TIME);
+    setSoundType(newFlag);
 }
 
 void changeMenuState(MenuInfo *info, GameMode mode) {
@@ -66,6 +80,9 @@ void changeMenuState(MenuInfo *info, GameMode mode) {
     data->lastMode = info->gameMode;
     data->info = info;
     setTransition_(info->transitionState, transitionCallbackForMenu, data);
+    
+    SoundType oldFlag = getAudioFlagForGameMode(data->lastMode);
+    setParentChannelVolume(oldFlag, 0, SCENE_MUSIC_TRANSITION_TIME);
     // info->lastMouseP = v2(-1000, -1000); //make it undefined 
 }
 

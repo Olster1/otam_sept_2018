@@ -12,14 +12,14 @@
 
 #define invalidCodePathStr(msg) { printf(msg); exit(0); }
 
-#if 1 //turn off for crash assert
+#if DEVELOPER_MODE //turn off for crash assert
 #undef assert
 #define assert(statement) if(!(statement)) {printf("Something went wrong at %d in %s\n", __LINE__, __FILE__);  exit(0);}
-#else
-#define assert(statement) if(!(statement)) { int *i_ = 0; *i_ = 0; }
-#endif
-
 #define assertStr(statement, str) if(!(statement)) { printf("%s\n", str); } assert(statement); 
+#else
+#define assert(statement) 
+#define assertStr(statement, str)
+#endif
 
 #include <limits.h>
 

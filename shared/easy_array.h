@@ -98,6 +98,7 @@ void *getElementFromAlloc_(InfiniteAlloc *arena, int index)  {
 }
 
 void *addElementInifinteAllocWithCount_(InfiniteAlloc *arena, void *data, int count) {
+    assert(arena->sizeOfMember > 0);
     expandMemoryArray_(arena, count);
     assert((arena->count + count) < arena->totalCount);
     u8 *memAt = (u8 *)arena->memory + (arena->sizeOfMember*arena->count);

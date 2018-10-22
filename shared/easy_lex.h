@@ -287,8 +287,8 @@ EasyToken lexGetToken_(EasyTokenizer *tokenizer, bool advanceWithToken) {
 					at++;
 				}
 				token.size = at - token.at;
-				if(lexMatchString(token.at, "true") && token.size == lexStringLength("true")) token.type = TOKEN_BOOL;
-				else if(lexMatchString(token.at, "false") && token.size == lexStringLength("false")) token.type = TOKEN_BOOL;
+				if(lexMatchString(token.at, "true") && token.size == lexStringLength("true")) { token.type = TOKEN_BOOL; }
+				else if(lexMatchString(token.at, "false") && token.size == lexStringLength("false")) { token.type = TOKEN_BOOL; }
 				else if(lexMatchString(token.at, "b32") && token.size == lexStringLength("b32")) token.type = TOKEN_BOOL_TYPE;
 				else if(lexMatchString(token.at, "u32") && token.size == lexStringLength("u32")) token.type = TOKEN_UINT_TYPE;
 				else if(lexMatchString(token.at, "s32") && token.size == lexStringLength("s32")) token.type = TOKEN_INT_TYPE;

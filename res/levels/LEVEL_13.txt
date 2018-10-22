@@ -1,7 +1,8 @@
+//moving shape and bombs
 LevelData: {
 	backgroundImage: "blue_shroom.png";
 	name: "The Windmill";
-	groupId: 3;
+	groupId: 4;
 	shapeSize: 5;
 	lifePoints: 1;
 }

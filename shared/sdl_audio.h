@@ -9,6 +9,7 @@ typedef enum {
     AUDIO_FLAG_NULL,
     AUDIO_FLAG_MENU,
     AUDIO_FLAG_MAIN,
+    AUDIO_FLAG_START_SCREEN,
     AUDIO_FLAG_COUNT,
 } SoundType;
 
@@ -51,7 +52,7 @@ typedef struct {
 static int channelVolumes_[AUDIO_CHANNEL_COUNT] = {MAX_VOLUME, MAX_VOLUME};
 static VolumeLerp channelVolumesLerps_[AUDIO_CHANNEL_COUNT] = {};
 
-static float parentChannelVolumes_[AUDIO_FLAG_COUNT] = {1, 1, 1};
+static float parentChannelVolumes_[AUDIO_FLAG_COUNT] = {1, 1, 1, 1};
 static VolumeLerp parentChannelVolumesLerps_[AUDIO_FLAG_COUNT] = {};
 
 static SoundType globalSoundActiveType_ = AUDIO_FLAG_NULL;
@@ -273,6 +274,12 @@ PlayingSound *playGameSound(Arena *arena, WavFile *wavFile, PlayingSound *nextSo
 PlayingSound *pushGameSound(Arena *arena, WavFile *wavFile, PlayingSound *nextSoundToPlay, AudioChannel channel) {
     PlayingSound *result = pushSound(arena, wavFile, nextSoundToPlay, channel);
     result->soundType = AUDIO_FLAG_MAIN;
+    return result;
+}
+
+PlayingSound *playStartMenuSound(Arena *arena, WavFile *wavFile, PlayingSound *nextSoundToPlay, AudioChannel channel) {
+    PlayingSound *result = playSound(arena, wavFile, nextSoundToPlay, channel);
+    result->soundType = AUDIO_FLAG_START_SCREEN;
     return result;
 }
 

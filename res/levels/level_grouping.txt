@@ -1,0 +1,21 @@
+Nothing: 0 //group 0 //count 1
+
+static blocks: 1, 2 //group 1 //count 2
+
+blocks and bombs: 10, 11, 12 //group 2 //count 3
+
+bombs: 5, 8 // group 3 //count 2
+ 
+moving blocks un-timed: 13, 7 //group 4 //count 2
+
+moving blocks timed -> ledges: 3, 4, 6, 9 //group 5 //count 4
+
+moving blocks timed -> shuffling to avoid getting blocked: 17, 15, 16, 14//group 6 //count 4
+
+moving blocks timed -> somwthing blocking the entrance so you have to time the entrance: 18//group 7 //count 1
+
+bombs and moving blocks (un-timed): // group 8 //count 0
+
+
+
+

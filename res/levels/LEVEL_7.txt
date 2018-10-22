@@ -1,7 +1,8 @@
+//moving block not timed
 LevelData: {
 	backgroundImage: "blue_shroom.png";
 	name: "Patience";
-	groupId: 2;
+	groupId: 4;
 }
 Windmill: {
 	id: 1;

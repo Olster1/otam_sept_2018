@@ -1,7 +1,8 @@
+//moving blocks and bombs
 LevelData: {
 	backgroundImage: "blue_shroom.png";
 	name: "Bootstrap";
-	groupId: 3;
+	groupId: 5;
 	lifePoints: 1;
 	shapeSize: 5;
 }

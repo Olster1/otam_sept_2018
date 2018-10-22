@@ -1,8 +1,9 @@
+//blocks and bombs
 LevelData: {
 	lifePoints: 3	
 	backgroundImage: "blue_shroom.png";
 	name: "Minefield";
-	groupId: 4;
+	groupId: 2;
 }
 Board: {
 	000000

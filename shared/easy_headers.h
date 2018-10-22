@@ -30,6 +30,7 @@ static char* globalExeBasePath;
 #include "easy_perlin.h"
 #include "easy_tweaks.h"
 #include "easy_particle_effects.h"
+#include "easy_string_compile.h"
 #include "easy_os.h"
 #include "easy_animation.h"
 #include "easy_assets.h"

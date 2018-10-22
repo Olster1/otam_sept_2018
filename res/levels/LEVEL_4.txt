@@ -1,7 +1,8 @@
+//just moving blocks
 LevelData: {
 	backgroundImage: "blue_shroom.png";
 	name: "Castle Pillars";
-	groupId: 2;
+	groupId: 5;
 }
 Windmill: {
 	id: 1;
@@ -13,7 +14,7 @@ Windmill: {
 	timeAffected: true;
 
 	perpSize: 0;
-	max: 2;
+	max: 3;
 }
 Windmill: {
 	id: 2;
@@ -25,7 +26,7 @@ Windmill: {
 	timeAffected: true;
 
 	perpSize: 0;
-	max: 2;
+	max: 3;
 }
 Board: {
 	000000

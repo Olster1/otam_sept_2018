@@ -1,4 +1,5 @@
 #define PRINT_FRAME_RATE 0
+#define WRITE_SHADERS 0
 
 typedef struct {
 	unsigned int frameBackBufferId;
@@ -118,6 +119,13 @@ AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder) {
     //for stb_image so the images aren't upside down.
     stbi_set_flip_vertically_on_load(true);
     //
+
+#if DEVELOPER_MODE
+#if WRITE_SHADERS
+    char *fileTypes[]= {"glsl", "c"};
+    compileFiles("shaders/", fileTypes, arrayCount(fileTypes));
+#endif
+#endif
    
     //////////SETUP AUDIO/////
     initAudioSpec(&result.audioSpec, 44100);

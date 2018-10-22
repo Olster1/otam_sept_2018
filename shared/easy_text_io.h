@@ -1,4 +1,5 @@
 typedef enum {
+    VAR_NULL,
     VAR_CHAR_STAR,
     VAR_LONG_UNSIGNED_INT,
     VAR_LONG_INT,
@@ -159,7 +160,7 @@ InfiniteAlloc getDataObjects(EasyTokenizer *tokenizer) {
     while(parsing) {
         char *at = tokenizer->src;
         EasyToken token = lexGetNextToken(tokenizer);
-        //lexPrintToken(&token);
+        // lexPrintToken(&token);
         assert(at != tokenizer->src);
         switch(token.type) {
             case TOKEN_NULL_TERMINATOR: {

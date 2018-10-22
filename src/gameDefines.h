@@ -1,11 +1,11 @@
-#define APP_TITLE "Fitris"
-#define RESOURCE_PATH_EXTENSION "../res/" //   ../res/ for developer mode res/ for release bundle
+#define DEVELOPER_MODE 1
+#define APP_TITLE "Feoh"
 #define MOVE_INTERVAL 1.0f
 #define FADE_TIMER_INTERVAL 0.3f
 #define SCENE_TRANSITION_TIME 0.3f
 #define SCENE_MUSIC_TRANSITION_TIME (SCENE_TRANSITION_TIME + 0.2f) //extra lee way so they overlap 
-#define CHEAT_MODE 0
-#define START_MENU_MODE PLAY_MODE
+#define CHEAT_MODE 1
+#define START_MENU_MODE MENU_MODE
 #define XP_PER_LINE 100
 #define GO_TO_NEXT_GROUP_AUTO 0
 #define UI_BUTTON_COLOR COLOR_YELLOW
@@ -15,8 +15,5 @@
 #define RENDER_HANDNESS -1 //Right hand handess -> z going into the screen. 
 
 /***************************
-	-> fix windmills
-	-> time for waiting - use for loop for windmill
-	-> texture atlas 
 	-> bombs can be on windmills 
 ****************************/

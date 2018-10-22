@@ -118,7 +118,7 @@ game_file_handle platformBeginFileRead(char *FileName)
 {
     game_file_handle Result = {};
     
-    SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r+");
+    SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r");
     
     if(FileHandle)
     {
@@ -230,7 +230,7 @@ size_t platformFileSize(char *FileName)
 }
 
 bool platformDoesFileExist(char *FileName) {
-    SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r+");
+    SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r");
         
     bool result = false;    
     if(FileHandle) { 
@@ -245,7 +245,7 @@ bool platformDoesFileExist(char *FileName) {
 
 FileContents platformReadEntireFile(char *FileName, bool nullTerminate) {
     FileContents Result = {};
-    SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r+");
+    SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r");
     
     if(FileHandle)
     {

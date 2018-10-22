@@ -1,6 +1,6 @@
 LevelData: {
 	lifePoints: 1;
-	groupId: 2;
+	groupId: 3;
 	name: "Bombs Galore";
 }
 

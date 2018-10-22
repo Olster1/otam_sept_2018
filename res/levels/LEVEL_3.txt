@@ -1,7 +1,8 @@
+//just moving blocks
 LevelData: {
 	backgroundImage: "blue_shroom.png";
 	name: "Closing In";
-	groupId: 1;
+	groupId: 5;
 }
 Windmill: {
 	id: 1;

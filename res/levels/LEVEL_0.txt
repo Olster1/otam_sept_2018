@@ -1,3 +1,4 @@
+//nothing 
 LevelData: {
 	backgroundImage: "blue_shroom.png";
 	lifePoints: 0;
