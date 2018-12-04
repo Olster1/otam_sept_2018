@@ -1,5 +1,6 @@
 #define DEVELOPER_MODE 1
-#define APP_TITLE "Feoh"
+#define DEMO_MODE 0
+#define APP_TITLE "Feoh the Fitter"
 #define MOVE_INTERVAL 1.0f
 #define FADE_TIMER_INTERVAL 0.3f
 #define SCENE_TRANSITION_TIME 0.3f
@@ -15,5 +16,26 @@
 #define RENDER_HANDNESS -1 //Right hand handess -> z going into the screen. 
 
 /***************************
-	-> bombs can be on windmills 
+	-> more to explore: 
+	    1. choosing which bombs to blow up based on health bar 
+	    2. joining up the shape when there is a hole
+	    3. two shapes really far apart, ahve to manage them in conjunction
+	    4. mirror shapes. 
+
+	-> have settings for full screen & delete save file to renew game
+	-> freestyle arena 
+	-> make sure you can beat all the levels. 
+
+	-> itch.io webpage  (~1 day work) -> just itch.io
+
+	-> Video Footage (~1 day)
+
+	-> Windows build (~1 day work)
+
+	extended:
+	Android build with SDL (~ 2 days work)
+	Put on steam (~2 days work)
+
+
+
 ****************************/

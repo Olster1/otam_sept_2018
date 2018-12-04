@@ -10,11 +10,40 @@ moving blocks un-timed: 13, 7 //group 4 //count 2
 
 moving blocks timed -> ledges: 3, 4, 6, 9 //group 5 //count 4
 
-moving blocks timed -> shuffling to avoid getting blocked: 17, 15, 16, 14//group 6 //count 4
+moving blocks timed -> shuffling to avoid getting blocked: 17, 15, 16, 14, 20 //group 6 //count 5
 
-moving blocks timed -> somwthing blocking the entrance so you have to time the entrance: 18//group 7 //count 1
+moving blocks timed -> something blocking the entrance so you have to time the entrance: 23, 18//group 7 //count 2
 
-bombs and moving blocks (un-timed): // group 8 //count 0
+moving blocks timed with red lines -> 19, 21, 22 // group 8 // count 3
+
+
+
+Manevouring the shape 
+	- just blocks
+	- blocks with bombs 
+	- timed blocks (windmill type shapes)
+
+Ledges
+	- have to use ledge to prop shape on so they don't hit the bombs below
+
+On/Off blocks shuffling
+   - Have to time it to get into all the crevices. 
+
+Incoming to a level 
+	- have to time the start so you don't get caught at the top
+
+Extra Shapes can finish lines (red lines not just green lines)
+	- have to time the on/off shapes to finish a line
+
+Linking shapes together 
+	- bomb blows whole in shape, have to link it to complete the level
+	- the level can start with more than one shape, so have to use them together 
+
+Colors
+	- only certain blocks can pass through colors or the shape will blow up 
+
+Camera moving 
+	- really big levels involving manuvering the camera to finish lines -> more of a pushing things to the limit 
 
 
 

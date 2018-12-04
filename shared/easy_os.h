@@ -233,7 +233,7 @@ void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *window
    }
    dt = *dt_ = newRate; //set the actual dt
 #if PRINT_FRAME_RATE
-   printf("%f\n", 1.0f / (dt));
+   	printf("%f\n", 1.0f / (dt)); 
 #endif
    *lastTime = now;
 }

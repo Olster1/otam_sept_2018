@@ -103,6 +103,7 @@ typedef struct {
     int count;
 
     bool timeAffected; //this is if it slows down when the player as grabbed the block 
+    bool tryingToBegin;
 
     int max;
 } ExtraShape;
@@ -141,6 +142,26 @@ FUNC(LEVEL_17) \
 FUNC(LEVEL_18) \
 FUNC(LEVEL_19) \
 FUNC(LEVEL_20) \
+FUNC(LEVEL_21) \
+FUNC(LEVEL_22) \
+FUNC(LEVEL_23) \
+FUNC(LEVEL_24) \
+FUNC(LEVEL_25) \
+FUNC(LEVEL_26) \
+FUNC(LEVEL_27) \
+FUNC(LEVEL_28) \
+FUNC(LEVEL_29) \
+FUNC(LEVEL_30) \
+FUNC(LEVEL_31) \
+FUNC(LEVEL_32) \
+FUNC(LEVEL_33) \
+FUNC(LEVEL_34) \
+FUNC(LEVEL_35) \
+FUNC(LEVEL_36) \
+FUNC(LEVEL_37) \
+FUNC(LEVEL_38) \
+FUNC(LEVEL_39) \
+FUNC(LEVEL_40) \
 FUNC(LEVEL_COUNT) \
 
 typedef enum {
@@ -149,12 +170,17 @@ typedef enum {
 
 static char *LevelTypeStrings[] = { LEVEL_TYPE(STRING) };
 
+#define LEVEL_STATE(FUNC) \
+FUNC(LEVEL_STATE_NULL) \
+FUNC(LEVEL_STATE_COMPLETED) \
+FUNC(LEVEL_STATE_UNLOCKED) \
+FUNC(LEVEL_STATE_LOCKED) \
+
 typedef enum {
-    LEVEL_STATE_NULL,
-    LEVEL_STATE_COMPLETED,
-    LEVEL_STATE_UNLOCKED,
-    LEVEL_STATE_LOCKED,
+    LEVEL_STATE(ENUM)
 } LevelState;
+
+static char *LevelStateStrings[] = { LEVEL_STATE(STRING) };
 
 typedef struct LevelData LevelData;
 typedef struct LevelData {
@@ -184,6 +210,18 @@ typedef struct LevelData {
 
     LevelData *next; //this is used for the overworld level groups
 } LevelData;
+
+typedef enum {
+    GREEN_LINE,
+    RED_LINE,
+} GlowingLineType;
+
+typedef struct {
+    GlowingLineType type;
+    int yAt;
+    Timer timer; 
+    bool isDead;
+} GlowingLine;
 
 typedef struct {
     Arena *soundArena;
@@ -222,17 +260,19 @@ typedef struct {
     WavFile *explosiveSound;
     WavFile *enterLevelSound;
     WavFile *showLevelsSound;
-    
 
     TransitionState transitionState;
 
     Timer levelNameTimer;
 
-    int startOffset;
+    int startOffsets[3];
     int lifePoints;
     int lifePointsMax;
     bool wasHitByExplosive; 
-    int shapeSize;
+    int shapeSizes[3];
+    int shapesCount;
+
+    bool isMirrorLevel;
 
     int extraShapeCount;
     ExtraShape extraShapes[32];
@@ -269,12 +309,18 @@ typedef struct {
 
     int lastShownGroup; //this is for showing the completed groups in the overworld
 
-    int glowingLines[16]; //these are the win lines. We annotate them with a slash in the level markup file
+    GlowingLine glowingLines[16]; //these are the win lines. We annotate them with a slash in the level markup file
     int glowingLinesCount;
 
     TileLayouts tileLayout;
 
     V2 *overworldValuesOffset;
+
+    bool isFreestyle;
+
+    V2 lastMouseP;
+
+    bool backgroundSoundPlaying;
 
     ////////TODO: This stuff below should be in another struct so isn't there for all projects. 
     Arena *longTermArena;
@@ -431,7 +477,7 @@ V2 parseGetBoardDim(char *at) {
             } break;
             default: {
                 //Without this ist seems to only cause a bug on the last line of the baord
-                if(*at != '/') {
+                if(*at != '/' && *at != ')') {
                     xAt++;
                 }
                 at++;
@@ -697,13 +743,20 @@ typedef struct {
     int shapeId;
 } SquareProperty;
 
+static inline void addGlowingLine(FrameParams *params, int yAt, GlowingLineType type) {
+    assert(params->glowingLinesCount < arrayCount(params->glowingLines));
+    GlowingLine *line = params->glowingLines + params->glowingLinesCount++;
+    line->yAt = yAt;
+    line->type = type;
+    line->isDead = false;
+}
+
 void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
 
     FileContents contents = params->levelsData[levelTypeIn].contents;
     
     assert(contents.memory);
     assert(contents.valid);
-
 
     EasyTokenizer tokenizer = lexBeginParsing((char *)contents.memory, true);
 
@@ -727,8 +780,11 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
     bool hasLifePoints = false;
     bool parsing = true;
     bool hasLevelName = true;
-    params->shapeSize = 4; //default to size 4
-    params->startOffset = 0; //default to zero
+    params->shapeSizes[0] = 4; //default to size 4
+    params->shapesCount = 1;
+    params->startOffsets[0] = 0; //default to zero
+    params->isMirrorLevel = false;
+
     while(parsing) {
         EasyToken token = lexGetNextToken(&tokenizer);
         InfiniteAlloc data = {};
@@ -767,10 +823,28 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                         hasLifePoints = true;
                     }
                     if(stringsMatchNullN("shapeSize", token.at, token.size)) {
-                        params->shapeSize = getIntFromDataObjects(&data, &tokenizer);
+                        params->shapeSizes[0] = getIntFromDataObjects(&data, &tokenizer);
+                    }
+                    if(stringsMatchNullN("shapeSize2", token.at, token.size)) {
+                        params->shapeSizes[1] = getIntFromDataObjects(&data, &tokenizer);
+                        params->shapesCount = max(2, params->shapesCount);
+                    }
+                    if(stringsMatchNullN("isMirror", token.at, token.size)) {
+                        params->isMirrorLevel = true;
+                        assert(params->shapeSizes[1]);
+                    }
+                    if(stringsMatchNullN("shapeSize3", token.at, token.size)) {
+                        params->shapeSizes[2] = getIntFromDataObjects(&data, &tokenizer);
+                        params->shapesCount = max(3, params->shapesCount);
                     }
                     if(stringsMatchNullN("startOffset", token.at, token.size)) {
-                        params->startOffset = getIntFromDataObjects(&data, &tokenizer);
+                        params->startOffsets[0] = getIntFromDataObjects(&data, &tokenizer);
+                    }
+                    if(stringsMatchNullN("startOffset2", token.at, token.size)) {
+                        params->startOffsets[1] = getIntFromDataObjects(&data, &tokenizer);
+                    }
+                    if(stringsMatchNullN("startOffset3", token.at, token.size)) {
+                        params->startOffsets[2] = getIntFromDataObjects(&data, &tokenizer);
                     }
                     assert(currentType == NULL_PROPERTIES);
                     
@@ -887,8 +961,13 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                 justNewLine = false;
             } break;
             case '/': {
-                assert(params->glowingLinesCount < arrayCount(params->glowingLines));
-                params->glowingLines[params->glowingLinesCount++] = yAt;
+                addGlowingLine(params, yAt, GREEN_LINE);
+                at++;
+                justNewLine = false;
+                params->maxExperiencePoints += XP_PER_LINE;
+            } break;
+            case ')': {
+                addGlowingLine(params, yAt, RED_LINE);
                 at++;
                 justNewLine = false;
                 params->maxExperiencePoints += XP_PER_LINE;
@@ -948,7 +1027,9 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
         }
     }
 
-    assert(params->maxExperiencePoints != 0);
+    if(!params->isFreestyle) {
+        assert(params->maxExperiencePoints != 0);
+    }
     
 }
 
@@ -1363,6 +1444,84 @@ static inline void updateShapeMoveTime(FitrisShape *shape, FrameParams *params) 
     } 
 }
 
+static inline int getTotalNumberOfShapeBlocks(FrameParams *params) {
+    int result = 0;
+    for(int i = 0; i < params->shapesCount; ++i) {
+        result += params->shapeSizes[i];
+    }
+
+    return result;
+}
+
+static inline bool isMirrorPartnerIndex(FrameParams *params, int currentHotIndex, int i, bool isCurrentHotIndex/*for the assert*/) {
+    bool result = false;
+    if(params->isMirrorLevel && currentHotIndex >= 0) {
+        int mirrorOffsetCount = params->shapeSizes[0];
+
+        if(currentHotIndex < mirrorOffsetCount) {
+            assert(currentHotIndex + mirrorOffsetCount < getTotalNumberOfShapeBlocks(params));
+            if((currentHotIndex + mirrorOffsetCount) == i) {
+                if(isCurrentHotIndex) {
+                    assert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
+                }
+                //this would be if you grabbed the 'lower shape' and you want to hightlight the one above
+                result = true;          
+            } 
+        } else {
+            assert(currentHotIndex - mirrorOffsetCount >= 0);
+            if((currentHotIndex - mirrorOffsetCount) == i) {
+                if(isCurrentHotIndex) {
+                    assert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
+                }
+                //this would be if you grabbed the 'higher shape' 
+                result = true;
+            }
+        }
+    }
+    return result;
+}
+
+typedef struct {
+    V4 color1;
+    V4 color2;
+} TwoColors;
+
+/*
+NOTE: This is since alien blocks are different colors and so when the hover & 
+grab color are the same they don't show up on some. For example yellow hover on a yellow block.
+*/
+static inline TwoColors getAlienHoverColor(FitrisShape *shape, int indexAt) {
+    TwoColors result = {};
+
+    BoardValType type = shape->blocks[indexAt].type;
+    switch(type) {
+        case BOARD_VAL_SHAPE0: { //green
+            result.color1 = COLOR_YELLOW;
+            result.color2 = COLOR_GREEN;
+        } break;
+        case BOARD_VAL_SHAPE1: { //yellow
+            result.color1 = COLOR_GREEN;
+            result.color2 = COLOR_GREEN;
+        } break;
+        case BOARD_VAL_SHAPE2: { //blue
+            result.color1 = COLOR_YELLOW;
+            result.color2 = COLOR_GREEN;
+        } break;
+        case BOARD_VAL_SHAPE3: { //pink
+            result.color1 = COLOR_YELLOW;
+            result.color2 = COLOR_GREEN;
+        } break;
+        case BOARD_VAL_SHAPE4: { //beige
+            result.color1 = COLOR_YELLOW;
+            result.color2 = COLOR_GREEN;
+        } break;
+        default: {
+            assert(!"invalid code path");
+        }
+    }
+    return result;
+}
+
 void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 screenDim, Matrix4 metresToPixels, FrameParams *params) {
     assert(!params->wasHitByExplosive);
     assert(!params->createShape);
@@ -1381,7 +1540,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
         }
     }
     params->wasHitByExplosive = false;
-    if(turnSolid) {// || params->wasHitByExplosive
+    if(turnSolid) {
         solidfyShape(shape, params);
         params->createShape = true; 
         params->wasHitByExplosive = false;   
@@ -1391,6 +1550,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
         int hotBlockIndex = -1;
         for(int i = 0; i < shape->count; ++i) {
             V2 pos = shape->blocks[i].pos;
+            TwoColors alienColors = getAlienHoverColor(shape, i);
             
             RenderInfo renderInfo = calculateRenderInfo(v3(pos.x, pos.y, -1), v3(1, 1, 1), cameraPos, metresToPixels);
 
@@ -1401,16 +1561,40 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
             if(inBounds(params->keyStates->mouseP_yUp, blockBounds, BOUNDS_RECT)) {
                 hotBlockIndex = i;
                 if(params->currentHotIndex < 0) {
-                    color = COLOR_YELLOW;
+                    color = alienColors.color1;
                 }
             }
+
+            if(hotBlockIndex >= 0 && params->currentHotIndex < 0) {
+                if(isMirrorPartnerIndex(params, hotBlockIndex, i, false)) {
+                    color = alienColors.color1;
+                }
+            }
+ 
             if(params->currentHotIndex == i) {
                 assert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
-                color = COLOR_GREEN;
+                color = alienColors.color2;
             }
+
+            if(isMirrorPartnerIndex(params, params->currentHotIndex, i, true)) {
+                color = alienColors.color2;
+            }
+
             BoardValue *val = getBoardValue(params, pos);
             assert(val);
             val->color = color;
+        }
+
+        //NOTE: Have to do this afterwards since we the block can be before for the mirrorHotIndex
+        if(params->currentHotIndex < 0 && hotBlockIndex >= 0 && params->isMirrorLevel) {
+            int mirrorOffsetCount = params->shapeSizes[0];
+            int mirrorIndexAt = hotBlockIndex < mirrorOffsetCount ? (hotBlockIndex + mirrorOffsetCount) : (hotBlockIndex - mirrorOffsetCount);
+            assert(mirrorIndexAt >= 0 && mirrorIndexAt < getTotalNumberOfShapeBlocks(params));
+
+            V2 pos = shape->blocks[mirrorIndexAt].pos;
+            BoardValue *val = getBoardValue(params, pos);
+            assert(val);
+            val->color = getAlienHoverColor(shape, hotBlockIndex).color1;
         }
 
         if(wasPressed(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE) && hotBlockIndex >= 0) {
@@ -1428,21 +1612,45 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
             boardPosAt.x = (int)(clamp(0, boardPosAt.x, params->boardWidth - 1) + 0.5f);
             boardPosAt.y = (int)(clamp(0, boardPosAt.y, params->boardHeight -1) + 0.5f);
 
-            if(shapeStillConnected(shape, params->currentHotIndex, boardPosAt, params)) {
+            int hotIndex = params->currentHotIndex;
+            bool okToMove = shapeStillConnected(shape, hotIndex, boardPosAt, params);
+
+            V2 boardPosAtMirror = v2(0, 0); //not used unless is a mirror level
+            int mirrorIndex = -1;
+            if(params->isMirrorLevel) {
+                int mirrorOffsetCount = params->shapeSizes[0];
+                mirrorIndex = hotIndex < mirrorOffsetCount ? (hotIndex + mirrorOffsetCount) : (hotIndex - mirrorOffsetCount);
+
+                V2 mirrorOffset = v2_minus(boardPosAt, shape->blocks[hotIndex].pos);
+                boardPosAtMirror = v2_plus(shape->blocks[mirrorIndex].pos, mirrorOffset);
+
+                okToMove &= shapeStillConnected(shape, mirrorIndex, boardPosAtMirror, params);;
+
+            }
+            
+            int mirCount = (params->isMirrorLevel) ? 2 : 1;
+            int hotIndexes[2] = {hotIndex, mirrorIndex};
+            V2 newPoses[2] = {boardPosAt, boardPosAtMirror};
+
+            if(okToMove) {
+                //play the sound once
                 playGameSound(params->soundArena, params->arrangeSound, 0, AUDIO_FOREGROUND);
+                for(int m = 0; m < mirCount; ++m) {
+                    int thisHotIndex = hotIndexes[m];
 
-                V2 oldPos = shape->blocks[params->currentHotIndex].pos;
-                V2 newPos = boardPosAt;
+                    V2 oldPos = shape->blocks[thisHotIndex].pos;
+                    V2 newPos = newPoses[m];
 
-                BoardValue *oldVal = getBoardValue(params, oldPos);
-                oldVal->color = COLOR_WHITE;
+                    BoardValue *oldVal = getBoardValue(params, oldPos);
+                    oldVal->color = COLOR_WHITE;
 
-                assert(getBoardState(params, oldPos) == BOARD_SHAPE);
-                assert(getBoardState(params, newPos) == BOARD_NULL);
-                setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    
-                setBoardState(params, newPos, BOARD_SHAPE, shape->blocks[params->currentHotIndex].type);    
-                shape->blocks[params->currentHotIndex].pos = newPos;
-                assert(getBoardState(params, newPos) == BOARD_SHAPE);
+                    assert(getBoardState(params, oldPos) == BOARD_SHAPE);
+                    assert(getBoardState(params, newPos) == BOARD_NULL);
+                    setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    
+                    setBoardState(params, newPos, BOARD_SHAPE, shape->blocks[thisHotIndex].type);    
+                    shape->blocks[thisHotIndex].pos = newPos;
+                    assert(getBoardState(params, newPos) == BOARD_SHAPE);
+                }
             }
         }
 
@@ -1457,9 +1665,11 @@ Texture *getBoardTex(BoardValue *boardVal, BoardState boardState, BoardValType t
                 if(type == BOARD_VAL_OLD) {
                     tex = params->metalTex;
                     assert(tex);
-                } else if(type == BOARD_VAL_ALWAYS || type == BOARD_VAL_DYNAMIC) {
+                } else if(type == BOARD_VAL_DYNAMIC) {
                     tex = params->woodTex;
                     assert(tex);
+                } else if (type == BOARD_VAL_ALWAYS){
+                    tex = params->stoneTex;
                 } else {
                     assert(!"invalid path");
                 }
@@ -1605,8 +1815,8 @@ void setStartOrEndGameTransition(FrameParams *params, LevelType levelType, GameM
 void removeWinLine(FrameParams *params, int lineToRemove) {
     bool found = false;
     for(int winLineIndex = 0; winLineIndex < params->glowingLinesCount; winLineIndex++) {
-        int line_yAt = params->glowingLines[winLineIndex];
-        if(line_yAt == lineToRemove) {
+        GlowingLine *line = params->glowingLines + winLineIndex;
+        if(line->yAt == lineToRemove) {
             //NOTE: Writing the last one in the array over the one we are removing. 
             params->glowingLines[winLineIndex] = params->glowingLines[--params->glowingLinesCount];
             found = true;
@@ -1616,39 +1826,191 @@ void removeWinLine(FrameParams *params, int lineToRemove) {
     assert(found);
 }
 
-void updateBoardWinState(FrameParams *params) {
-    for(int winLineIndex = 0; winLineIndex < params->glowingLinesCount; ) {
-        bool increment = true;
-        int boardY = params->glowingLines[winLineIndex];
-        bool win = true;
-        for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
-            BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
-            if(boardVal->state == BOARD_NULL || boardVal->state == BOARD_SHAPE || boardVal->type != BOARD_VAL_OLD) {
-                win = false;
-                break;
-            } 
-            assert(boardVal->state != BOARD_INVALID);
-        }
+void startGameAgain() {
+    char readName[256] = {};
+    sprintf(readName, "%ssaveFile.h", globalExeBasePath);
+    platformDeleteFile(readName);
+}
 
-        if(win) {
-            params->experiencePoints += XP_PER_LINE;
-            for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
-                BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
-                if(boardVal->state == BOARD_STATIC && boardVal->type == BOARD_VAL_OLD) {
-                    setBoardState(params, v2(boardX, boardY), BOARD_NULL, BOARD_VAL_OLD);
+void loadSaveFile(FrameParams *params) {
+    char readName[256] = {};
+    sprintf(readName, "%ssaveFile.h", globalExeBasePath);
+    int lastShownGroup = 10000; //really big number. No groups above this. 
+    if(platformDoesFileExist(readName)) {
+        FileContents saveFileContents = getFileContentsNullTerminate(readName);
+        assert(saveFileContents.valid);
+
+        EasyTokenizer tokenizer = lexBeginParsing((char *)saveFileContents.memory, true);
+        bool parsing = true;
+
+        bool isLevelData = false;
+        LevelType levelAt = LEVEL_NULL;
+        while(parsing) {
+            EasyToken token = lexGetNextToken(&tokenizer);
+            InfiniteAlloc data = {};
+            switch(token.type) {
+                case TOKEN_NULL_TERMINATOR: {
+                    parsing = false;
+                } break;
+                case TOKEN_WORD: {
+                    if(stringsMatchNullN("levelType", token.at, token.size)) {
+                        char *stringToCopy = getStringFromDataObjects(&data, &tokenizer);
+                        for(int i = 0; i < arrayCount(LevelTypeStrings); ++i) {
+                            if(cmpStrNull(LevelTypeStrings[i], stringToCopy)) {
+                                levelAt = (LevelType)i;
+                                assert(levelAt != LEVEL_NULL);
+                                break;
+                            }
+                        }
+                    }
+                    if(stringsMatchNullN("levelState", token.at, token.size)) {
+                        assert(levelAt != LEVEL_NULL);
+                        LevelData *level = params->levelsData + levelAt;
+                        char *stringToCopy = getStringFromDataObjects(&data, &tokenizer);
+                        LevelState stateToSet = LEVEL_STATE_NULL;
+                        for(int i = 0; i < arrayCount(LevelStateStrings); ++i) {
+                            if(cmpStrNull(LevelStateStrings[i], stringToCopy)) {
+                                stateToSet = (LevelState)i;
+                                assert(stateToSet != LEVEL_STATE_NULL);
+                                break;
+                            }
+                        }
+                        
+                        if(stateToSet != LEVEL_STATE_COMPLETED) {
+                            assert(stateToSet == LEVEL_STATE_UNLOCKED);
+                            if(level->groupId < lastShownGroup) {
+                                lastShownGroup = level->groupId;
+                            }
+                        }
+                        level->state = stateToSet;
+                    }
+                } break;
+                case TOKEN_CLOSE_BRACKET: {
+                    levelAt = LEVEL_NULL;
+
+                } break;
+                default: {
+
                 }
             }
-            // playGameSound(params->soundArena, params->successSound, 0, AUDIO_FOREGROUND);
-            removeWinLine(params, boardY);
-            increment = false;
-        }
-
-        if(increment) {
-            winLineIndex++;
+            releaseInfiniteAlloc(&data);
         }
     }
 
-    if(params->glowingLinesCount == 0) {
+    params->lastShownGroup = lastShownGroup - 1;
+}
+
+void saveFileData(FrameParams *params) {
+    InfiniteAlloc data = initInfinteAlloc(char);
+    for(int lvlIndex = 0; lvlIndex < arrayCount(params->levelsData); lvlIndex++) {
+        LevelData *levelData = params->levelsData + lvlIndex;
+        if(levelData->valid && levelData->state != LEVEL_STATE_LOCKED) {
+            assert(levelData->state != LEVEL_STATE_NULL);
+            assert(levelData->name);
+
+            char *lvlTypeStr = LevelTypeStrings[levelData->levelType];
+            char *lvlStateStr = LevelStateStrings[levelData->state]; 
+
+            char buffer[256] = {};
+            sprintf(buffer, "{\nlevelType: \"%s\";\n", lvlTypeStr);
+            addElementInifinteAllocWithCount_(&data, buffer, strlen(buffer));
+
+            sprintf(buffer, "levelState: \"%s\";\n}\n", lvlStateStr);
+            addElementInifinteAllocWithCount_(&data, buffer, strlen(buffer));
+        }
+    }
+    char writeName[512] = {};
+    sprintf(writeName, "%ssaveFile.h", globalExeBasePath);
+    // printf("SAVE FILE: %s\n", writeName);
+
+    game_file_handle handle = platformBeginFileWrite(writeName);
+    platformWriteFile(&handle, data.memory, data.count*data.sizeOfMember, 0);
+    platformEndFile(handle);
+
+    releaseInfiniteAlloc(&data);
+}
+
+static void updateBoardRows(FrameParams *params) {
+    for(int boardY = 0; boardY < params->boardHeight; ++boardY) {
+        bool isFull = true;
+        for(int boardX = 0; boardX < params->boardWidth && isFull; ++boardX) {
+            BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
+            
+            if(!(boardVal->state == BOARD_STATIC && boardVal->type == BOARD_VAL_OLD)) {
+                isFull = false;
+            }
+        }
+        if(isFull) {
+            for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
+                setBoardState(params, v2(boardX, boardY), BOARD_NULL, BOARD_VAL_OLD);
+            }
+        }
+    }
+}
+
+static void updateBoardWinState(FrameParams *params) {
+    for(int winLineIndex = 0; winLineIndex < params->glowingLinesCount; winLineIndex++) {
+        bool increment = true;
+        GlowingLine *line = params->glowingLines + winLineIndex;
+        if(!line->isDead) {
+            int boardY = line->yAt;
+            bool win = true;
+            for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
+                BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
+                
+                bool answer = true;
+                switch(line->type) {
+                    case GREEN_LINE: {
+                      if(!(boardVal->state == BOARD_STATIC && boardVal->type == BOARD_VAL_OLD)) {
+                        answer = false;
+                      }  
+                    } break;
+                    case RED_LINE: {
+                        if(!(boardVal->state == BOARD_STATIC && boardVal->type == BOARD_VAL_DYNAMIC)) {
+                            answer = false;
+                        } 
+                    } break;
+                    default: {
+                        assert(!"invalid code path");
+                    }
+                }
+                if(!answer) {
+                    win = false;
+                    break;
+                }
+                
+                assert(boardVal->state != BOARD_INVALID);
+            }
+
+            if(win) {
+                params->experiencePoints += XP_PER_LINE;
+                for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
+                    BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
+                    if(boardVal->state == BOARD_STATIC && boardVal->type == BOARD_VAL_OLD) {
+                        //only get rid of the squares have been the player's shape
+                        setBoardState(params, v2(boardX, boardY), BOARD_NULL, BOARD_VAL_OLD);
+                    } else {
+                        // printf("state is: %d\n", boardVal->state);
+                        // printf("type is: %d\n", boardVal->type);
+                        // assert(!"type not recognised");
+                    }
+                }
+                // playGameSound(params->soundArena, params->successSound, 0, AUDIO_FOREGROUND);
+                line->isDead = true;
+                line->timer = initTimer(0.5f);
+            }
+
+        }
+    }
+
+    bool allLinesAreDead = true; 
+
+    for(int glowLineIndex = 0; glowLineIndex < params->glowingLinesCount && allLinesAreDead; ++glowLineIndex) {
+        GlowingLine *glLine = params->glowingLines + glowLineIndex;
+        allLinesAreDead &= glLine->isDead; //try break the match 
+    }
+
+    if(allLinesAreDead && !params->isFreestyle && !params->transitionState.currentTransition) {
         int levelAsInt = (int)params->currentLevelType;
 
         assert(params->levelsData[levelAsInt].valid);
@@ -1711,6 +2073,7 @@ void updateBoardWinState(FrameParams *params) {
                 
             }
         }
+        saveFileData(params);
     }
 }
 
@@ -1755,10 +2118,13 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
                 if(shape->count == 1) {
                     assert(stateToSet != BOARD_NULL);
                     shape->isOut = true;
-                    for(int i = 0; i < shape->perpSize; ++i) {
-                        shape->growDir = perp(shape->growDir);
+                    if(shape->tryingToBegin) { //on the second attempt after the shape has moved
+                        for(int i = 0; i < shape->perpSize; ++i) {
+                            shape->growDir = perp(shape->growDir);
+                        }
                     }
                     shape->count = 0;
+                    shape->tryingToBegin = true;
                 } else {
                     shape->isOut = false;
                     repeat = true;
@@ -1771,8 +2137,6 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
                 
                 assert(isInBounds);
                 if(settingBlock || stateToSet == BOARD_NULL) {
-                    // printf("%d\n", toBoardState);
-                    // printf("%d\n", shape->count);
                     if(stateToSet == BOARD_NULL) { assert(toBoardState == staticState); }
                     setBoardState(params, newPos, stateToSet, BOARD_VAL_DYNAMIC);
 
@@ -1828,25 +2192,30 @@ void renderXPBarAndHearts(FrameParams *params, V2 resolution) {
         }
     }
 
-    float barHeight = 0.4f;
-    float ratioXp = clamp01((float)params->experiencePoints / (float)params->maxExperiencePoints);
-    float startXp = -0.5f; //move back half a square
-    float halfXp = 0.5f*params->boardWidth;
-    float xpWidth = ratioXp*params->boardWidth;
-    RenderInfo renderInfo = calculateRenderInfo(v3(startXp + 0.5f*xpWidth, -2*barHeight, -2), v3_scale(1, v3(xpWidth, barHeight, 1)), params->cameraPos, params->metresToPixels);
-    renderDrawRectCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_GREEN, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+    if(params->isFreestyle) {
 
-    renderInfo = calculateRenderInfo(v3(startXp + halfXp, -2*barHeight, -2), v3_scale(1, v3(params->boardWidth, barHeight, 1)), params->cameraPos, params->metresToPixels);
-    renderDrawRectOutlineCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+    } else {
+        float barHeight = 0.4f;
+        float ratioXp = clamp01((float)params->experiencePoints / (float)params->maxExperiencePoints);
+        float startXp = -0.5f; //move back half a square
+        float halfXp = 0.5f*params->boardWidth;
+        float xpWidth = ratioXp*params->boardWidth;
+        RenderInfo renderInfo = calculateRenderInfo(v3(startXp + 0.5f*xpWidth, -2*barHeight, -2), v3_scale(1, v3(xpWidth, barHeight, 1)), params->cameraPos, params->metresToPixels);
+        renderDrawRectCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_GREEN, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+
+        renderInfo = calculateRenderInfo(v3(startXp + halfXp, -2*barHeight, -2), v3_scale(1, v3(params->boardWidth, barHeight, 1)), params->cameraPos, params->metresToPixels);
+        renderDrawRectOutlineCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+    }
 }
 
 //NOTE: this is for indicating which lines will win the level. 
-bool checkIsWinLine(FrameParams *params, int lineCheckAt) {
-    bool result = false;
+GlowingLine *checkIsWinLine(FrameParams *params, int lineCheckAt) {
+    GlowingLine *result = 0;
     for(int winLineIndex = 0; winLineIndex < params->glowingLinesCount; winLineIndex++) {
-        int line_yAt = params->glowingLines[winLineIndex];
+        GlowingLine *line = params->glowingLines + winLineIndex;
+        int line_yAt = line->yAt;
         if(line_yAt == lineCheckAt) {
-            result  = true;
+            result  = line;
             break;
         }
     }
@@ -1888,23 +2257,23 @@ static inline Texture *getTileTex(FrameParams *params, int xAt, int yAt) {
     return tileTex;
 }
 
-void drawMapSquare(FrameParams *params, float xAt, float yAt, float xSpace, float ySpace, char *at, V2 resolution) {
+void drawMapSquare(FrameParams *params, float xAt, float yAt, float xSpace, float ySpace, char *at, V2 resolution, V3 overworldCam) {
     V2 offset = params->overworldValuesOffset[(int)(yAt*params->overworldDim.x) + (int)xAt];
     float xVal = xSpace*xAt + xSpace*offset.x;
     float yVal = ySpace*yAt + ySpace*offset.y;
     if(*at == '#') {
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, 1.5f*ySpace, 1), params->overworldCamera, params->metresToPixels);
+        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, 1.5f*ySpace, 1), overworldCam, params->metresToPixels);
         renderTextureCentreDim(params->treeTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
     }
     if(*at == '$') {
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, ySpace, 1), params->overworldCamera, params->metresToPixels);
+        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
         renderTextureCentreDim(params->alienTileTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
     }
     if(*at == '%') {
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, ySpace, 1), params->overworldCamera, params->metresToPixels);
+        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
         renderTextureCentreDim(params->mushroomTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
     }
-    RenderInfo renderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), params->overworldCamera, params->metresToPixels);
+    RenderInfo renderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
     renderTextureCentreDim(getTileTex(params, xSpace*xAt, ySpace*yAt), renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
 }
 
@@ -1949,6 +2318,13 @@ void gameUpdateAndRender(void *params_) {
 
     bool retryButtonPressed = false;    
     if(isPlayState) {
+
+        if(!params->backgroundSoundPlaying) {
+            //Play and repeat background sound
+            PlayingSound *sound = playGameSound(params->soundArena, params->backgroundSound, 0, AUDIO_BACKGROUND);
+            sound->nextSound = sound;
+            params->backgroundSoundPlaying = true;
+        }
         
         { //refresh level button
             RenderInfo renderInfo = calculateRenderInfo(v3(-9, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
@@ -1981,6 +2357,8 @@ void gameUpdateAndRender(void *params_) {
         float dtLeft = params->dt;
         float oldDt = params->dt;
         float increment = 1.0f / 480.0f;
+        bool rAWasPressed = wasPressed(params->keyStates->gameButtons, BUTTON_R);
+        // if(rAWasPressed) { printf("%s\n", "r Was pressed"); }
         while(dtLeft > 0.0f) {
             easyOS_processKeyStates(params->playStateKeyStates, resolution, params->screenDim, params->menuInfo.running);
 
@@ -1988,34 +2366,44 @@ void gameUpdateAndRender(void *params_) {
             assert(params->dt > 0.0f);
         //if updating a transition don't update the game logic, just render the game board. 
             bool canDie = params->lifePointsMax > 0;
-            bool retryLevel = ((params->lifePoints <= 0) && canDie) || wasPressed(params->keyStates->gameButtons, BUTTON_R) || retryButtonPressed; 
+            
+            bool retryLevel = ((params->lifePoints <= 0) && canDie) || rAWasPressed || retryButtonPressed; 
             if(params->createShape || retryLevel) {
                 if(!retryLevel) {
                     params->currentShape.count = 0;
                 }
-                for (int i = 0; i < params->shapeSize && !retryLevel; ++i) {
-                    int xAt = i % params->boardWidth + params->startOffset;
-                    int yAt = (params->boardHeight - 1) - (i / params->boardWidth);
-                    assert(i == params->currentShape.count);
-                    FitrisBlock *block = &params->currentShape.blocks[params->currentShape.count++];
-                    block->pos = v2(xAt, yAt);
-                    block->type = BOARD_VAL_SHAPES[i];
-                    block->id = i;
+                for(int shpIndex = 0; shpIndex < params->shapesCount && !retryLevel; shpIndex++) {
+                    int shpSizeAt = params->shapeSizes[shpIndex];
+                    int shpOffset = params->startOffsets[shpIndex];
+                    for (int i = 0; i < shpSizeAt && !retryLevel; ++i) {
+                        int xAt = i % params->boardWidth + shpOffset;
+                        int rowOffset = 0;
+                        if((shpOffset + shpSizeAt) > params->boardWidth) {
+                            rowOffset = shpIndex;
+                        }
+                        int yAt = (params->boardHeight - 1) - (i / params->boardWidth) - rowOffset;
+                        // assert(i == params->currentShape.count);
+                        FitrisBlock *block = &params->currentShape.blocks[params->currentShape.count++];
+                        block->pos = v2(xAt, yAt);
+                        block->type = BOARD_VAL_SHAPES[i];
+                        block->id = i;
 
-                    V2 pos = v2(xAt, yAt);
-                    if(getBoardState(params, pos) != BOARD_NULL) {
-                        //at the top of the board
-                        retryLevel = true;
-                        break;
-                        //
-                    } else {
-                        setBoardState(params, pos, BOARD_SHAPE, params->currentShape.blocks[i].type);    
+                        V2 pos = v2(xAt, yAt);
+                        if(getBoardState(params, pos) != BOARD_NULL) {
+                            //at the top of the board
+                            retryLevel = true;
+                            break;
+                            //
+                        } else {
+                            setBoardState(params, pos, BOARD_SHAPE, params->currentShape.blocks[i].type);    
+                        }
                     }
                 }
                 if(retryLevel) {
                     if(!params->transitionState.currentTransition) 
                     {
                         setLevelTransition(params, params->currentLevelType);
+                    } else {
                     }
                 }
 
@@ -2040,19 +2428,18 @@ void gameUpdateAndRender(void *params_) {
                         printf("Error: dt: %f paramsDt: %f\n", dt, params->dt);
                     }
 
+                    float shapeDt = dt;
                     if(!extraShape->active && extraShape->lagTimer.period > 0.0f) { 
                         TimerReturnInfo lagInfo = updateTimer(&extraShape->lagTimer, dt);
                         if(lagInfo.finished) {
                             turnTimerOn(&extraShape->lagTimer);
-                            extraShape->lagTimer.value = lagInfo.residue;
+                            shapeDt = lagInfo.residue;
                             extraShape->active = true; 
                         }
                     } 
 
                     if(extraShape->active) {
-                        if(params->moveTime > 0.0f) {
-                        }
-                        TimerReturnInfo info = updateTimer(&extraShape->timer, dt);
+                        TimerReturnInfo info = updateTimer(&extraShape->timer, shapeDt);
                         if(info.finished) {
                             turnTimerOn(&extraShape->timer);
                             updateWindmillSide(params, extraShape);
@@ -2064,7 +2451,19 @@ void gameUpdateAndRender(void *params_) {
                 }
             }
             updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params);
-            updateBoardWinState(params);
+
+            for(int extraIndex = 0; extraIndex < params->extraShapeCount; ++extraIndex) {
+                ExtraShape *extraShape = params->extraShapes + extraIndex;
+                if(extraShape->tryingToBegin) {
+                    updateWindmillSide(params, extraShape);
+                }
+                extraShape->tryingToBegin = false;
+            }
+            if(!params->isFreestyle) {
+                updateBoardWinState(params);
+            } else {
+                updateBoardRows(params);
+            }
             dtLeft -= params->dt;
             assert(dtLeft >= 0.0f);
         }
@@ -2171,7 +2570,28 @@ void gameUpdateAndRender(void *params_) {
 
         renderXPBarAndHearts(params, resolution);
         for(int boardY = 0; boardY < params->boardHeight; ++boardY) {
-            bool isWinLine = checkIsWinLine(params, boardY);
+            GlowingLine *isWinLine = checkIsWinLine(params, boardY);
+            bool renderWinLine = isWinLine;
+            TimerReturnInfo winLineInfo = {};
+            float alpha = 0.4f;
+            V4 winColor = v4(0, 1, 0, alpha);
+
+            if(isWinLine) {
+                if(isWinLine->type == RED_LINE) {
+                    winColor = v4(1, 0, 0, alpha);
+                }
+                if(isWinLine->isDead) {
+                    winLineInfo = updateTimer(&isWinLine->timer, params->dt);
+                    alpha = smoothStep01(alpha, winLineInfo.canonicalVal, 0);
+
+                    if(winLineInfo.finished) {
+                        if(isWinLine->isDead) {
+                            removeWinLine(params, isWinLine->yAt);
+                        }
+                    }
+                } 
+            }
+
             for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
                 RenderInfo bgRenderInfo = calculateRenderInfo(v3(boardX, boardY, -3), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
                 BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
@@ -2206,12 +2626,12 @@ void gameUpdateAndRender(void *params_) {
                 } else {
                     assert(!isOn(&boardVal->fadeTimer));
                 }
-                if(isWinLine) {
-                    //TODO: make the glowing effect better
-                    RenderInfo winBlockRenderInfo = calculateRenderInfo(v3(boardX, boardY, -2.5f), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
-                    // V4 winColor = smoothStep01V4(v4(0, 1, 0, 0), tAt/5.0f, v4(0, 1, 0, 0.2f));
-                    V4 winColor = v4(0, 1, 0, 0.2f);
+                if(renderWinLine) {
+                    winColor.w = alpha;
+                    RenderInfo winBlockRenderInfo = calculateRenderInfo(v3(boardX, boardY, -2.5f), v3(1, 1, 1), params->cameraPos, params->metresToPixels);                        
                     renderDrawRectCenterDim(winBlockRenderInfo.pos, winBlockRenderInfo.dim.xy, winColor, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), winBlockRenderInfo.pvm));            
+                    
+
                 }
             }   
         }
@@ -2227,33 +2647,34 @@ void gameUpdateAndRender(void *params_) {
         float ySpace = 1.0f;
         float xSpace = ySpace;
 
-        static V2 lastMouseP = {};
         if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
-            lastMouseP = mouseP;
+            params->lastMouseP = mouseP;
         }
 
         V3 accel = v3(0, 0, 0);
         if(isDown(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
-            accel.xy = v2_scale(1000.0f, normalizeV2(v2_minus(mouseP, lastMouseP)));
-            accel.x *= -1; 
+            V2 diffVec = v2_minus(mouseP, params->lastMouseP);
+            diffVec = normalizeV2(diffVec);
+            accel.xy = v2_scale(600.0f, diffVec);
+            // error_printFloat2("diff: ", accel.xy.E);
+            accel.x *= -1; //inverse the pull direction. Since y is down for mouseP, y is already flipped 
         }
 
         params->camVel = v3_plus(v3_scale(params->dt, accel), params->camVel);
         params->camVel = v3_minus(params->camVel, v3_scale(0.6f, params->camVel));
         params->overworldCamera = v3_plus(v3_scale(params->dt, params->camVel), params->overworldCamera);
 
-        //rounding so it doens't get weired about the rendering 
-        params->overworldCamera.x = ((int)(params->overworldCamera.x*10)) / 10.0f;
-        params->overworldCamera.y = ((int)(params->overworldCamera.y*10)) / 10.0f;
-        //
+        params->lastMouseP = mouseP;
 
-        lastMouseP = mouseP;
+        float factor = 10.0f;
+        V3 overworldCam = params->overworldCamera;
+        overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
+        overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
 
         char *at = (char *)params->overworldLayout.memory;
 
         LevelData *levelsAtStore[LEVEL_COUNT] = {};
         bool finished[LEVEL_COUNT] = {};
-
 
         float waterDim = 2.0f;
         for(int yVal = -6; yVal < 6; ++yVal) {
@@ -2285,7 +2706,7 @@ void gameUpdateAndRender(void *params_) {
                 case '#':
                 case '%':
                 case '!': {
-                    drawMapSquare(params, xAt, yAt, xSpace, ySpace, at, resolution);
+                    drawMapSquare(params, xAt, yAt, xSpace, ySpace, at, resolution, overworldCam);
                     xAt++;
                     at++;
                 } break;
@@ -2314,13 +2735,16 @@ void gameUpdateAndRender(void *params_) {
                                     if(highestGroupId < groupId) {
                                         highestGroupId = groupId;
                                     }
-                                    if(!playedSound) {
-                                        playMenuSound(params->soundArena, params->showLevelsSound, 0, AUDIO_FOREGROUND);
-                                        playedSound = false;
+                                    if(levelAt->state != LEVEL_STATE_COMPLETED) {
+                                        assert(levelAt->state == LEVEL_STATE_UNLOCKED);
+                                        if(!playedSound) {
+                                            playMenuSound(params->soundArena, params->showLevelsSound, 0, AUDIO_FOREGROUND);
+                                            playedSound = true;
+                                        }
+                                        levelAt->showTimer = initTimer(2.0f);
+                                        Reactivate(&levelAt->particleSystem);
+                                        levelAt->dA = 10;
                                     }
-                                    levelAt->showTimer = initTimer(2.0f);
-                                    Reactivate(&levelAt->particleSystem);
-                                    levelAt->dA = 10;
                                 }
 
                                 TimerReturnInfo timeInfo = updateTimer(&levelAt->showTimer, params->dt);
@@ -2335,11 +2759,10 @@ void gameUpdateAndRender(void *params_) {
                                 // levelAt->angle += params->dt*levelAt->dA;
                                     levelAt->angle = lerp(0, timeInfo.canonicalVal, 4*PI32);
                                 
-
-                                drawAndUpdateParticleSystem(&levelAt->particleSystem, params->dt, v3(xSpace*xAt, ySpace*yAt, -1), v3(0, 0 ,0), params->overworldCamera, params->metresToPixels, resolution);
+                                drawAndUpdateParticleSystem(&levelAt->particleSystem, params->dt, v3(xSpace*xAt, ySpace*yAt, -1), v3(0, 0 ,0), overworldCam, params->metresToPixels, resolution);
                                 
                                 V3 starLocation = v3(xSpace*xAt, ySpace*yAt, -1);
-                                RenderInfo renderInfo = calculateRenderInfo(starLocation, v3(scale*1, scale*1, 1), params->overworldCamera, params->metresToPixels);
+                                RenderInfo renderInfo = calculateRenderInfo(starLocation, v3(scale*1, scale*1, 1), overworldCam, params->metresToPixels);
                                 
                                 V4 color = COLOR_PINK;
                                 switch(levelAt->state) {
@@ -2402,14 +2825,14 @@ void gameUpdateAndRender(void *params_) {
                                     V3 thisNumLocation = numLocation;
                                     thisNumLocation.x += gIndex*glyphSize;
 
-                                    RenderInfo renderInfo = calculateRenderInfo(thisNumLocation, v3(glyphSize, glyphSize, 1), params->overworldCamera, params->metresToPixels);
+                                    RenderInfo renderInfo = calculateRenderInfo(thisNumLocation, v3(glyphSize, glyphSize, 1), overworldCam, params->metresToPixels);
                                     renderTextureCentreDim(&tempTex, renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
                                 }
                                 
                                 
                             }    
                         }
-                        RenderInfo tileRenderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), params->overworldCamera, params->metresToPixels);
+                        RenderInfo tileRenderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
                         renderTextureCentreDim(getTileTex(params, xSpace*xAt, ySpace*yAt), tileRenderInfo.pos, tileRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), tileRenderInfo.pvm)); 
                     } else {
                         // drawMapSquare(params, xAt, yAt, xSpace, ySpace, at, resolution);
@@ -2423,7 +2846,6 @@ void gameUpdateAndRender(void *params_) {
 
         params->lastShownGroup = highestGroupId;
     }
-    
 
     // outputText(params->font, 0, 400, -1, resolution, "hey˙  हिन् दी df ©˙ \n∆˚ ", rect2f(0, 0, resolution.x, resolution.y), COLOR_BLACK, 1, true);
    drawRenderGroup(&globalRenderGroup);
@@ -2579,9 +3001,7 @@ int main(int argc, char *args[]) {
     params.backgroundSound = findSoundAsset("Fitris_Soundtrack.wav");//
     params.enterLevelSound = findSoundAsset("click2.wav");
 
-    //Play and repeat background sound
-    PlayingSound *sound = playGameSound(&soundArena, params.backgroundSound, 0, AUDIO_BACKGROUND);
-    sound->nextSound = sound;
+    params.backgroundSoundPlaying = false;
 
     PlayingSound *menuSound = playMenuSound(&soundArena, findSoundAsset("wind.wav"), 0, AUDIO_BACKGROUND);
     menuSound->volume = 0.6f;
@@ -2664,7 +3084,7 @@ int main(int argc, char *args[]) {
     params.lastTime = SDL_GetTicks();
     
     params.cameraPos = v3(0, 0, 0);
-    params.overworldCamera = v3(6, 2.5f, 0);
+    params.overworldCamera = v3(8, 2.5f, 0);
 
     TransitionState transState = {};
     transState.transitionSound = findSoundAsset("click.wav");
@@ -2683,6 +3103,8 @@ int main(int argc, char *args[]) {
     menuInfo.callBackData = &params;
 
     params.menuInfo = menuInfo;
+
+    loadSaveFile(&params);
         
     //
 

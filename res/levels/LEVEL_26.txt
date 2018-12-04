@@ -1,16 +1,18 @@
 //just moving blocks with bombs (shuffling)
 //this is about the top being blocked when you come in. so You have to time your landing to coincide. 
 LevelData: {
-	name: "Don't let your guard down";
-	groupId: 7;
+	name: "Mirror mirror on the Wall";
+	groupId: 8;
 	shapeSize: 3;
-	startOffset: 1;
-	lifePoints: 1;
+	shapeSize2: 3;
+	startOffset: 0;
+	startOffset2: 6;
+	isMirror: true;
 }
 Windmill: {
 	id: 1;
 	growDir: 1 0;
-	isBomb: true;
+	isBomb: false;
 
 	growTimerPeriod: 1.0;
 	beginTimerPeriod: 0.0;
@@ -18,16 +20,17 @@ Windmill: {
 	timeAffected: true;
 
 	perpSize: 0;
-	max: 4;
+	max: 1;
 }
 
-
 Board: {
-	1000
-	0000
-	0000
-	0000
-	0000/
-	0000/
+	0000a0000
+	0000a0000
+	0000a0000
+	0000a0000
+	0000a0a00
+	0a00a0000
+	0000a0000/
+	0000a0000/
 	
 }

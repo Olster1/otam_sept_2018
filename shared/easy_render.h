@@ -622,8 +622,8 @@ void enableRenderer(int width, int height) {
     rectangleProgram = createProgramFromFile(vertex_shader_rectangle_shader, fragment_shader_rectangle_shader, false);
     renderCheckError();
 
-    phongProgram = createProgramFromFile(vertex_model_shader, frag_model_shader, false);
-    renderCheckError();
+    // phongProgram = createProgramFromFile(vertex_model_shader, frag_model_shader, false);
+    // renderCheckError();
     
     textureProgram = createProgramFromFile(vertex_shader_texture_shader, fragment_shader_texture_shader, false);
     renderCheckError();

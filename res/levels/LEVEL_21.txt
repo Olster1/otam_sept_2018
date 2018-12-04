@@ -1,0 +1,40 @@
+//just moving blocks with bombs (shuffling)
+LevelData: {
+	name: "Cheese and Crackers";
+	groupId: 8;
+	shapeSize: 3;
+	//lifePoints: 1;
+}
+Windmill: {
+	id: 1;
+	growDir: 1 0;
+	isBomb: false;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 0.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 1;
+}
+Windmill: {
+	id: 2;
+	growDir: 1 0;
+	isBomb: false;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 1.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 1;
+}
+Board: {
+	0000
+	0000
+	2112)
+	1221)
+	0000/
+}
