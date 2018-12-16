@@ -27,14 +27,15 @@
 #include "easy_asset_loader.h"
 
 #include "easy_transition.h"
+#include "levels.h"
 #include "menu.h"
 
 typedef enum {
-    BOARD_NULL,
-    BOARD_STATIC,
-    BOARD_SHAPE,
-    BOARD_EXPLOSIVE,
-    BOARD_INVALID, //For out of bounds 
+    BOARD_NULL, //0
+    BOARD_STATIC, //1
+    BOARD_SHAPE, //2
+    BOARD_EXPLOSIVE, //3
+    BOARD_INVALID, //For out of bounds  //4
 } BoardState;
 
 typedef enum {
@@ -119,98 +120,6 @@ typedef struct {
     Timer fadeTimer;
 } BoardValue;
 
-#define LEVEL_TYPE(FUNC) \
-FUNC(LEVEL_NULL) \
-FUNC(LEVEL_0) \
-FUNC(LEVEL_1) \
-FUNC(LEVEL_2) \
-FUNC(LEVEL_3) \
-FUNC(LEVEL_4) \
-FUNC(LEVEL_5) \
-FUNC(LEVEL_6) \
-FUNC(LEVEL_7) \
-FUNC(LEVEL_8) \
-FUNC(LEVEL_9) \
-FUNC(LEVEL_10) \
-FUNC(LEVEL_11) \
-FUNC(LEVEL_12) \
-FUNC(LEVEL_13) \
-FUNC(LEVEL_14) \
-FUNC(LEVEL_15) \
-FUNC(LEVEL_16) \
-FUNC(LEVEL_17) \
-FUNC(LEVEL_18) \
-FUNC(LEVEL_19) \
-FUNC(LEVEL_20) \
-FUNC(LEVEL_21) \
-FUNC(LEVEL_22) \
-FUNC(LEVEL_23) \
-FUNC(LEVEL_24) \
-FUNC(LEVEL_25) \
-FUNC(LEVEL_26) \
-FUNC(LEVEL_27) \
-FUNC(LEVEL_28) \
-FUNC(LEVEL_29) \
-FUNC(LEVEL_30) \
-FUNC(LEVEL_31) \
-FUNC(LEVEL_32) \
-FUNC(LEVEL_33) \
-FUNC(LEVEL_34) \
-FUNC(LEVEL_35) \
-FUNC(LEVEL_36) \
-FUNC(LEVEL_37) \
-FUNC(LEVEL_38) \
-FUNC(LEVEL_39) \
-FUNC(LEVEL_40) \
-FUNC(LEVEL_COUNT) \
-
-typedef enum {
-    LEVEL_TYPE(ENUM)
-} LevelType;
-
-static char *LevelTypeStrings[] = { LEVEL_TYPE(STRING) };
-
-#define LEVEL_STATE(FUNC) \
-FUNC(LEVEL_STATE_NULL) \
-FUNC(LEVEL_STATE_COMPLETED) \
-FUNC(LEVEL_STATE_UNLOCKED) \
-FUNC(LEVEL_STATE_LOCKED) \
-
-typedef enum {
-    LEVEL_STATE(ENUM)
-} LevelState;
-
-static char *LevelStateStrings[] = { LEVEL_STATE(STRING) };
-
-typedef struct LevelData LevelData;
-typedef struct LevelData {
-    char *name;
-    bool valid;
-
-    LevelType levelType;
-
-    FileContents contents;
-
-    LevelState state;
-
-    //this is for the overworld
-    float angle;
-    float dA;
-    particle_system particleSystem;
-
-    bool hasPlayedHoverSound;
-    Timer showTimer;
-
-    int glyphCount;
-    GlyphInfo glyphs[3];
-    //
-
-
-    int groupId;
-
-    LevelData *next; //this is used for the overworld level groups
-} LevelData;
-
 typedef enum {
     GREEN_LINE,
     RED_LINE,
@@ -247,6 +156,7 @@ typedef struct {
     Texture *refreshTex;
     Texture *muteTex;
     Texture *speakerTex;
+    Texture *loadTex;
     Texture *errorTex;
 
     Texture *alienTex[5];
@@ -256,6 +166,7 @@ typedef struct {
     WavFile *moveSound;
     WavFile *arrangeSound;
     WavFile *backgroundSound;
+    WavFile *backgroundSound2;
     WavFile *successSound;
     WavFile *explosiveSound;
     WavFile *enterLevelSound;
@@ -520,7 +431,7 @@ static inline void parseOverworldBoard(char *at, int *values, V2 dim) {
     }   
 }
 
-static inline void loadLevelData(FrameParams *params) {
+static inline int loadLevelData(FrameParams *params) {
     char *b_ = concat("levels/", "level_overworld.txt");
     char *c_ = concat(globalExeBasePath, b_);
     FileContents overworldContents = getFileContentsNullTerminate(c_);
@@ -528,6 +439,8 @@ static inline void loadLevelData(FrameParams *params) {
     params->overworldLayout = overworldContents;
     free(b_);
     free(c_);
+
+    int totalLevelCount = 0;
 
     for(int i = 1; i < LEVEL_COUNT; ++i) {
         char *a = concat(LevelTypeStrings[i], ".txt");
@@ -539,7 +452,7 @@ static inline void loadLevelData(FrameParams *params) {
         if(isFileValid) {
             FileContents contents = getFileContentsNullTerminate(c);
 
-            
+            totalLevelCount++;
             LevelData *levelData = params->levelsData + i;
             levelData->contents = contents;
             levelData->name = "Name Not Set!";
@@ -590,7 +503,9 @@ static inline void loadLevelData(FrameParams *params) {
                        if(isLevelData) {
                            if(stringsMatchNullN("name", token.at, token.size)) {
                                 char *stringToCopy = getStringFromDataObjects(&data, &tokenizer);
+                                printf("%s\n", stringToCopy);
                                 levelData->name = nullTerminate(stringToCopy, strlen(stringToCopy));
+                                printf("%s\n", levelData->name);
                            }
                            if(stringsMatchNullN("groupId", token.at, token.size)) {
                                groupId = getIntFromDataObjects(&data, &tokenizer);
@@ -674,6 +589,8 @@ static inline void loadLevelData(FrameParams *params) {
             }
         }
     }
+    return totalLevelCount;
+
 }
 
 void loadLevelNames(FrameParams *params) {
@@ -1226,7 +1143,8 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
        for(int i = 0; i < shape->count; ++i) {
             V2 oldPos = shape->blocks[i].pos;
             V2 newPos = v2_plus(oldPos, moveVec);
-    
+        
+            // printf("boardState: %d, index: %d\n", getBoardState(params, oldPos), i);
             assert(getBoardState(params, oldPos) == BOARD_SHAPE);
 
             BoardState newPosState = getBoardState(params, newPos);
@@ -1549,6 +1467,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
         
         int hotBlockIndex = -1;
         for(int i = 0; i < shape->count; ++i) {
+            //NOTE: Render the hover indications & check for hot player block 
             V2 pos = shape->blocks[i].pos;
             TwoColors alienColors = getAlienHoverColor(shape, i);
             
@@ -1744,7 +1663,6 @@ typedef struct {
 } TransitionDataStartOrEndGame;
 
 
-
 void transitionCallbackForLevel(void *data_) {
     TransitionDataLevel *trans = (TransitionDataLevel *)data_;
     FrameParams *params = trans->params;
@@ -1780,6 +1698,16 @@ void transitionCallbackForBackToOverworld(void *data_) {
     setSoundType(AUDIO_FLAG_MENU);
 } 
 
+void transitionCallbackForSettingsScreen(void *data_) {
+    TransitionDataStartOrEndGame *trans = (TransitionDataStartOrEndGame *)data_;
+    FrameParams *params = trans->params;
+    trans->info->gameMode = trans->newMode;
+    trans->info->lastMode = trans->lastMode;
+    trans->info->menuCursorAt = 0;
+    setParentChannelVolume(AUDIO_FLAG_MENU, 1, SCENE_MUSIC_TRANSITION_TIME);
+    setSoundType(AUDIO_FLAG_MENU);
+} 
+
 void setLevelTransition(FrameParams *params, LevelType levelType) {
     TransitionDataLevel *data = (TransitionDataLevel *)calloc(sizeof(TransitionDataLevel), 1);
     data->levelType = levelType;
@@ -1795,6 +1723,18 @@ void setBackToOverworldTransition(FrameParams *params) {
     data->params = params;
     setParentChannelVolume(AUDIO_FLAG_MAIN, 0, SCENE_MUSIC_TRANSITION_TIME);
     setTransition_(&params->transitionState, transitionCallbackForBackToOverworld, data);
+    
+}
+
+void setToLoadScreenTransition(FrameParams *params) {
+    TransitionDataStartOrEndGame *data = (TransitionDataStartOrEndGame *)calloc(sizeof(TransitionDataStartOrEndGame), 1);
+    data->info = &params->menuInfo;
+    data->lastMode = params->menuInfo.gameMode;
+    data->newMode = SETTINGS_MODE;
+    updateSaveStateDetails(params->menuInfo.saveStateDetails, arrayCount(params->menuInfo.saveStateDetails));
+    data->params = params;
+    setParentChannelVolume(AUDIO_FLAG_MAIN, 0, SCENE_MUSIC_TRANSITION_TIME);
+    setTransition_(&params->transitionState, transitionCallbackForSettingsScreen, data);
     
 }
 
@@ -1826,80 +1766,6 @@ void removeWinLine(FrameParams *params, int lineToRemove) {
     assert(found);
 }
 
-void startGameAgain() {
-    char readName[256] = {};
-    sprintf(readName, "%ssaveFile.h", globalExeBasePath);
-    platformDeleteFile(readName);
-}
-
-void loadSaveFile(FrameParams *params) {
-    char readName[256] = {};
-    sprintf(readName, "%ssaveFile.h", globalExeBasePath);
-    int lastShownGroup = 10000; //really big number. No groups above this. 
-    if(platformDoesFileExist(readName)) {
-        FileContents saveFileContents = getFileContentsNullTerminate(readName);
-        assert(saveFileContents.valid);
-
-        EasyTokenizer tokenizer = lexBeginParsing((char *)saveFileContents.memory, true);
-        bool parsing = true;
-
-        bool isLevelData = false;
-        LevelType levelAt = LEVEL_NULL;
-        while(parsing) {
-            EasyToken token = lexGetNextToken(&tokenizer);
-            InfiniteAlloc data = {};
-            switch(token.type) {
-                case TOKEN_NULL_TERMINATOR: {
-                    parsing = false;
-                } break;
-                case TOKEN_WORD: {
-                    if(stringsMatchNullN("levelType", token.at, token.size)) {
-                        char *stringToCopy = getStringFromDataObjects(&data, &tokenizer);
-                        for(int i = 0; i < arrayCount(LevelTypeStrings); ++i) {
-                            if(cmpStrNull(LevelTypeStrings[i], stringToCopy)) {
-                                levelAt = (LevelType)i;
-                                assert(levelAt != LEVEL_NULL);
-                                break;
-                            }
-                        }
-                    }
-                    if(stringsMatchNullN("levelState", token.at, token.size)) {
-                        assert(levelAt != LEVEL_NULL);
-                        LevelData *level = params->levelsData + levelAt;
-                        char *stringToCopy = getStringFromDataObjects(&data, &tokenizer);
-                        LevelState stateToSet = LEVEL_STATE_NULL;
-                        for(int i = 0; i < arrayCount(LevelStateStrings); ++i) {
-                            if(cmpStrNull(LevelStateStrings[i], stringToCopy)) {
-                                stateToSet = (LevelState)i;
-                                assert(stateToSet != LEVEL_STATE_NULL);
-                                break;
-                            }
-                        }
-                        
-                        if(stateToSet != LEVEL_STATE_COMPLETED) {
-                            assert(stateToSet == LEVEL_STATE_UNLOCKED);
-                            if(level->groupId < lastShownGroup) {
-                                lastShownGroup = level->groupId;
-                            }
-                        }
-                        level->state = stateToSet;
-                    }
-                } break;
-                case TOKEN_CLOSE_BRACKET: {
-                    levelAt = LEVEL_NULL;
-
-                } break;
-                default: {
-
-                }
-            }
-            releaseInfiniteAlloc(&data);
-        }
-    }
-
-    params->lastShownGroup = lastShownGroup - 1;
-}
-
 void saveFileData(FrameParams *params) {
     InfiniteAlloc data = initInfinteAlloc(char);
     for(int lvlIndex = 0; lvlIndex < arrayCount(params->levelsData); lvlIndex++) {
@@ -1920,7 +1786,7 @@ void saveFileData(FrameParams *params) {
         }
     }
     char writeName[512] = {};
-    sprintf(writeName, "%ssaveFile.h", globalExeBasePath);
+    sprintf(writeName, "%ssaveFile%d.h", globalExeBasePath, params->menuInfo.activeSaveSlot);
     // printf("SAVE FILE: %s\n", writeName);
 
     game_file_handle handle = platformBeginFileWrite(writeName);
@@ -1961,7 +1827,7 @@ static void updateBoardWinState(FrameParams *params) {
                 bool answer = true;
                 switch(line->type) {
                     case GREEN_LINE: {
-                      if(!(boardVal->state == BOARD_STATIC && boardVal->type == BOARD_VAL_OLD)) {
+                      if(!(boardVal->state == BOARD_STATIC && (boardVal->type == BOARD_VAL_OLD || boardVal->type == BOARD_VAL_ALWAYS))) {
                         answer = false;
                       }  
                     } break;
@@ -2307,7 +2173,8 @@ void gameUpdateAndRender(void *params_) {
     
     V2 mouseP = params->keyStates->mouseP;
 
-    GameMode currentGameMode = drawMenu(&params->menuInfo, params->longTermArena, params->keyStates->gameButtons, 0, params->successSound, params->moveSound, params->dt, resolution, mouseP);
+    GameMode currentGameMode = drawMenu(&params->menuInfo, params->longTermArena, params->keyStates->gameButtons, 0, params->solidfyShapeSound, params->moveSound, params->dt, resolution, mouseP, params->levelsData, arrayCount(params->levelsData), &params->lastShownGroup);
+
 
     bool transitioning = updateTransitions(&params->transitionState, resolution, params->dt);
     Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
@@ -2322,7 +2189,9 @@ void gameUpdateAndRender(void *params_) {
         if(!params->backgroundSoundPlaying) {
             //Play and repeat background sound
             PlayingSound *sound = playGameSound(params->soundArena, params->backgroundSound, 0, AUDIO_BACKGROUND);
+            // PlayingSound *sound2 = pushGameSound(params->soundArena, params->backgroundSound2, 0, AUDIO_BACKGROUND);
             sound->nextSound = sound;
+            // sound2->nextSound = sound;
             params->backgroundSoundPlaying = true;
         }
         
@@ -2372,21 +2241,24 @@ void gameUpdateAndRender(void *params_) {
                 if(!retryLevel) {
                     params->currentShape.count = 0;
                 }
+                int totalShapeCountSoFar = 0;
                 for(int shpIndex = 0; shpIndex < params->shapesCount && !retryLevel; shpIndex++) {
                     int shpSizeAt = params->shapeSizes[shpIndex];
                     int shpOffset = params->startOffsets[shpIndex];
                     for (int i = 0; i < shpSizeAt && !retryLevel; ++i) {
-                        int xAt = i % params->boardWidth + shpOffset;
+                        int xAt = i + shpOffset;
+                        
                         int rowOffset = 0;
-                        if((shpOffset + shpSizeAt) > params->boardWidth) {
-                            rowOffset = shpIndex;
+                        if(xAt >= params->boardWidth) {
+                            rowOffset = xAt / params->boardWidth;
+                            xAt %= params->boardWidth;
                         }
-                        int yAt = (params->boardHeight - 1) - (i / params->boardWidth) - rowOffset;
+                        int yAt = (params->boardHeight - 1) - rowOffset;
                         // assert(i == params->currentShape.count);
                         FitrisBlock *block = &params->currentShape.blocks[params->currentShape.count++];
                         block->pos = v2(xAt, yAt);
                         block->type = BOARD_VAL_SHAPES[i];
-                        block->id = i;
+                        block->id = totalShapeCountSoFar;
 
                         V2 pos = v2(xAt, yAt);
                         if(getBoardState(params, pos) != BOARD_NULL) {
@@ -2397,6 +2269,7 @@ void gameUpdateAndRender(void *params_) {
                         } else {
                             setBoardState(params, pos, BOARD_SHAPE, params->currentShape.blocks[i].type);    
                         }
+                        totalShapeCountSoFar++;
                     }
                 }
                 if(retryLevel) {
@@ -2471,6 +2344,32 @@ void gameUpdateAndRender(void *params_) {
     }
 
     if(isPlayState || currentGameMode == OVERWORLD_MODE) {
+        if(currentGameMode == OVERWORLD_MODE) { //Load Button
+
+            RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            
+            Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+            static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
+            
+            if(!updateLerpV4(&cLerp, params->dt, LINEAR)) {
+                if(!easyLerp_isAtDefault(&cLerp)) {
+                    setLerpInfoV4_s(&cLerp, COLOR_WHITE, 0.01, &cLerp.value);
+                }
+
+            }
+
+            V4 uiColor = cLerp.value;
+            if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
+                if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
+                    
+                    setToLoadScreenTransition(params);
+                }
+            }
+
+            renderTextureCentreDim(params->loadTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+        }
+
         { //Sound Button
             RenderInfo renderInfo = calculateRenderInfo(v3(7, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
@@ -2529,7 +2428,6 @@ void gameUpdateAndRender(void *params_) {
 
     //Stil render when we are in a transition
     if(isPlayState) {
-
         
         { //Back to overworld button
             RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
@@ -2792,7 +2690,7 @@ void gameUpdateAndRender(void *params_) {
                                         playMenuSound(params->soundArena, params->arrangeSound, 0, AUDIO_BACKGROUND);    
                                         levelAt->hasPlayedHoverSound = true;
                                     }
-                                    
+                                    printf("%s\n", levelName);
                                     Rect2f outputNameDim = outputText(params->font, 0, 0, -1, resolution, levelName, menuMargin, COLOR_WHITE, fontSize, false);
                                     V2 nameDim = getDim(outputNameDim);
                                     outputText(params->font, 0.5f*(resolution.x - nameDim.x), nameY, -1, resolution, levelName, menuMargin, COLOR_BLUE, fontSize, true);
@@ -2879,9 +2777,11 @@ int main(int argc, char *args[]) {
     Arena soundArena = createArena(Megabytes(200));
     Arena longTermArena = createArena(Megabytes(200));
 
-
-    // easyAtlas_createTextureAtlas("img/", "atlas/", appInfo.windowHandle, &longTermArena);
-    // exit(0);
+#define CREATE_FONT_ATLAS 0
+#if CREATE_FONT_ATLAS
+    easyAtlas_createTextureAtlas("img/", "atlas/", appInfo.windowHandle, &longTermArena);
+    exit(0);
+#endif
     // loadAndAddImagesToAssets("img/");
     easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/textureAtlas_1"));
     loadAndAddSoundsToAssets("sounds/", &setupInfo.audioSpec);
@@ -2932,6 +2832,7 @@ int main(int argc, char *args[]) {
     Texture *refreshTex = findTextureAsset("reload.png");
     params.muteTex = findTextureAsset("mute.png");
     params.speakerTex = findTextureAsset("speaker.png");
+    params.loadTex = findTextureAsset("save.png");
     params.errorTex = findTextureAsset("error.png");
 
 
@@ -2998,10 +2899,11 @@ int main(int argc, char *args[]) {
     params.moveSound = findSoundAsset("menuSound.wav");
     params.arrangeSound = findSoundAsset("click2.wav");
 
-    params.backgroundSound = findSoundAsset("Fitris_Soundtrack.wav");//
+    params.backgroundSound = findSoundAsset("Fitris_Soundtrack.wav");//findSoundAsset("Fitris_Soundtrack.wav");
+    params.backgroundSound2 = findSoundAsset("runaway.wav");//findSoundAsset("Fitris_Soundtrack.wav");
     params.enterLevelSound = findSoundAsset("click2.wav");
 
-    params.backgroundSoundPlaying = false;
+    params.backgroundSoundPlaying = true;
 
     PlayingSound *menuSound = playMenuSound(&soundArena, findSoundAsset("wind.wav"), 0, AUDIO_BACKGROUND);
     menuSound->volume = 0.6f;
@@ -3051,7 +2953,7 @@ int main(int argc, char *args[]) {
     }
 
     
-    loadLevelData(&params);
+    int totalLevelCount = loadLevelData(&params);
     initBoard(&params, startLevel);
     
     char *at = (char *)params.overworldLayout.memory;
@@ -3101,10 +3003,15 @@ int main(int argc, char *args[]) {
     menuInfo.transitionState = &params.transitionState;
     menuInfo.callback = changeMenuStateCallback;
     menuInfo.callBackData = &params;
+    menuInfo.totalLevelCount = totalLevelCount;
+    menuInfo.backTex = findTextureAsset("back.png");
 
     params.menuInfo = menuInfo;
 
-    loadSaveFile(&params);
+    int lastActiveSaveSlot = 0; //get this from a file that is saved out to disk
+    params.menuInfo.activeSaveSlot = lastActiveSaveSlot;
+
+    loadSaveFile(params.levelsData, arrayCount(params.levelsData), params.menuInfo.activeSaveSlot, &params.lastShownGroup);
         
     //
 

@@ -22,7 +22,11 @@
 	    3. two shapes really far apart, ahve to manage them in conjunction
 	    4. mirror shapes. 
 
-	-> have settings for full screen & delete save file to renew game
+	-> fix font bug for writing the levels
+	-> have settings for full screen 
+	-> delete save file to renew game
+
+	
 	-> freestyle arena 
 	-> make sure you can beat all the levels. 
 

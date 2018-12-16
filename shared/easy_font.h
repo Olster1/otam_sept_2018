@@ -204,6 +204,13 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, c
                 assert(quadCount < arrayCount(qs));
                 GlyphInfo *glyph = qs + quadCount++; 
                 glyph->textureHandle = sheet->handle;
+                if(unicodePoint == 'y') {
+                    Texture tempTex = {};
+                    tempTex.id = glyph->textureHandle;
+                    tempTex.uvCoords = rect2f(q.s0, q.t1, q.s1, q.t0);
+
+                    renderTextureCentreDim(&tempTex, v2ToV3(v2(100, 100), zAt), v2(100, 100), COLOR_BLACK, 0, mat4TopLeftToBottomLeft(resolution.y), mat4(), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y));            
+                }
                 // printf("sheet handles: %d ", sheet->handle);
                 glyph->q = q;
                 glyph->index = (int)(text - text_);

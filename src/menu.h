@@ -34,9 +34,15 @@ typedef struct {
     bool *running;
     GameMode gameMode;
     GameMode lastMode;
+
+    int totalLevelCount;
+    int activeSaveSlot;  //this is the active save slot
+
     Font *font;
     //TODO: Make this platform independent
     SDL_Window *windowHandle;
+
+    Texture *backTex;
 
     transition_callback *callback;
     void *callBackData;
@@ -44,6 +50,8 @@ typedef struct {
     TransitionState *transitionState;
 
     V2 lastMouseP;
+
+    LevelCountFromFile saveStateDetails[1];
 } MenuInfo;
 
 typedef struct {
@@ -183,7 +191,7 @@ MenuOptions initDefaultMenuOptions() {
     return result;
 }
 
-GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Texture *backgroundTex, WavFile *submitSound, WavFile *moveSound, float dt, V2 resolution, V2 mouseP) {
+GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons, Texture *backgroundTex, WavFile *submitSound, WavFile *moveSound, float dt, V2 resolution, V2 mouseP, LevelData *levelsData, int levelDataCount, int *lastShowGroup) {
     Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
     bool isPlayMode = false;
     MenuOptions menuOptions = initDefaultMenuOptions();
@@ -329,6 +337,162 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             }
         } break;
         case SETTINGS_MODE:{
+            {
+
+                float settingsFontSize = 0.6f;
+
+                V2 mouseP_settings = mouseP;//v2_minus(mouseP, v2_scale(0.5f, resolution));
+                // mouseP_settings.y = resolution.y - mouseP_settings.y; //flip it so it is y up
+                // printf("%f\n", mouseP_settings.y);
+                float yAt = 0.38f*resolution.y;
+                float width = resolution.x / 3.0f;
+                float xAt = resolution.x / (2.0f*(float)arrayCount(info->saveStateDetails));
+
+                
+                static LerpV4 cLerps[arrayCount(info->saveStateDetails)];
+                static bool initied = false;
+                if(!initied) {
+                    for(int lerpIndex = 0; lerpIndex < arrayCount(cLerps); ++lerpIndex)  {
+                        V4 color = COLOR_WHITE;
+                        if(lerpIndex == info->activeSaveSlot) {
+                            color = COLOR_GREEN;
+                        }
+                        cLerps[lerpIndex] = initLerpV4(color);
+                        
+                    }   
+                    initied = true;
+                }
+
+                static LerpV4 dLerps[arrayCount(info->saveStateDetails)];
+                static bool initied2 = false;
+                if(!initied2) {
+                    for(int lerpIndex = 0; lerpIndex < arrayCount(dLerps); ++lerpIndex)  {
+                        V4 color = COLOR_BLACK;
+                        dLerps[lerpIndex] = initLerpV4(color);
+                    }   
+                    initied2 = true;
+                }
+
+                for(int at = 0; at < arrayCount(info->saveStateDetails); ++at) {
+                    char saveDataName[512] = {};
+                    int levelsCompleted = info->saveStateDetails[at].completedCount;
+                    int totalLevelCount = info->totalLevelCount;
+
+                    sprintf(saveDataName, "Save Slot %d\nLevels Completed: %d/%d", (at + 1), levelsCompleted, totalLevelCount);
+                    // if(info->saveStateDetails[at].valid) {
+                        
+                        
+                    // } else {
+                    //     sprintf(saveDataName, "Save Slot %d", (at + 1));
+                    // }
+
+                    float picDim = 0.6f*width;
+                    RenderInfo renderInfo = calculateRenderInfo(v3(xAt, yAt, -1), v3(picDim, picDim, 1), v3(0, 0, 0), mat4());
+                    
+                    Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+                    
+                    
+                    float lerpPeriod = 0.3f;
+                    if(!updateLerpV4(&cLerps[at], dt, LINEAR)) {
+                        if(!easyLerp_isAtDefault(&cLerps[at])) {
+                            setLerpInfoV4_s(&cLerps[at], cLerps[at].defaultVal, 0.1, &cLerps[at].value);
+                        }
+
+                    }
+
+                    V4 uiColor = cLerps[at].value;
+                    if(inBounds(mouseP_settings, outputDim, BOUNDS_RECT)) {
+                        setLerpInfoV4_s(&cLerps[at], UI_BUTTON_COLOR, 0.2f, &cLerps[at].value);
+                        if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                            if(info->activeSaveSlot != at) {
+                                info->activeSaveSlot = at;
+                                loadSaveFile(levelsData, levelDataCount, info->activeSaveSlot, lastShowGroup);
+                                playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
+                                setLerpInfoV4_s(&cLerps[at], COLOR_GREEN, 0.2f, &cLerps[at].value);
+                                for(int lerpIndex = 0; lerpIndex < arrayCount(cLerps); lerpIndex++) {
+                                    if(at != lerpIndex) {
+                                        cLerps[lerpIndex].defaultVal = COLOR_WHITE;    
+                                    } else {
+                                        cLerps[lerpIndex].defaultVal = COLOR_GREEN;        
+                                    }
+                                    
+                                }
+                            }
+                        }
+                    }
+
+
+                    
+                    renderTextureCentreDim(findTextureAsset("save.png"), renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4TopLeftToBottomLeft(resolution.y), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), renderInfo.pvm); 
+
+                    float fontY = outputDim.maxY + settingsFontSize*info->font->fontHeight;
+                    Rect2f saveMargin = rect2fCenterDimV2(renderInfo.pos.xy, v2(renderInfo.dim.x, resolution.y));
+                    Rect2f textOutputDim = outputText(info->font, saveMargin.minX, saveMargin.minY, -1, resolution, saveDataName, saveMargin, COLOR_BLACK, settingsFontSize, false);                    
+                    textOutputDim = outputText(info->font, xAt - (getDim(textOutputDim).x/2), fontY, -1, resolution, saveDataName, saveMargin, COLOR_BLACK, settingsFontSize, true);                    
+
+                    if(info->saveStateDetails[at].valid) {
+
+                        char *deleteFileTitle = "Delete Save File?";
+                        Rect2f deleteTextOutputDim = outputText(info->font, 0 , 0, -1, resolution, deleteFileTitle, menuMargin, COLOR_BLACK, settingsFontSize, false);                    
+
+                        float xFor = xAt - (getDim(deleteTextOutputDim).x/2);
+                        float yFor = textOutputDim.maxY + settingsFontSize*info->font->fontHeight;
+
+                        Rect2f deleteBounds = outputText(info->font, xFor, yFor, -1, resolution, deleteFileTitle, menuMargin, COLOR_WHITE, settingsFontSize, false);                        
+                        // error_printFloat4("dim", deleteBounds.E);
+                        // error_printFloat2("mouseP", mouseP_settings.E);
+                        
+                                            
+                        float lerpPeriod = 0.3f;
+                        if(!updateLerpV4(&dLerps[at], dt, LINEAR)) {
+                            if(!easyLerp_isAtDefault(&dLerps[at])) {
+                                setLerpInfoV4_s(&dLerps[at], dLerps[at].defaultVal, 0.01, &dLerps[at].value);
+                            }
+
+                        }
+
+                        V4 buttonColor = dLerps[at].value;
+                        if(inBounds(mouseP_settings, deleteBounds, BOUNDS_RECT)) {
+                            setLerpInfoV4_s(&dLerps[at], COLOR_YELLOW, 0.2f, &dLerps[at].value);
+                            if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                                startGameAgain(at);
+                                updateSaveStateDetails(info->saveStateDetails, arrayCount(info->saveStateDetails));
+                            }
+                        }
+                        outputText(info->font, xFor, yFor, -1, resolution, deleteFileTitle, menuMargin, buttonColor, settingsFontSize, true);                        
+                    }
+
+                    xAt += width;
+                }
+
+                { //back button
+                    RenderInfo renderInfo = calculateRenderInfo(v2ToV3(v2(0.1f*resolution.x, 0.1f*resolution.y), -1), v3(100, 100, 1), v3(0, 0, 0), mat4());
+                    
+                    Rect2f outputDim2 = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+                    static LerpV4 eLerp = initLerpV4(COLOR_WHITE);
+                    // error_printFloat4("bounds", outputDim2.E);
+                    float lerpPeriod = 0.3f;
+                    if(!updateLerpV4(&eLerp, dt, LINEAR)) {
+                        if(!easyLerp_isAtDefault(&eLerp)) {
+                            setLerpInfoV4_s(&eLerp, COLOR_WHITE, 0.1, &eLerp.value);
+                        }
+
+                    }
+
+                    V4 uiColor = eLerp.value;
+                    if(inBounds(mouseP_settings, outputDim2, BOUNDS_RECT)) {
+                        setLerpInfoV4_s(&eLerp, UI_BUTTON_COLOR, 0.2f, &eLerp.value);
+                        if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                            changeMenuState(info, OVERWORLD_MODE);
+                        }
+                    }
+
+                    // renderDrawRectOutlineCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm));            
+                    renderTextureCentreDim(info->backTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4TopLeftToBottomLeft(resolution.y), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), renderInfo.pvm); 
+                }   
+            }
+
+/*
             unsigned int windowFlags = SDL_GetWindowFlags(info->windowHandle);
             
             bool isFullScreen = (windowFlags & SDL_WINDOW_FULLSCREEN);
@@ -405,6 +569,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             }
 
             renderTextureCentreDim(findTextureAsset("back.png"), v3(backDim, backDim, zMenuAt), v2(backDim, backDim), COLOR_WHITE, 0, mat4TopLeftToBottomLeft(resolution.y), mat4(), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y)); 
+            */
         } break;
         case MENU_MODE:{
             char *title = APP_TITLE;

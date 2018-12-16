@@ -2,11 +2,11 @@
 //this is about the top being blocked when you come in. so You have to time your landing to coincide. 
 LevelData: {
 	name: "Mirror mirror on the Wall";
-	groupId: 8;
+	groupId: 9;
 	shapeSize: 3;
 	shapeSize2: 3;
 	startOffset: 0;
-	startOffset2: 6;
+	startOffset2: 5; //should be 6
 	isMirror: true;
 }
 Windmill: {

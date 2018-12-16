@@ -47,7 +47,9 @@ TimerReturnInfo updateTimer(Timer *timer, float dt) {
             float lots = minusVal / timer->period;
             returnInfo.residue = minusVal - (lots*timer->period);
 
-            assert(returnInfo.residue >= 0.0f && returnInfo.residue <= timer->period);
+            if(!(returnInfo.residue >= 0.0f && returnInfo.residue <= timer->period)) {
+                printf("%f\n", (returnInfo.residue/timer->period));
+            }
             timer->value = -1; //turn timer off
             returnInfo.canonicalVal = 1; //anyone using this value afterwards wants to know that it finished
             returnInfo.finished = true;

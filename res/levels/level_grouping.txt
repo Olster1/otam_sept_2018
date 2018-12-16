@@ -14,8 +14,11 @@ moving blocks timed -> shuffling to avoid getting blocked: 17, 15, 16, 14, 20 //
 
 moving blocks timed -> something blocking the entrance so you have to time the entrance: 23, 18//group 7 //count 2
 
-moving blocks timed with red lines -> 19, 21, 22 // group 8 // count 3
+moving blocks timed with red lines -> 19, 21, 22, 24, 25 // group 8 // count 5
 
+using multiple shapes to plug holes etc. -> 25, 27, 28, 29, 30, 31, 32, 33  // group 9 // count 8
+
+mirrorred levels -> 26 // group 10 // count 1
 
 
 Manevouring the shape 
@@ -45,6 +48,6 @@ Colors
 Camera moving 
 	- really big levels involving manuvering the camera to finish lines -> more of a pushing things to the limit 
 
-
+Mirrored levels
 
 

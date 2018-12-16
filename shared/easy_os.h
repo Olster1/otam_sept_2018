@@ -263,7 +263,7 @@ static inline void easyOS_processKeyStates(AppKeyStates *state, V2 resolution, V
 	
 	assert(state->gameButtons[BUTTON_LEFT_MOUSE].transitionCount == 0);
 	//ask player for new input
-	SDL_Event event;
+	SDL_Event event = {};
 	state->scrollWheelY = 0;
 	
 	while( SDL_PollEvent( &event ) != 0 ) {
