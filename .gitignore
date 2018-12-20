@@ -1,5 +1,6 @@
 /bin/*
 /iosApp.xcodeproj/*
+/debugbuid/*
 /Fitris.app/*
 /res/img/*
 
