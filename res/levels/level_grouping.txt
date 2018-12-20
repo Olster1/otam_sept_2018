@@ -16,7 +16,7 @@ moving blocks timed -> something blocking the entrance so you have to time the e
 
 moving blocks timed with red lines -> 19, 21, 22, 24, 25 // group 8 // count 5
 
-using multiple shapes to plug holes etc. -> 25, 27, 28, 29, 30, 31, 32, 33  // group 9 // count 8
+using multiple shapes to plug holes etc. -> 25, 27, 28, 29, 30, 31, 32, 33, 34  // group 9 // count 9
 
 mirrorred levels -> 26 // group 10 // count 1
 

@@ -192,7 +192,7 @@ void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *
     char readName[256] = {};
     sprintf(readName, "%ssaveFile%d.h", globalExeBasePath, saveSlot);
     assert(strlen(readName) < 255);
-    printf("%s\n", readName);
+    // printf("%s\n", readName);
     int lastShownGroup = 10000; //really big number. No groups above this. 
     if(platformDoesFileExist(readName)) {
         FileContents saveFileContents = getFileContentsNullTerminate(readName);

@@ -79,6 +79,19 @@ typedef enum {
 
 static char *ExtraShapeTypeStrings[] = { EXTRA_SHAPE_TYPE(STRING) };
 
+
+typedef struct OverworldDt OverworldDt;
+typedef struct OverworldDt {
+    float val; 
+    float x; 
+    float y;
+
+    OverworldDt *next;
+
+} OverworldDt;
+
+
+
 typedef struct {
     ExtraShapeType type;
 
@@ -151,6 +164,8 @@ typedef struct {
     Texture *treeTex;
     Texture *waterTex;
     Texture *mushroomTex;
+    Texture *cactusTex;
+    Texture *rockTex;
     Texture *alienTileTex;
     Texture *mapTex;
     Texture *refreshTex;
@@ -161,6 +176,10 @@ typedef struct {
 
     Texture *alienTex[5];
     Texture *tilesTex[13];
+    Texture *tilesTexSand[13];
+    
+
+    OverworldDt *overworldDts[512];
 
     WavFile *solidfyShapeSound;
     WavFile *moveSound;
@@ -503,9 +522,9 @@ static inline int loadLevelData(FrameParams *params) {
                        if(isLevelData) {
                            if(stringsMatchNullN("name", token.at, token.size)) {
                                 char *stringToCopy = getStringFromDataObjects(&data, &tokenizer);
-                                printf("%s\n", stringToCopy);
+                                // printf("%s\n", stringToCopy);
                                 levelData->name = nullTerminate(stringToCopy, strlen(stringToCopy));
-                                printf("%s\n", levelData->name);
+                                // printf("%s\n", levelData->name);
                            }
                            if(stringsMatchNullN("groupId", token.at, token.size)) {
                                groupId = getIntFromDataObjects(&data, &tokenizer);
@@ -779,7 +798,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                     assert(currentShapeProperty);
                     if(stringsMatchNullN("id", token.at, token.size)) {
                         char *idAsStr = getStringFromDataObjects(&data, &tokenizer);
-                        printf("id as string: %s\n", idAsStr);
+                        // printf("id as string: %s\n", idAsStr);
                         assert(strlen(idAsStr) == 1);
                         currentShapeProperty->id = idAsStr[0]; //has to be length one
                         
@@ -1371,11 +1390,24 @@ static inline int getTotalNumberOfShapeBlocks(FrameParams *params) {
     return result;
 }
 
+bool hasMirrorPartner(FrameParams *params, int hotBlockIndex, int mirrorIndexAt) {
+    bool result = false;
+    if(hotBlockIndex < mirrorIndexAt) {
+        result = mirrorIndexAt < getTotalNumberOfShapeBlocks(params);
+    } else {
+        assert(hotBlockIndex != mirrorIndexAt);
+        result = mirrorIndexAt < params->shapeSizes[0];
+    }
+    return result;
+}
+
 static inline bool isMirrorPartnerIndex(FrameParams *params, int currentHotIndex, int i, bool isCurrentHotIndex/*for the assert*/) {
     bool result = false;
-    if(params->isMirrorLevel && currentHotIndex >= 0) {
-        int mirrorOffsetCount = params->shapeSizes[0];
 
+    int mirrorOffsetCount = params->shapeSizes[0];
+    int mirrorIndexAt = currentHotIndex < mirrorOffsetCount ? (currentHotIndex + mirrorOffsetCount) : (currentHotIndex - mirrorOffsetCount);
+
+    if(params->isMirrorLevel && currentHotIndex >= 0 && hasMirrorPartner(params, currentHotIndex, mirrorIndexAt)) {
         if(currentHotIndex < mirrorOffsetCount) {
             assert(currentHotIndex + mirrorOffsetCount < getTotalNumberOfShapeBlocks(params));
             if((currentHotIndex + mirrorOffsetCount) == i) {
@@ -1508,12 +1540,18 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
         if(params->currentHotIndex < 0 && hotBlockIndex >= 0 && params->isMirrorLevel) {
             int mirrorOffsetCount = params->shapeSizes[0];
             int mirrorIndexAt = hotBlockIndex < mirrorOffsetCount ? (hotBlockIndex + mirrorOffsetCount) : (hotBlockIndex - mirrorOffsetCount);
-            assert(mirrorIndexAt >= 0 && mirrorIndexAt < getTotalNumberOfShapeBlocks(params));
 
-            V2 pos = shape->blocks[mirrorIndexAt].pos;
-            BoardValue *val = getBoardValue(params, pos);
-            assert(val);
-            val->color = getAlienHoverColor(shape, hotBlockIndex).color1;
+            if(hasMirrorPartner(params, hotBlockIndex, mirrorIndexAt)) { //same size
+                assert(mirrorIndexAt >= 0 && mirrorIndexAt < getTotalNumberOfShapeBlocks(params));
+
+                V2 pos = shape->blocks[mirrorIndexAt].pos;
+                BoardValue *val = getBoardValue(params, pos);
+                assert(val);
+                val->color = getAlienHoverColor(shape, hotBlockIndex).color1;
+            } else {
+                // printf("%s\n", "no mirror partner");
+                assert(params->shapeSizes[0] != params->shapeSizes[1]);
+            }
         }
 
         if(wasPressed(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE) && hotBlockIndex >= 0) {
@@ -1536,18 +1574,22 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
 
             V2 boardPosAtMirror = v2(0, 0); //not used unless is a mirror level
             int mirrorIndex = -1;
+            bool isEvenSize = true;
             if(params->isMirrorLevel) {
                 int mirrorOffsetCount = params->shapeSizes[0];
                 mirrorIndex = hotIndex < mirrorOffsetCount ? (hotIndex + mirrorOffsetCount) : (hotIndex - mirrorOffsetCount);
+                if(hasMirrorPartner(params, params->currentHotIndex, mirrorIndex)) { //
+                    V2 mirrorOffset = v2_minus(boardPosAt, shape->blocks[hotIndex].pos);
+                    boardPosAtMirror = v2_plus(shape->blocks[mirrorIndex].pos, mirrorOffset);
 
-                V2 mirrorOffset = v2_minus(boardPosAt, shape->blocks[hotIndex].pos);
-                boardPosAtMirror = v2_plus(shape->blocks[mirrorIndex].pos, mirrorOffset);
-
-                okToMove &= shapeStillConnected(shape, mirrorIndex, boardPosAtMirror, params);;
-
+                    okToMove &= shapeStillConnected(shape, mirrorIndex, boardPosAtMirror, params);
+                } else {
+                    assert(params->shapeSizes[0] != params->shapeSizes[1]);
+                    isEvenSize = false;
+                }
             }
             
-            int mirCount = (params->isMirrorLevel) ? 2 : 1;
+            int mirCount = (params->isMirrorLevel && isEvenSize) ? 2 : 1;
             int hotIndexes[2] = {hotIndex, mirrorIndex};
             V2 newPoses[2] = {boardPosAt, boardPosAtMirror};
 
@@ -1690,6 +1732,7 @@ void transitionCallbackForBackToOverworld(void *data_) {
         params->levelsData[i].angle = 0;
         params->levelsData[i].dA = 0;
     }
+    params->bgTex = findTextureAsset("blue_grass.png");
     trans->info->gameMode = trans->newMode;
     trans->info->lastMode = trans->lastMode;
     trans->info->menuCursorAt = 0;
@@ -1905,7 +1948,7 @@ static void updateBoardWinState(FrameParams *params) {
                 int nextGroup = originalGroup + 1;
                 LevelData *nextGroupListAt = params->levelGroups[nextGroup];
                 if(!nextGroupListAt) {
-                    setStartOrEndGameTransition(params, LEVEL_0, MENU_MODE);
+                    setStartOrEndGameTransition(params, LEVEL_0, CREDITS_MODE);
                     goToNextLevel = false;
                 } else {
                     nextLevel = (LevelType)nextGroupListAt->levelType;    
@@ -2088,7 +2131,7 @@ GlowingLine *checkIsWinLine(FrameParams *params, int lineCheckAt) {
     return result;
 }
 
-static inline Texture *getTileTex(FrameParams *params, int xAt, int yAt) {
+static inline Texture *getTileTex(FrameParams *params, int xAt, int yAt, Texture **tilesTex) {
     int spots[9] = {};
     int xMin = xAt - 1;
     int yMin = yAt - 1;
@@ -2119,28 +2162,99 @@ static inline Texture *getTileTex(FrameParams *params, int xAt, int yAt) {
     // printf("\n");
     tile_pos_type tiletType = easyTile_getTileType(&params->tileLayout, spots);
     int tileIndex = (int)tiletType;
-    Texture *tileTex = params->tilesTex[tileIndex];
+    Texture *tileTex = tilesTex[tileIndex];
     return tileTex;
 }
 
-void drawMapSquare(FrameParams *params, float xAt, float yAt, float xSpace, float ySpace, char *at, V2 resolution, V3 overworldCam) {
+static inline float getAndUpdateOverworldDtValue(FrameParams *params, float xAt, float yAt, float dtIn) {   
+    float dtVal = 0;
+    int indexIn = xAt*19 + yAt*19;
+    indexIn %= arrayCount(params->overworldDts);
+
+    OverworldDt *ow_dt = params->overworldDts[indexIn];
+
+    while(ow_dt) {
+        if(ow_dt->x == xAt && ow_dt->y == yAt) {
+            dtVal = ow_dt->val;
+            break;
+        }
+        ow_dt = ow_dt->next; 
+    }
+
+    if(!ow_dt) {
+        OverworldDt *newOne = (OverworldDt *)pushStruct(params->longTermArena, OverworldDt);
+        ow_dt = newOne;
+        newOne->x = xAt;
+        newOne->y = yAt;
+        newOne->val = 0;
+
+        newOne->next = params->overworldDts[indexIn];
+        params->overworldDts[indexIn] = newOne;
+    }
+
+    assert(ow_dt);
+    float returnVal = ow_dt->val;
+    ow_dt->val += dtIn;
+    return returnVal;
+}
+
+void drawMapSquare(FrameParams *params, float xAt, float yAt, float xSpace, float ySpace, char *at, V2 resolution, V3 overworldCam, char lastEnvir) {
     V2 offset = params->overworldValuesOffset[(int)(yAt*params->overworldDim.x) + (int)xAt];
     float xVal = xSpace*xAt + xSpace*offset.x;
     float yVal = ySpace*yAt + ySpace*offset.y;
     if(*at == '#') {
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, 1.5f*ySpace, 1), overworldCam, params->metresToPixels);
+        float heightOfTree = 1.5f*ySpace;
+        float widthOfTree = xSpace;
+        float extraVal = 0.3f*sin(getAndUpdateOverworldDtValue(params, xAt, yAt, params->dt));
+        heightOfTree += extraVal;
+        // widthOfTree += extraVal;
+
+        float yPosOfTree = yVal + 0.5f*extraVal;
+        float xPosOfTree = xVal;
+        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xPosOfTree, yPosOfTree, -1 - (yAt / 100)), v3(widthOfTree, heightOfTree, 1), overworldCam, params->metresToPixels);
         renderTextureCentreDim(params->treeTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
     }
     if(*at == '$') {
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
+        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1 - (yAt / 100)), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
         renderTextureCentreDim(params->alienTileTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
     }
+    if(*at == '*') {
+        float heightOfTree = ySpace;
+        float widthOfTree = 1.4f*xSpace;
+        float extraVal = 0.3f*cos(getAndUpdateOverworldDtValue(params, xAt, yAt, params->dt));
+        widthOfTree += extraVal;
+        // widthOfTree += extraVal;
+
+        float yPosOfTree = yVal;
+        float xPosOfTree = xVal;// + 0.3f*extraVal;
+        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xPosOfTree, yPosOfTree, -1 - (yAt / 100)), v3(widthOfTree, heightOfTree, 1), overworldCam, params->metresToPixels);
+        renderTextureCentreDim(params->cactusTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+    }
+    if(*at == '^') {
+        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1 - (yAt / 100)), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
+        renderTextureCentreDim(params->rockTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+    }
     if(*at == '%') {
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
+        float heightOfMushroom = ySpace;
+        float widthOfMushroom = xSpace;
+        float extraVal = 0;//0.3f*sin(getAndUpdateOverworldDtValue(params, xAt, yAt, params->dt));
+        heightOfMushroom += extraVal;
+        // widthOfTree += extraVal;
+
+        float yPosOfMushroom = yVal + 0.5f*extraVal;
+        float xPosOfMushroom = xVal;
+        
+        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xPosOfMushroom, yPosOfMushroom, -1 - (yAt / 100)), v3(widthOfMushroom, heightOfMushroom, 1), overworldCam, params->metresToPixels);
         renderTextureCentreDim(params->mushroomTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
     }
     RenderInfo renderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
-    renderTextureCentreDim(getTileTex(params, xSpace*xAt, ySpace*yAt), renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+
+    Texture **tilesTexArray = params->tilesTex;
+    if(*at == '|' || (lastEnvir == '|' && *at != '!')) {
+        tilesTexArray = params->tilesTexSand;
+    }
+    Texture *enviroTileTex = getTileTex(params, xSpace*xAt, ySpace*yAt, tilesTexArray);
+    renderTextureCentreDim(enviroTileTex, renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
 }
 
 void gameUpdateAndRender(void *params_) {
@@ -2175,6 +2289,24 @@ void gameUpdateAndRender(void *params_) {
 
     GameMode currentGameMode = drawMenu(&params->menuInfo, params->longTermArena, params->keyStates->gameButtons, 0, params->solidfyShapeSound, params->moveSound, params->dt, resolution, mouseP, params->levelsData, arrayCount(params->levelsData), &params->lastShownGroup);
 
+    if(currentGameMode == EDITOR_MODE) {
+        // for(int i = 0; i < shape->count; ++i) {
+        //     //NOTE: Render the hover indications & check for hot player block 
+        //     V2 pos = params->shape->blocks[i].pos;
+        //     RenderInfo renderInfo = calculateRenderInfo(v3(pos.x, pos.y, -1), v3(1, 1, 1), cameraPos, metresToPixels);
+
+        //     Rect2f blockBounds = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+            
+        //     V4 color = COLOR_WHITE;
+            
+        //     if(inBounds(params->keyStates->mouseP_yUp, blockBounds, BOUNDS_RECT)) {
+        //         hotBlockIndex = i;
+        //         if(params->currentHotIndex < 0) {
+        //             color = alienColors.color1;
+        //         }
+        //     }
+        // }
+    }
 
     bool transitioning = updateTransitions(&params->transitionState, resolution, params->dt);
     Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
@@ -2267,7 +2399,7 @@ void gameUpdateAndRender(void *params_) {
                             break;
                             //
                         } else {
-                            setBoardState(params, pos, BOARD_SHAPE, params->currentShape.blocks[i].type);    
+                            setBoardState(params, pos, BOARD_SHAPE, block->type);    
                         }
                         totalShapeCountSoFar++;
                     }
@@ -2343,7 +2475,7 @@ void gameUpdateAndRender(void *params_) {
         params->dt = oldDt;
     }
 
-    if(isPlayState || currentGameMode == OVERWORLD_MODE) {
+    if(isPlayState || currentGameMode == OVERWORLD_MODE || currentGameMode == EDITOR_MODE || EDITOR_OVERVIEW_MODE) {
         if(currentGameMode == OVERWORLD_MODE) { //Load Button
 
             RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
@@ -2427,7 +2559,7 @@ void gameUpdateAndRender(void *params_) {
    
 
     //Stil render when we are in a transition
-    if(isPlayState) {
+    if(isPlayState || currentGameMode == EDITOR_MODE) {
         
         { //Back to overworld button
             RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
@@ -2584,12 +2716,14 @@ void gameUpdateAndRender(void *params_) {
 
         }
         bool playedSound = false;
+        char lastEnvirChar = '!';
         // drawAndUpdateParticleSystem(&params->overworldParticleSys, params->dt, v3(0, 0, -4), v3(0, 0 ,0), params->cameraPos, params->metresToPixels, resolution);
         int highestGroupId = params->lastShownGroup;
         at = lexEatWhiteSpace(at);
         bool parsing = true;
         while(parsing) {
             at = lexEatWhiteSpaceExceptNewLine(at);
+            char tempChar = *at;
             switch(*at) {
                 case '\0': {
                     parsing = false;
@@ -2603,14 +2737,32 @@ void gameUpdateAndRender(void *params_) {
                 case '$':
                 case '#':
                 case '%':
+                case '|':
+                case '^':
+                case '*':
                 case '!': {
-                    drawMapSquare(params, xAt, yAt, xSpace, ySpace, at, resolution, overworldCam);
+                    drawMapSquare(params, xAt, yAt, xSpace, ySpace, at, resolution, overworldCam, lastEnvirChar);
                     xAt++;
                     at++;
+                    if(*at == '|' || *at == '!') {
+                        lastEnvirChar = *at;
+                    }
                 } break;
                 default: {
-                    if(lexIsNumeric(*at)) {
+                    char charVal = *at;
+                    if(lexIsNumeric(*at) || (charVal >= 'A' && charVal <= 'Z')) {
                         int groupId = (int)((*at) - 48);
+                        //NOTE: Number run out so we swap for asci
+                        switch(charVal) {
+                            case 'A': {
+                                groupId = 10;
+                            } break;
+                            default: {
+                                // printf("%c\n", charVal);
+                                // assert(!"invalid code path");
+                            }
+                        }
+                        
                         if(!finished[groupId]) {
                             LevelData *levelAt = levelsAtStore[groupId];
                             if(levelAt) {
@@ -2659,7 +2811,7 @@ void gameUpdateAndRender(void *params_) {
                                 
                                 drawAndUpdateParticleSystem(&levelAt->particleSystem, params->dt, v3(xSpace*xAt, ySpace*yAt, -1), v3(0, 0 ,0), overworldCam, params->metresToPixels, resolution);
                                 
-                                V3 starLocation = v3(xSpace*xAt, ySpace*yAt, -1);
+                                V3 starLocation = v3(xSpace*xAt, ySpace*yAt, -0.99 - (yAt / 100));
                                 RenderInfo renderInfo = calculateRenderInfo(starLocation, v3(scale*1, scale*1, 1), overworldCam, params->metresToPixels);
                                 
                                 V4 color = COLOR_PINK;
@@ -2690,7 +2842,7 @@ void gameUpdateAndRender(void *params_) {
                                         playMenuSound(params->soundArena, params->arrangeSound, 0, AUDIO_BACKGROUND);    
                                         levelAt->hasPlayedHoverSound = true;
                                     }
-                                    printf("%s\n", levelName);
+                                    //printf("%s\n", levelName);
                                     Rect2f outputNameDim = outputText(params->font, 0, 0, -1, resolution, levelName, menuMargin, COLOR_WHITE, fontSize, false);
                                     V2 nameDim = getDim(outputNameDim);
                                     outputText(params->font, 0.5f*(resolution.x - nameDim.x), nameY, -1, resolution, levelName, menuMargin, COLOR_BLUE, fontSize, true);
@@ -2710,7 +2862,7 @@ void gameUpdateAndRender(void *params_) {
                                 renderTextureCentreDim(params->starTex, renderInfo.pos, renderInfo.dim.xy, color, levelAt->angle, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
 
                                 float glyphSize = scale*0.2f;
-                                V3 numLocation = v3(starLocation.x, starLocation.y, -0.8f);//make sure its in front of star
+                                V3 numLocation = v3(starLocation.x, starLocation.y, -0.98 - (yAt / 100));//make sure its in front of star
                                 if(levelAt->glyphCount > 1) {
                                     float gOffset = levelAt->glyphCount*glyphSize;
                                     numLocation.x = numLocation.x - gOffset/2 + (glyphSize/2); //to get half way
@@ -2730,8 +2882,12 @@ void gameUpdateAndRender(void *params_) {
                                 
                             }    
                         }
+                        Texture **tilesTexArray = params->tilesTex;
+                        if(tempChar == '|' || (lastEnvirChar == '|' && tempChar != '!')) {
+                            tilesTexArray = params->tilesTexSand;
+                        }
                         RenderInfo tileRenderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
-                        renderTextureCentreDim(getTileTex(params, xSpace*xAt, ySpace*yAt), tileRenderInfo.pos, tileRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), tileRenderInfo.pvm)); 
+                        renderTextureCentreDim(getTileTex(params, xSpace*xAt, ySpace*yAt, tilesTexArray), tileRenderInfo.pos, tileRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), tileRenderInfo.pvm)); 
                     } else {
                         // drawMapSquare(params, xAt, yAt, xSpace, ySpace, at, resolution);
 
@@ -2826,6 +2982,8 @@ int main(int argc, char *args[]) {
     Texture *starTex = findTextureAsset("starGold.png");
     Texture *treeTex = findTextureAsset("tree3.png");
     Texture *mushroomTex = findTextureAsset("mushrooomTile.png");
+    Texture *rockTex = findTextureAsset("brownRock.png");
+    Texture *cactusTex = findTextureAsset("cactus.png");
     Texture *waterTex = findTextureAsset("waterTile.png");
     Texture *alienTileTex = findTextureAsset("alienTile.png");
     Texture *mapTex = findTextureAsset("placeholder.png");
@@ -2867,6 +3025,23 @@ int main(int argc, char *args[]) {
     params.tilesTex[10] = findTextureAsset("tileCenterTopRight.png");
     params.tilesTex[11] = findTextureAsset("tileCenterLeftBottom.png");
     params.tilesTex[12] = findTextureAsset("tileCenterRightBottom.png");
+
+    params.tilesTexSand[0] = findTextureAsset("tileTopLeftSand.png");
+    params.tilesTexSand[1] = findTextureAsset("tileTopMiddleSand.png");
+    params.tilesTexSand[2] = findTextureAsset("tileTopRightSand.png");
+
+    params.tilesTexSand[3] = findTextureAsset("tileMiddleLeftSand.png");
+    params.tilesTexSand[4] = findTextureAsset("tileMiddleMiddleSand.png");
+    params.tilesTexSand[5] = findTextureAsset("tileMiddleRightSand.png");
+
+    params.tilesTexSand[6] = findTextureAsset("tileBottomLeftSand.png");
+    params.tilesTexSand[7] = findTextureAsset("tileBottomMiddleSand.png");
+    params.tilesTexSand[8] = findTextureAsset("tileBottomRightSand.png");
+
+    params.tilesTexSand[9] = findTextureAsset("tileCenterTopLeftSand.png");
+    params.tilesTexSand[10] = findTextureAsset("tileCenterTopRightSand.png");
+    params.tilesTexSand[11] = findTextureAsset("tileCenterLeftBottomSand.png");
+    params.tilesTexSand[12] = findTextureAsset("tileCenterRightBottomSand.png");
 
     params.tileLayout = easyTile_initLayouts();
 
@@ -2952,7 +3127,6 @@ int main(int argc, char *args[]) {
         setSoundType(AUDIO_FLAG_MENU);
     }
 
-    
     int totalLevelCount = loadLevelData(&params);
     initBoard(&params, startLevel);
     
@@ -2979,6 +3153,8 @@ int main(int argc, char *args[]) {
     params.treeTex = treeTex;
     params.waterTex = waterTex;
     params.mushroomTex = mushroomTex;
+    params.rockTex = rockTex;
+    params.cactusTex = cactusTex;
     params.alienTileTex = alienTileTex;
     params.mapTex = mapTex;
     params.refreshTex = refreshTex;

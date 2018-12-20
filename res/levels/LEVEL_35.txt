@@ -1,23 +1,24 @@
 //just moving blocks with bombs (shuffling)
 //this is about the top being blocked when you come in. so You have to time your landing to coincide. 
 LevelData: {
-	name: "Hard to Find";
-	groupId: 10;
+	name: "Who's the fairest of them all";
+	groupId: 9;
 	shapeSize: 3;
 	shapeSize2: 3;
 	startOffset: 0;
-	startOffset2: 6;
-	//lifePoints: 1;
+	startOffset2: 5; //should be 6
+	isMirror: true;
+	lifePoints: 1;
 }
 Windmill: {
 	id: 1;
 	growDir: 1 0;
-	isBomb: false;
+	isBomb: true;
 
 	growTimerPeriod: 1.0;
 	beginTimerPeriod: 0.0;
 
-	timeAffected: true;
+	timeAffected: false;
 
 	perpSize: 0;
 	max: 1;
@@ -26,10 +27,10 @@ Windmill: {
 Board: {
 	0000a0000
 	0000a0000
+	1100a0000
+	0000a0011
 	0000a0000
-	00a0a0000
-	0000a0a00
-	0a00a00a0
+	0a00a0000
 	0000a0000/
 	0000a0000/
 	

@@ -7,6 +7,8 @@ FUNC(LOAD_MODE) \
 FUNC(SAVE_MODE) \
 FUNC(QUIT_MODE) \
 FUNC(DIED_MODE) \
+FUNC(EDITOR_MODE) \
+FUNC(EDITOR_OVERVIEW_MODE) \
 FUNC(CREDITS_MODE) \
 FUNC(SETTINGS_MODE) \
 
@@ -239,15 +241,12 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             setMenuOption(&menuOptions, "Music: Robert Marsh", false, 0.5f, creditColor);
             setMenuOption(&menuOptions, "Artwork: Kenny Assets", false, 0.5f, creditColor);
             setMenuOption(&menuOptions, "Sound Effects: ZapSplat", false, 0.5f, creditColor);
-            setMenuOption(&menuOptions, "Go Back", true, 0.5f, COLOR_BLUE);
+            setMenuOption(&menuOptions, "Thank-you for playing!", false, 0.5f, creditColor);
             
             mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
             
-            if(changeMenuKey) {
-                // playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
-                if (info->menuCursorAt == menuOptions.count - 1) {
-                    changeMenuState(info, info->lastMode);
-                } 
+            if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                changeMenuState(info, MENU_MODE);
                 info->lastMode = CREDITS_MODE;
             }
 
@@ -338,7 +337,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
         } break;
         case SETTINGS_MODE:{
             {
-
+                static bool deleteConfirmation = false;
                 float settingsFontSize = 0.6f;
 
                 V2 mouseP_settings = mouseP;//v2_minus(mouseP, v2_scale(0.5f, resolution));
@@ -354,7 +353,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                 if(!initied) {
                     for(int lerpIndex = 0; lerpIndex < arrayCount(cLerps); ++lerpIndex)  {
                         V4 color = COLOR_WHITE;
-                        if(lerpIndex == info->activeSaveSlot) {
+                        if(lerpIndex == info->activeSaveSlot && arrayCount(info->saveStateDetails) > 1) {
                             color = COLOR_GREEN;
                         }
                         cLerps[lerpIndex] = initLerpV4(color);
@@ -388,39 +387,39 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
 
                     float picDim = 0.6f*width;
                     RenderInfo renderInfo = calculateRenderInfo(v3(xAt, yAt, -1), v3(picDim, picDim, 1), v3(0, 0, 0), mat4());
-                    
+                    V4 uiColor = cLerps[at].value;
                     Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
-                    
-                    
-                    float lerpPeriod = 0.3f;
-                    if(!updateLerpV4(&cLerps[at], dt, LINEAR)) {
-                        if(!easyLerp_isAtDefault(&cLerps[at])) {
-                            setLerpInfoV4_s(&cLerps[at], cLerps[at].defaultVal, 0.1, &cLerps[at].value);
+                    if(arrayCount(info->saveStateDetails) > 1) {
+                        
+                        float lerpPeriod = 0.3f;
+                        if(!updateLerpV4(&cLerps[at], dt, LINEAR)) {
+                            if(!easyLerp_isAtDefault(&cLerps[at])) {
+                                setLerpInfoV4_s(&cLerps[at], cLerps[at].defaultVal, 0.1, &cLerps[at].value);
+                            }
+
                         }
 
-                    }
-
-                    V4 uiColor = cLerps[at].value;
-                    if(inBounds(mouseP_settings, outputDim, BOUNDS_RECT)) {
-                        setLerpInfoV4_s(&cLerps[at], UI_BUTTON_COLOR, 0.2f, &cLerps[at].value);
-                        if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
-                            if(info->activeSaveSlot != at) {
-                                info->activeSaveSlot = at;
-                                loadSaveFile(levelsData, levelDataCount, info->activeSaveSlot, lastShowGroup);
-                                playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
-                                setLerpInfoV4_s(&cLerps[at], COLOR_GREEN, 0.2f, &cLerps[at].value);
-                                for(int lerpIndex = 0; lerpIndex < arrayCount(cLerps); lerpIndex++) {
-                                    if(at != lerpIndex) {
-                                        cLerps[lerpIndex].defaultVal = COLOR_WHITE;    
-                                    } else {
-                                        cLerps[lerpIndex].defaultVal = COLOR_GREEN;        
+                        
+                        if(inBounds(mouseP_settings, outputDim, BOUNDS_RECT)) {
+                            setLerpInfoV4_s(&cLerps[at], UI_BUTTON_COLOR, 0.2f, &cLerps[at].value);
+                            if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                                if(info->activeSaveSlot != at) {
+                                    info->activeSaveSlot = at;
+                                    loadSaveFile(levelsData, levelDataCount, info->activeSaveSlot, lastShowGroup);
+                                    playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
+                                    setLerpInfoV4_s(&cLerps[at], COLOR_GREEN, 0.2f, &cLerps[at].value);
+                                    for(int lerpIndex = 0; lerpIndex < arrayCount(cLerps); lerpIndex++) {
+                                        if(at != lerpIndex) {
+                                            cLerps[lerpIndex].defaultVal = COLOR_WHITE;    
+                                        } else {
+                                            cLerps[lerpIndex].defaultVal = COLOR_GREEN;        
+                                        }
+                                        
                                     }
-                                    
                                 }
                             }
                         }
                     }
-
 
                     
                     renderTextureCentreDim(findTextureAsset("save.png"), renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4TopLeftToBottomLeft(resolution.y), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), renderInfo.pvm); 
@@ -439,27 +438,80 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                         float yFor = textOutputDim.maxY + settingsFontSize*info->font->fontHeight;
 
                         Rect2f deleteBounds = outputText(info->font, xFor, yFor, -1, resolution, deleteFileTitle, menuMargin, COLOR_WHITE, settingsFontSize, false);                        
+                        V4 deleteButtonColor = dLerps[at].value;
                         // error_printFloat4("dim", deleteBounds.E);
                         // error_printFloat2("mouseP", mouseP_settings.E);
-                        
-                                            
                         float lerpPeriod = 0.3f;
                         if(!updateLerpV4(&dLerps[at], dt, LINEAR)) {
-                            if(!easyLerp_isAtDefault(&dLerps[at])) {
+                            if(!easyLerp_isAtDefault(&dLerps[at]) && !deleteConfirmation) {
                                 setLerpInfoV4_s(&dLerps[at], dLerps[at].defaultVal, 0.01, &dLerps[at].value);
                             }
 
                         }
-
-                        V4 buttonColor = dLerps[at].value;
-                        if(inBounds(mouseP_settings, deleteBounds, BOUNDS_RECT)) {
-                            setLerpInfoV4_s(&dLerps[at], COLOR_YELLOW, 0.2f, &dLerps[at].value);
-                            if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
-                                startGameAgain(at);
-                                updateSaveStateDetails(info->saveStateDetails, arrayCount(info->saveStateDetails));
+                        if(!deleteConfirmation) {
+                            if(inBounds(mouseP_settings, deleteBounds, BOUNDS_RECT)) {
+                                setLerpInfoV4_s(&dLerps[at], COLOR_YELLOW, 0.2f, &dLerps[at].value);
+                                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                                    deleteConfirmation = true;
+                                }
                             }
+                        } else {
+                            char *confirmText = "Confirm";
+                            Rect2f confrimTextOutputDim = outputText(info->font, 0 , 0, -1, resolution, confirmText, menuMargin, COLOR_BLACK, settingsFontSize, false);                    
+
+                            float yAtForConfirm = 0.2f*resolution.y;
+                            float thrid = resolution.x / 3;
+                            float xForCY = (2*thrid) - (getDim(confrimTextOutputDim).x/2);
+
+                            char *cancelText = "Cancel";
+                            Rect2f cancelTextOutputDim = outputText(info->font, 0 , 0, -1, resolution, cancelText, menuMargin, COLOR_BLACK, settingsFontSize, false);                    
+
+                            float xForCN = (1*thrid) - (getDim(cancelTextOutputDim).x/2);
+
+
+                            Rect2f confirmBounds = outputText(info->font, xForCY, yAtForConfirm, -1, resolution, confirmText, menuMargin, COLOR_WHITE, settingsFontSize, false);                        
+                            Rect2f cancelBounds = outputText(info->font, xForCN, yAtForConfirm, -1, resolution, cancelText, menuMargin, COLOR_WHITE, settingsFontSize, false);                        
+
+                            static LerpV4 confirmLerp = initLerpV4(COLOR_BLACK);
+                            static LerpV4 cancelLerp = initLerpV4(COLOR_BLACK);
+
+                            if(!updateLerpV4(&confirmLerp, dt, LINEAR)) {
+                                if(!easyLerp_isAtDefault(&confirmLerp)) {
+                                    setLerpInfoV4_s(&confirmLerp, confirmLerp.defaultVal, 0.01, &confirmLerp.value);
+                                }
+                            }
+
+                            V4 confirmColor = confirmLerp.value;
+                            if(inBounds(mouseP_settings, confirmBounds, BOUNDS_RECT)) {
+                                setLerpInfoV4_s(&confirmLerp, COLOR_YELLOW, 0.2f, &confirmLerp.value);
+                                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                                    startGameAgain(at);
+                                    updateSaveStateDetails(info->saveStateDetails, arrayCount(info->saveStateDetails));
+                                }
+                            }
+
+
+                            if(!updateLerpV4(&cancelLerp, dt, LINEAR)) {
+                                if(!easyLerp_isAtDefault(&cancelLerp)) {
+                                    setLerpInfoV4_s(&cancelLerp, cancelLerp.defaultVal, 0.01, &cancelLerp.value);
+                                }
+                            }
+
+                            V4 cancelColor = cancelLerp.value;
+                            if(inBounds(mouseP_settings, cancelBounds, BOUNDS_RECT)) {
+                                setLerpInfoV4_s(&cancelLerp, COLOR_YELLOW, 0.2f, &cancelLerp.value);
+                                if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                                    deleteConfirmation = false;
+                                }
+                            }
+
+                            outputText(info->font, xForCY, yAtForConfirm, -1, resolution, confirmText, menuMargin, confirmColor, settingsFontSize, true);                        
+                            outputText(info->font, xForCN, yAtForConfirm, -1, resolution, cancelText, menuMargin, cancelColor, settingsFontSize, true);                        
+                            
                         }
-                        outputText(info->font, xFor, yFor, -1, resolution, deleteFileTitle, menuMargin, buttonColor, settingsFontSize, true);                        
+
+
+                        outputText(info->font, xFor, yFor, -1, resolution, deleteFileTitle, menuMargin, deleteButtonColor, settingsFontSize, true);                        
                     }
 
                     xAt += width;
@@ -479,16 +531,21 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
 
                     }
 
-                    V4 uiColor = eLerp.value;
-                    if(inBounds(mouseP_settings, outputDim2, BOUNDS_RECT)) {
-                        setLerpInfoV4_s(&eLerp, UI_BUTTON_COLOR, 0.2f, &eLerp.value);
-                        if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
-                            changeMenuState(info, OVERWORLD_MODE);
+                    V4 backUIColor = eLerp.value;
+
+                    if(!deleteConfirmation) {
+                        
+                        if(inBounds(mouseP_settings, outputDim2, BOUNDS_RECT)) {
+                            setLerpInfoV4_s(&eLerp, UI_BUTTON_COLOR, 0.2f, &eLerp.value);
+                            if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                                changeMenuState(info, OVERWORLD_MODE);
+                                deleteConfirmation = false;
+                            }
                         }
                     }
 
                     // renderDrawRectOutlineCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm));            
-                    renderTextureCentreDim(info->backTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4TopLeftToBottomLeft(resolution.y), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), renderInfo.pvm); 
+                    renderTextureCentreDim(info->backTex, renderInfo.pos, renderInfo.dim.xy, backUIColor, 0, mat4TopLeftToBottomLeft(resolution.y), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), renderInfo.pvm); 
                 }   
             }
 
@@ -613,6 +670,14 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             // }
         } break;
         case PLAY_MODE: {
+            isPlayMode = true;
+            setSoundType(AUDIO_FLAG_MAIN);
+        } break;
+        case EDITOR_MODE: {
+            isPlayMode = true;
+            setSoundType(AUDIO_FLAG_MAIN);
+        } break;
+        case EDITOR_OVERVIEW_MODE: {
             isPlayMode = true;
             setSoundType(AUDIO_FLAG_MAIN);
         } break;

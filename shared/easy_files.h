@@ -230,6 +230,7 @@ size_t platformFileSize(char *FileName)
 }
 
 bool platformDoesFileExist(char *FileName) {
+    assert(FileName);
     SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r");
         
     bool result = false;    
@@ -237,8 +238,6 @@ bool platformDoesFileExist(char *FileName) {
         SDL_RWclose(FileHandle);
         result = true; 
     }
-
-    
 
     return result;
 }

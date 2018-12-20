@@ -19,16 +19,18 @@
 	-> more to explore: 
 	    1. choosing which bombs to blow up based on health bar 
 	    2. joining up the shape when there is a hole
-	    3. two shapes really far apart, ahve to manage them in conjunction
-	    4. mirror shapes. 
+	    3. explore ledges more
+	    5. do more with windmill shapes, just like a fast pace action game
+	    4. two shapes really far apart, have to manage them in conjunction
+	    5. mirror levels 
 
-	-> fix font bug for writing the levels
-	-> have settings for full screen 
-	-> delete save file to renew game
-
+	-> fix font bug for writing the levels - maybe make a font atlas - y is sometimes missing
+	-> fix malloc bug 
+	-> have 'Unity' settings box at start of game for full screen 
 	
 	-> freestyle arena 
 	-> make sure you can beat all the levels. 
+	-> level editor for people
 
 	-> itch.io webpage  (~1 day work) -> just itch.io
 

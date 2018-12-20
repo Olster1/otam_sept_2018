@@ -1,53 +1,46 @@
 //just moving blocks with bombs (shuffling)
 //this is about the top being blocked when you come in. so You have to time your landing to coincide. 
 LevelData: {
-	name: "Single Block";
-	backgroundImage: "yellow_desert.png";
-	groupId: 10;
-	shapeSize: 2;
-	shapeSize2: 2;
-	startOffset: 1;
-	startOffset2: 4;
-	//shapeSize: 5;
-	//startOffset: 1;
+	name: "You are in charge!";
+	groupId: 8;
+	shapeSize: 4;
+	startOffset: 0;
 	lifePoints: 1;
 }
 Windmill: {
 	id: 1;
-	growDir: -1 0;
-	isBomb: true;
-
-	growTimerPeriod: 1.0;
-	beginTimerPeriod: 0.0;
-
-	timeAffected: true;
-
-	perpSize: 0;
-	max: 2;
-}
-Windmill: {
-	id: 2;
 	growDir: 1 0;
 	isBomb: true;
 
 	growTimerPeriod: 1.0;
 	beginTimerPeriod: 0.0;
 
-	timeAffected: true;
+	timeAffected: false;
 
 	perpSize: 0;
-	max: 2;
+	max: 1;
+}
+
+Windmill: {
+	id: 2;
+	growDir: 1 0;
+	isBomb: true;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 1.0;
+
+	timeAffected: false;
+
+	perpSize: 0;
+	max: 1;
 }
 
 Board: {
-	00000000
-	00000000
-	a0000000
-	00000000
-	00000000/
-	00000000
-	00000000
-	!!!!!!!!
-	
+	0000
+	1122
+	1122
+	1122
+	1122
+	0000/
 	
 }

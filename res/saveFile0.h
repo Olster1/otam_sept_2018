@@ -24,7 +24,7 @@ levelState: "LEVEL_STATE_COMPLETED";
 }
 {
 levelType: "LEVEL_6";
-levelState: "LEVEL_STATE_UNLOCKED";
+levelState: "LEVEL_STATE_COMPLETED";
 }
 {
 levelType: "LEVEL_7";
@@ -36,7 +36,7 @@ levelState: "LEVEL_STATE_COMPLETED";
 }
 {
 levelType: "LEVEL_9";
-levelState: "LEVEL_STATE_UNLOCKED";
+levelState: "LEVEL_STATE_COMPLETED";
 }
 {
 levelType: "LEVEL_10";
@@ -52,7 +52,7 @@ levelState: "LEVEL_STATE_COMPLETED";
 }
 {
 levelType: "LEVEL_13";
-levelState: "LEVEL_STATE_UNLOCKED";
+levelState: "LEVEL_STATE_COMPLETED";
 }
 {
 levelType: "LEVEL_14";
@@ -132,5 +132,17 @@ levelState: "LEVEL_STATE_COMPLETED";
 }
 {
 levelType: "LEVEL_33";
+levelState: "LEVEL_STATE_COMPLETED";
+}
+{
+levelType: "LEVEL_34";
+levelState: "LEVEL_STATE_UNLOCKED";
+}
+{
+levelType: "LEVEL_35";
+levelState: "LEVEL_STATE_COMPLETED";
+}
+{
+levelType: "LEVEL_36";
 levelState: "LEVEL_STATE_COMPLETED";
 }

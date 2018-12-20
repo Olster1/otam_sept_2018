@@ -16,7 +16,7 @@ Windmill: {
 	timeAffected: true;
 
 	perpSize: 0;
-	max: 3;
+	max: 1;
 }
 // Windmill: {
 // 	id: 2;
@@ -35,7 +35,8 @@ Board: {
 	00000
 	00000
 	0000
-	1000
+	10001
 	0000/
-	00!!!
+	00000
+	!!!!!
 }

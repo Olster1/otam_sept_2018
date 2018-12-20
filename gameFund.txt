@@ -1,0 +1,23 @@
+I learnt to program from Casey Muratori's Handmade Hero series, and had been following Jon Blow's talks before this, and really like the idea of games being a medium which expand people's mind, like a good novel or movie. In this game I tried my hand at designing such a game.
+
+I plan to make the game available for windows/mac/linux and android/apple touch devices.
+
+The team is just myself, Oliver, doing the programming and game design. The artwork and sound effects are in the public domain, and the current music is by my brother. 
+
+The game is programmed in C using SDL & OpenGL. 
+
+I will do most of the programming, but i may need to hire someone to (but possible won't):
+- help optimise the game, and solve any bugs I can't work out
+- help port it to android & apple touch devices.
+
+This will probably be someone from the Handmade Network forums.  
+
+I'm asking for $5000 to have more time to explore the levels, and make the game the best it possibly can be. I probably won't be changing it significantly from the way it is. Only adding more game mechanics if needed & a level editor for users. 
+
+The money will go towards general living expenses (food, accomidation while I work on the game) & as well as approx. $500 - $1000 for another programmer to consult.  
+
+I plan the game will ship around March next year on Steam, itch.io and the apple store & google play stores.
+
+If you think the game has merit, I would also love any advice & guidance on what I could do to make the game better, more enjoyable. etc. 
+
+I would love to be able to make & design games for a living and go on to create more creative and interesting games in the future. 
