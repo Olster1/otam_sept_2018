@@ -1,7 +1,7 @@
 //just moving blocks with bombs (shuffling)
 //this is about the top being blocked when you come in. so You have to time your landing to coincide. 
 LevelData: {
-	name: "Who's the fairest of them all";
+	name: "Rush Hour";
 	groupId: 9;
 	shapeSize: 4;
 	shapeSize2: 4;

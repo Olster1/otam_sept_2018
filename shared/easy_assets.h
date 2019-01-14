@@ -19,7 +19,7 @@ typedef struct Asset {
 	Asset *next;
 } Asset;
 
-static Asset *assets[4096] = {};
+static Asset **assets = 0;
 
 int getAssetHash(char *at, int maxSize) {
 	int hashKey = 0;
@@ -100,6 +100,7 @@ Asset *addAsset_(char *fileName, void *asset) {
             file = (Asset *)calloc(sizeof(Asset), 1);
             file->file = asset;
             file->name = truncName;
+            file->next = 0;
             *filePtr = file;
             result = file;
             found = true;

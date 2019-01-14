@@ -189,10 +189,12 @@ char *sdlAudiolastFilePortion_(char *at) {
         at++;
     }
     
-    int length = (int)(at - recent);
+    int length = (int)(at - recent) + 1;
     char *result = (char *)calloc(length, 1);
     
     memcpy(result, recent, length);
+    result[length - 1] = '\0';
+    printf("%s\n", result);
     
     return result;
 }

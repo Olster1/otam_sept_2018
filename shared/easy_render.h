@@ -23,6 +23,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+
 #include "easy_shaders.h"
 
 #define PROJECTION_TYPE(FUNC) \
@@ -191,6 +192,10 @@ typedef struct {
     VaoHandle *bufferHandles;
 } RenderItem;
 
+typedef struct {
+    GLuint tbo; // this is attached to the buffer
+    GLuint buffer;
+} BufferStorage;
 
 typedef struct {
     int currentBufferId;
@@ -200,6 +205,9 @@ typedef struct {
     
     int idAt; 
     InfiniteAlloc items; //type: RenderItem
+
+    int lastStorageBufferCount;
+    BufferStorage lastBufferStorage[512];
     
 } RenderGroup;
 
@@ -207,6 +215,7 @@ void initRenderGroup(RenderGroup *group) {
     group->items = initInfinteAlloc(RenderItem);
     group->currentDepthTest = true;
     group->blendFuncType = BLEND_FUNC_STANDARD;
+    group->lastStorageBufferCount = 0;
 }
 
 void setFrameBufferId(RenderGroup *group, int bufferId) {
@@ -226,7 +235,7 @@ void setBlendFuncType(RenderGroup *group, BlendFuncType type) {
     group->blendFuncType = type;
 }
 
-static RenderGroup globalRenderGroup = {};
+static RenderGroup *globalRenderGroup;
 
 void renderSetViewPort(float x0, float y0, float x1, float y1) {
     glViewport(x0, y0, x1, y1);
@@ -354,6 +363,8 @@ void renderCheckError_(int lineNumber, char *fileName) {
             ShaderVal *val = prog->uniforms + i;
             if(cmpStrNull(name, val->name)) {
                 result.handle = val->handle;
+                //printf("%d\n", val->handle);
+                //assert(result.handle > 0);
                 result.valid = true;
                 break;
             }
@@ -563,7 +574,9 @@ V3 transformScreenPToWorldP(V2 inputA, float zPos, V2 resolution, V2 screenDim, 
     return result;
 }
 
-void enableRenderer(int width, int height) {
+void enableRenderer(int width, int height, Arena *arena) {
+
+    globalRenderGroup = pushStruct(arena, RenderGroup);
 #if RENDER_BACKEND == OPENGL_BACKEND
     glViewport(0, 0, width, height);
     renderCheckError();
@@ -834,7 +847,7 @@ FrameBuffer createFrameBufferMultiSample(int width, int height, int flags, int s
 void clearBufferAndBind(u32 bufferHandle, V4 color) {
     glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)bufferHandle); 
     
-    setFrameBufferId(&globalRenderGroup, bufferHandle);
+    setFrameBufferId(globalRenderGroup, bufferHandle);
     
     glClearColor(color.x, color.y, color.z, color.w);
     glStencilFunc(GL_ALWAYS, 1, 0xFF);
@@ -1140,7 +1153,7 @@ void renderDrawRectOutlineCenterDim_(V3 center, V2 dim, V4 color, float rot, Mat
                 0,  0,  1,  0,
                 offset.x, offset.y, 0,  1
             }};
-        pushRenderItem(&globalQuadVaoHandle, &globalRenderGroup, triangleData, arrayCount(triangleData), globalQuadIndicesData, arrayCount(globalQuadIndicesData), &rectangleProgram, SHAPE_RECTANGLE, 0, Mat4Mult(projectionMatrix, Mat4Mult(rotationMat, rotationMat1)), color, center.z);
+        pushRenderItem(&globalQuadVaoHandle, globalRenderGroup, triangleData, arrayCount(triangleData), globalQuadIndicesData, arrayCount(globalQuadIndicesData), &rectangleProgram, SHAPE_RECTANGLE, 0, Mat4Mult(projectionMatrix, Mat4Mult(rotationMat, rotationMat1)), color, center.z);
     }
 }
 
@@ -1172,7 +1185,7 @@ void renderDrawRectCenterDim_(V3 center, V2 dim, V4 *colors, float rot, Matrix4 
     } else {
         int triCount = arrayCount(triangleData);
         int indicesCount = arrayCount(globalQuadIndicesData);
-        pushRenderItem(&globalQuadVaoHandle, &globalRenderGroup, triangleData, triCount, 
+        pushRenderItem(&globalQuadVaoHandle, globalRenderGroup, triangleData, triCount, 
             globalQuadIndicesData, indicesCount, program, type, texture, 
             Mat4Mult(projectionMatrix, Mat4Mult(viewMatrix, rotationMat)), colors[0], center.z);
     }    
@@ -1231,11 +1244,6 @@ RenderItem *getRenderItem(RenderGroup *group, int index) {
     return info;
 }
 
-typedef struct {
-    GLuint tbo; // this is attached to the buffer
-    GLuint buffer;
-} BufferStorage;
-
 BufferStorage createBufferStorage(InfiniteAlloc *array) {
     BufferStorage result = {};
     glGenBuffers(1, &result.tbo);
@@ -1266,9 +1274,6 @@ void deleteBufferStorage(BufferStorage *store) {
     glDeleteBuffers(1, &store->tbo);
     renderCheckError();
 }
-
-static int lastStorageBufferCount = 0;
-static BufferStorage lastBufferStorage[256] = {};
 
 int cmpRenderItemFunc (const void * a, const void * b) {
     RenderItem *itemA = (RenderItem *)a;
@@ -1321,6 +1326,17 @@ void sortItems(RenderGroup *group) {
             index++;
         }
     }
+}
+
+void beginRenderGroupForFrame(RenderGroup *group) {
+    ////Delete the storeage buffers from last frame 
+    //this is the pvm data and color data we send as tables to the GPU for the shader. 
+    for(int i = 0; i < group->lastStorageBufferCount; ++i) {
+        BufferStorage *store = group->lastBufferStorage + i;
+        deleteBufferStorage(store);
+    }
+    group->lastStorageBufferCount = 0;
+    //
 }
 
 void drawRenderGroup(RenderGroup *group) {
@@ -1419,13 +1435,13 @@ void drawRenderGroup(RenderGroup *group) {
         drawVao(info->bufferHandles, (Vertex *)info->triangleData.memory, info->triCount, (unsigned int *)info->indicesData.memory, info->indexCount, info->program, info->type, info->textureHandle, pvmStore.buffer, colorStore.buffer, uvId, info->color, DRAWCALL_INSTANCED, instanceCount);
         drawCallCount++;
         
-        assert(lastStorageBufferCount < arrayCount(lastBufferStorage));
-        lastBufferStorage[lastStorageBufferCount++] = pvmStore;
-        assert(lastStorageBufferCount < arrayCount(lastBufferStorage));
-        lastBufferStorage[lastStorageBufferCount++] = colorStore;
+        assert(group->lastStorageBufferCount < arrayCount(group->lastBufferStorage));
+        group->lastBufferStorage[group->lastStorageBufferCount++] = pvmStore;
+        assert(group->lastStorageBufferCount < arrayCount(group->lastBufferStorage));
+        group->lastBufferStorage[group->lastStorageBufferCount++] = colorStore;
         if(uvs.count > 0) {
-            assert(lastStorageBufferCount < arrayCount(lastBufferStorage));
-            lastBufferStorage[lastStorageBufferCount++] = uvStore;
+            assert(group->lastStorageBufferCount < arrayCount(group->lastBufferStorage));
+            group->lastBufferStorage[group->lastStorageBufferCount++] = uvStore;
         }
         
         releaseInfiniteAlloc(&info->triangleData);

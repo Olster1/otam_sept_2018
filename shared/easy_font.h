@@ -5,6 +5,10 @@ File to enable writing with fonts easy to add to your project. Uses Sean Barret'
 #define STB_TRUETYPE_IMPLEMENTATION 
 #include "stb_truetype.h"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
+
 typedef struct {
     int index;
     V4 color;
@@ -28,9 +32,8 @@ typedef struct {
 } Font;
 
 #define FONT_SIZE 512 //I think this can be any reasonable number, it doesn't affect the size of the font. Maybe the clarity of the glyphs? 
-FontSheet *createFontSheet(Font *font, int firstChar, int endChar)
-{
-    
+FontSheet *createFontSheet(Font *font, int firstChar, int endChar) {
+
     FontSheet *sheet = (FontSheet *)calloc(sizeof(FontSheet), 1);
     sheet->minText = firstChar;
     sheet->maxText = endChar;
@@ -38,30 +41,25 @@ FontSheet *createFontSheet(Font *font, int firstChar, int endChar)
     const int bitmapW = FONT_SIZE;
     const int bitmapH = FONT_SIZE;
     const int numOfPixels = bitmapH*bitmapW;
-    unsigned char temp_bitmap[numOfPixels]; //bakefontbitmap is one byte per pixel. 
+    u8 temp_bitmap[numOfPixels*1]; //bakefontbitmap is one byte per pixel. 
     
     //TODO: use platform file io functions instead. 
-    FILE *fileHandle = fopen(font->fileName, "rb");
-    size_t fileSize = getFileSize(fileHandle);
-    
-    unsigned char *ttf_buffer = (unsigned char *)calloc(fileSize, 1);
-    
-    fread(ttf_buffer, 1, fileSize, fileHandle);
+    FileContents contents = platformReadEntireFile(font->fileName, false);
     
     int numOfChars = endChar - firstChar;
     //TODO: do we want to use an arena for this?
     sheet->cdata = (stbtt_bakedchar *)calloc(numOfChars*sizeof(stbtt_bakedchar), 1);
     //
     
-    stbtt_BakeFontBitmap(ttf_buffer, 0, font->fontHeight, temp_bitmap, bitmapW, bitmapH, firstChar, numOfChars, sheet->cdata);
+    stbtt_BakeFontBitmap(contents.memory, 0, font->fontHeight, (unsigned char *)temp_bitmap, bitmapW, bitmapH, firstChar, numOfChars, sheet->cdata);
     // no guarantee this fits!
     
-    free(ttf_buffer);
+    free(contents.memory);
     // NOTE(Oliver): We expand the the data out from 8 bits per pixel to 32 bits per pixel. It doens't matter that the char data is based on the smaller size since getBakedQuad divides by the width of original, smaller bitmap. 
     
     // TODO(Oliver): can i free this once its sent to the graphics card? 
     unsigned int *bitmapTexture = (unsigned int *)calloc(sizeof(unsigned int)*numOfPixels, 1);
-    unsigned char *src = temp_bitmap;
+    u8 *src = temp_bitmap;
     unsigned int *dest = bitmapTexture;
     for(int y = 0; y < bitmapH; ++y) {
         for(int x = 0; x < bitmapW; ++x) {
@@ -74,9 +72,20 @@ FontSheet *createFontSheet(Font *font, int firstChar, int endChar)
             dest++;
         }
     }
-        sheet->handle = renderLoadTexture(FONT_SIZE, FONT_SIZE, bitmapTexture);
-        assert(sheet->handle);
-        free(bitmapTexture);
+
+#define WRITE_FONT_PNG 1
+#if WRITE_FONT_PNG
+    int bytesPerPixel = 4;
+    int stride_in_bytes = bytesPerPixel*bitmapW;
+    
+    char nameBuf[1028] = {};
+    sprintf(nameBuf, "./fontBitmap%d.png", firstChar);
+    int writeResult = stbi_write_png(concat(globalExeBasePath, nameBuf), bitmapW, bitmapH, 4, bitmapTexture, stride_in_bytes);
+#endif
+    sheet->handle = renderLoadTexture(FONT_SIZE, FONT_SIZE, bitmapTexture);
+    assert(sheet->handle);
+    free(bitmapTexture);
+    
     return sheet;
 }
 
@@ -204,13 +213,13 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, c
                 assert(quadCount < arrayCount(qs));
                 GlyphInfo *glyph = qs + quadCount++; 
                 glyph->textureHandle = sheet->handle;
-                if(unicodePoint == 'y') {
-                    Texture tempTex = {};
-                    tempTex.id = glyph->textureHandle;
-                    tempTex.uvCoords = rect2f(q.s0, q.t1, q.s1, q.t0);
+                // if(unicodePoint == 'y') {
+                //     Texture tempTex = {};
+                //     tempTex.id = glyph->textureHandle;
+                //     tempTex.uvCoords = rect2f(q.s0, q.t1, q.s1, q.t0);
 
-                    renderTextureCentreDim(&tempTex, v2ToV3(v2(100, 100), zAt), v2(100, 100), COLOR_BLACK, 0, mat4TopLeftToBottomLeft(resolution.y), mat4(), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y));            
-                }
+                //     renderTextureCentreDim(&tempTex, v2ToV3(v2(100, 100), zAt), v2(100, 100), COLOR_BLACK, 0, mat4TopLeftToBottomLeft(resolution.y), mat4(), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y));            
+                // }
                 // printf("sheet handles: %d ", sheet->handle);
                 glyph->q = q;
                 glyph->index = (int)(text - text_);

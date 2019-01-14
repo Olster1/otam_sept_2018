@@ -3,6 +3,7 @@ typedef struct  {
     bool valid;
 } LevelCountFromFile;
 
+
 #define LEVEL_STATE(FUNC) \
 FUNC(LEVEL_STATE_NULL) \
 FUNC(LEVEL_STATE_COMPLETED) \
@@ -104,6 +105,35 @@ typedef struct LevelData {
 
     LevelData *next; //this is used for the overworld level groups
 } LevelData;
+    
+typedef struct {
+    V2 pos;
+    LevelType type;
+} LevelOverworldButton;
+
+typedef struct {
+    LevelOverworldButton buttons[LEVEL_COUNT];
+} OverworldLevelState;
+
+typedef struct  {
+    LevelType groups[22];
+    int count;    
+} LevelGroup;
+
+static inline V2 getPos(OverworldLevelState *state, LevelGroup *group) {
+    V2 currentAverage = v2(0, 0);
+    for(int i = 0; i < group->count; ++i) {
+        LevelType t = group->groups[i];
+        currentAverage = v2_plus(state->buttons[(int)t].pos, currentAverage);
+    }
+    V2 average = v2_scale(1.0f / group->count, currentAverage);
+    return average;
+}
+
+static inline void addLevelToGroup(LevelGroup *group, LevelType type) {
+    assert(group->count < arrayCount(group->groups));
+    group->groups[group->count++] = type;
+}
 
 static inline LevelCountFromFile findLevelCount(char *readName) {
     LevelCountFromFile counts = {};

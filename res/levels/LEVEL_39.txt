@@ -1,0 +1,21 @@
+//just moving blocks with bombs (shuffling)
+//this is about the top being blocked when you come in. so You have to time your landing to coincide. 
+LevelData: {
+	name: "Transient Nature";
+	groupId: 9;
+	shapeSize: 3;
+	startOffset: 0;
+	lifePoints: 1;
+}
+
+Board: {
+	0000
+	0000
+	0000
+	0000
+	0000
+	0000/
+	000$/
+	!!!!
+	
+}

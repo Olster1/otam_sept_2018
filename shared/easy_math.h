@@ -12,6 +12,14 @@ float roundToHalf(float value) {
     return result;
 }
 
+#ifdef max
+#undef max
+#endif
+
+#ifdef min
+#undef min
+#endif
+
 float max(float a, float b) {
     float result = (a < b) ? b : a;
     return result;

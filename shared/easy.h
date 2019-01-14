@@ -6,6 +6,8 @@
 
 #endif
 
+//#define calloc(size, item) malloc(size)
+
 #if !defined arrayCount
 #define arrayCount(array1) (sizeof(array1) / sizeof(array1[0]))
 #endif 
@@ -14,7 +16,8 @@
 
 #if DEVELOPER_MODE //turn off for crash assert
 #undef assert
-#define assert(statement) if(!(statement)) {printf("Something went wrong at %d in %s\n", __LINE__, __FILE__);  exit(0);}
+// #define assert(statement) if(!(statement)) { int *a = 0; a = 0;}
+#define assert(statement) if(!(statement)) {printf("Something went wrong at %d in %s\n", __LINE__, __FILE__);  ;}
 #define assertStr(statement, str) if(!(statement)) { printf("%s\n", str); } assert(statement); 
 #else
 #define assert(statement) 
@@ -70,7 +73,7 @@ typedef struct {
 
 Arena createArena(size_t size) {
     Arena result = {};
-    result.memory = calloc(size, 1);
+    result.memory = SDL_malloc(size);
     result.currentSize = 0;
     result.totalSize = size;
     return result;
@@ -172,7 +175,8 @@ char *concat(char *a, char *b) {
     {
         *at++ = b[i];
     }
-    
+    assert(at == &newString[newStrLen - 1])
+    assert(newString[newStrLen - 1 ] == '\0');
     return newString;
 }
 
@@ -319,6 +323,7 @@ char *lastFilePortion(char *at) {
     char *result = (char *)calloc(length, 1);
     
     memcpy(result, recent, length);
+    assert(result[length - 1] == '\0');
     
     return result;
 }

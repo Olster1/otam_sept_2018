@@ -25,7 +25,7 @@ OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim) {
 #else 
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
 #endif
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -100,7 +100,7 @@ typedef struct {
 	SDL_AudioSpec audioSpec;
 } AppSetupInfo;
 
-AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder) {
+AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder, Arena *memArena) {
 	AppSetupInfo result = {};
 
 	V2 idealResolution = v2(1280, 720); // Not sure if this is the best place for this?? Have to see. 
@@ -133,7 +133,7 @@ AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder) {
     //////////
 
     ////SETUP OPEN GL//
-    enableRenderer(resolution.x, resolution.y);
+    enableRenderer(resolution.x, resolution.y, memArena);
     renderCheckError();
     //////
 
@@ -162,15 +162,6 @@ void easyOS_endProgram(OSAppInfo *appInfo) {
 
 void easyOS_beginFrame(V2 resolution) {
 	glViewport(0, 0, resolution.x, resolution.y);
-
-	////Delete the storeage buffers from last frame 
-	//this is the pvm data and color data we send as tables to the GPU for the shader. 
-	for(int i = 0; i < lastStorageBufferCount; ++i) {
-	    BufferStorage *store = lastBufferStorage + i;
-	    deleteBufferStorage(store);
-	}
-	lastStorageBufferCount = 0;
-	//
 }
 
 void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *windowHandle, unsigned int compositedFrameBufferId, unsigned int backBufferId, unsigned int renderbufferId, unsigned int *lastTime, float monitorFrameTime) {

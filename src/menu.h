@@ -131,9 +131,9 @@ void setMenuOption(MenuOptions *menuOptions, char *title, bool clickable, float 
 void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info, Lerpf *sizeTimers, float dt, V2 mouseP, bool mouseActive, V2 resolution) {
     
     if(backgroundTex) {
-        renderDisableDepthTest(&globalRenderGroup);
+        renderDisableDepthTest(globalRenderGroup);
         renderTextureCentreDim(backgroundTex, v3(0, 0, -2), v2(resolution.x, resolution.y), COLOR_WHITE, 0, mat4(), OrthoMatrixToScreen(resolution.x, resolution.y), mat4());
-        renderEnableDepthTest(&globalRenderGroup);
+        renderEnableDepthTest(globalRenderGroup);
     }
 
     float yIncrement = resolution.y / (menuOptions->count + 1);

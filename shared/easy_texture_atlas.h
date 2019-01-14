@@ -4,9 +4,6 @@ of the image. It requires stb_image_write also easy_text_io, eas_lex & easy_arra
 and stretchy buffer respectively
 */
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-
 typedef struct {
 	char *shortName;
 	
@@ -168,7 +165,7 @@ static inline bool easyAtlas_allElmsBeenAdded(InfiniteAlloc *atlasElms) {
 	return result;
 }
 
-static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, InfiniteAlloc *atlasElms) {
+static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, InfiniteAlloc *atlasElms, bool outputImageFile, char *name) {
 
 	MemoryArenaMark tempMark = takeMemoryMark(memoryArena);
 	
@@ -191,8 +188,8 @@ static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, Inf
 
 		V2 bufferDim = v2(size, size);
 		FrameBuffer atlasBuffer = createFrameBuffer(bufferDim.x, bufferDim.y, 0);
-		initRenderGroup(&globalRenderGroup);
-		setFrameBufferId(&globalRenderGroup, atlasBuffer.bufferId);
+		initRenderGroup(globalRenderGroup);
+		setFrameBufferId(globalRenderGroup, atlasBuffer.bufferId);
 		clearBufferAndBind(atlasBuffer.bufferId, COLOR_NULL);
 
 		//draw all the rects into the frame buffer
@@ -249,13 +246,13 @@ static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, Inf
 		}
 
 		renderSetViewPort(0, 0, bufferDim.x, bufferDim.y);
-		drawRenderGroup(&globalRenderGroup);
+		drawRenderGroup(globalRenderGroup);
 
 		glFlush();
 		printf("%s\n", "successfullly rendered group");
 
 		char buffer[512] = {};
-		sprintf(buffer, "%stextureAtlas_%d.txt", folderName, loopCount);
+		sprintf(buffer, "%s%s_%d.txt", folderName, name, loopCount);
 		printf("%s\n", buffer);
 		game_file_handle fileHandle = platformBeginFileWrite(buffer);
 
@@ -265,29 +262,31 @@ static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, Inf
 
 		printf("%s\n", "wrote file");
 
+		if(outputImageFile) {
 
-		char buffer1[512] = {};
-		sprintf(buffer1, "%stextureAtlas_%d.png", folderName, loopCount);
-		
-		size_t bytesPerPixel = 4;
-		size_t sizeToAlloc = bufferDim.x*bufferDim.y*bytesPerPixel;
-		int stride_in_bytes = bytesPerPixel*bufferDim.x;
-		
-		u8 *pixelBuffer = (u8 *)calloc(sizeToAlloc, 1);
-		
-		renderReadPixels(atlasBuffer.bufferId, 0, 0,
-		             bufferDim.x,
-		             bufferDim.y,
-		             GL_RGBA,
-		             GL_UNSIGNED_BYTE,
-		             pixelBuffer);
+			char buffer1[512] = {};
+			sprintf(buffer1, "%s%s_%d.png", folderName, name, loopCount);
+			
+			size_t bytesPerPixel = 4;
+			size_t sizeToAlloc = bufferDim.x*bufferDim.y*bytesPerPixel;
+			int stride_in_bytes = bytesPerPixel*bufferDim.x;
+			
+			u8 *pixelBuffer = (u8 *)calloc(sizeToAlloc, 1);
+			
+			renderReadPixels(atlasBuffer.bufferId, 0, 0,
+			             bufferDim.x,
+			             bufferDim.y,
+			             GL_RGBA,
+			             GL_UNSIGNED_BYTE,
+			             pixelBuffer);
 
-		
-		int writeResult = stbi_write_png(buffer1, bufferDim.x, bufferDim.y, 4, pixelBuffer, stride_in_bytes);
+			
+			int writeResult = stbi_write_png(buffer1, bufferDim.x, bufferDim.y, 4, pixelBuffer, stride_in_bytes);
 
-		printf("%s\n", "wrote image");
-		free(pixelBuffer);
-		deleteFrameBuffer(&atlasBuffer);
+			printf("%s\n", "wrote image");
+			free(pixelBuffer);
+			deleteFrameBuffer(&atlasBuffer);
+		} 
 	}
 
 	releaseMemoryMark(&tempMark);
@@ -299,7 +298,7 @@ static inline void easyAtlas_loadTextureAtlas(char *fileName) {
 
 	char buffer1[512] = {};
 	sprintf(buffer1, "%s.png", fileName);
-
+	
 	Texture atlasTex = loadImage(buffer1);
 
 	FileContents contentsText = getFileContentsNullTerminate(buffer0);
@@ -391,7 +390,7 @@ static inline void easyAtlas_createTextureAtlas(char *folderName, char *ouputFol
 	easyAtlas_sortBySize(&atlasElms);
 	stbi_flip_vertically_on_write(true);//flip bytes vertically
 
-	easyAtlas_drawAtlas(ouputFolderName, memoryArena, &atlasElms);
+	easyAtlas_drawAtlas(ouputFolderName, memoryArena, &atlasElms, true, "textureAtlas");
 
 	releaseInfiniteAlloc(&atlasElms);
 

@@ -193,6 +193,8 @@ typedef struct {
 
     TransitionState transitionState;
 
+    AppKeyStates overworldKeyStates;
+
     Timer levelNameTimer;
 
     int startOffsets[3];
@@ -437,6 +439,8 @@ static inline void parseOverworldBoard(char *at, int *values, V2 dim) {
                 at = lexEatWhiteSpace(at);
             } break;
             default: {
+                assert(xAt < dim.x);
+                assert(yAt < dim.y);
                 if(*at != '-') {
                     values[yAt*(int)dim.x + xAt] = 1;
                 } else {
@@ -444,6 +448,7 @@ static inline void parseOverworldBoard(char *at, int *values, V2 dim) {
                 }
 
                 xAt++;
+                
                 at++;
             }
         }
@@ -462,10 +467,12 @@ static inline int loadLevelData(FrameParams *params) {
     int totalLevelCount = 0;
 
     for(int i = 1; i < LEVEL_COUNT; ++i) {
+        assert(i < arrayCount(LevelTypeStrings));
         char *a = concat(LevelTypeStrings[i], ".txt");
         char *b = concat("levels/", a);
         char *c = concat(globalExeBasePath, b);
         bool isFileValid = platformDoesFileExist(c);
+        assert(i < arrayCount(params->levelsData));
         params->levelsData[i].valid = isFileValid;
 
         if(isFileValid) {
@@ -496,7 +503,7 @@ static inline int loadLevelData(FrameParams *params) {
             // particleSet.pressureAffected = false;
 
             InitParticleSystem(&levelData->particleSystem, &particleSet);
-            // params.overworldParticleSys.MaxParticleCount = 4;
+            // params->overworldParticleSys.MaxParticleCount = 4;
             levelData->particleSystem.viewType = ORTHO_MATRIX;
             setParticleLifeSpan(&levelData->particleSystem, 20.0f);
             // Reactivate(&levelData->particleSystem);
@@ -597,11 +604,14 @@ static inline int loadLevelData(FrameParams *params) {
             levelIndexAt = groupNum + 1;
 
             if(levelIndexAt < 10) {
+                assert(levelData->glyphCount < arrayCount(levelData->glyphs));
                 levelData->glyphs[levelData->glyphCount++] = easyFont_getGlyph(params->numberFont, (u32)(levelIndexAt + 48));
             } else if(levelIndexAt < 100) {
                 int firstUnicode = (levelIndexAt / 10) + 48;
                 int secondUnicode = (levelIndexAt % 10) + 48;
+                assert(levelData->glyphCount < arrayCount(levelData->glyphs));
                 levelData->glyphs[levelData->glyphCount++] = easyFont_getGlyph(params->numberFont, (u32)firstUnicode);
+                assert(levelData->glyphCount < arrayCount(levelData->glyphs));
                 levelData->glyphs[levelData->glyphCount++] = easyFont_getGlyph(params->numberFont, (u32)secondUnicode);
             } else {
                 assert(!"invalid case");
@@ -612,7 +622,7 @@ static inline int loadLevelData(FrameParams *params) {
 
 }
 
-void loadLevelNames(FrameParams *params) {
+void loadLevelNames_DEPRECATED(FrameParams *params) {
     char *c = concat(globalExeBasePath, "levels/level_names.txt");
     FileContents contents = getFileContentsNullTerminate(c);
     
@@ -626,6 +636,7 @@ void loadLevelNames(FrameParams *params) {
     bool parsing = true;
 
     for(int i = 1; i < LEVEL_COUNT; ++i) {
+        assert(i < arrayCount(params->levelsData));
         params->levelsData[i].name = "Name Not Set!";
     }
 
@@ -638,8 +649,10 @@ void loadLevelNames(FrameParams *params) {
             } break;
             case TOKEN_INTEGER: {
                 char charBuffer[256] = {};
+                assert(arrayCount(charBuffer) > token.size);
                 nullTerminateBuffer(charBuffer, token.at, token.size);
                 int indexAt = atoi(charBuffer);
+                assert(indexAt + 1 < arrayCount(params->levelsData));
                 namePtr = &params->levelsData[indexAt + 1].name;
             } break;
             case TOKEN_STRING: {
@@ -689,6 +702,7 @@ static inline void addGlowingLine(FrameParams *params, int yAt, GlowingLineType 
 
 void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
 
+    assert(levelTypeIn < arrayCount(params->levelsData));
     FileContents contents = params->levelsData[levelTypeIn].contents;
     
     assert(contents.memory);
@@ -739,6 +753,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                 }
                 if(stringsMatchNullN("Windmill", token.at, token.size)) {
                     currentType = EXTRA_SHAPE_PROPERTIES;
+                    assert(extraShapeCount < arrayCount(extraShapes));
                     shape = initExtraShape(&extraShapes[extraShapeCount++]);
                     isLevelData = false;
                 }
@@ -890,6 +905,12 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
             } break;
             case '}': {
                 parsing = false;
+            } break;
+            case '$': {
+                setBoardState(params, v2(xAt, yAt), BOARD_STATIC, BOARD_VAL_OLD);    
+                at++;
+                xAt++;
+                justNewLine = false;
             } break;
             case '0': {
                 xAt++;
@@ -2269,13 +2290,15 @@ void gameUpdateAndRender(void *params_) {
     easyOS_processKeyStates(params->keyStates, resolution, params->screenDim, params->menuInfo.running);
     //make this platform independent
     easyOS_beginFrame(resolution);
+
+    beginRenderGroupForFrame(globalRenderGroup);
     //////CLEAR BUFFERS
     // 
     clearBufferAndBind(params->backbufferId, COLOR_BLACK);
     clearBufferAndBind(params->mainFrameBuffer.bufferId, COLOR_PINK);
     // initRenderGroup(&globalRenderGroup);
-    renderEnableDepthTest(&globalRenderGroup);
-    setBlendFuncType(&globalRenderGroup, BLEND_FUNC_STANDARD);
+    renderEnableDepthTest(globalRenderGroup);
+    setBlendFuncType(globalRenderGroup, BLEND_FUNC_STANDARD);
 
     if(params->menuInfo.gameMode != OVERWORLD_MODE) {
         renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -5), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
@@ -2409,6 +2432,7 @@ void gameUpdateAndRender(void *params_) {
                     {
                         setLevelTransition(params, params->currentLevelType);
                     } else {
+                        
                     }
                 }
 
@@ -2677,29 +2701,41 @@ void gameUpdateAndRender(void *params_) {
         float ySpace = 1.0f;
         float xSpace = ySpace;
 
-        if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
-            params->lastMouseP = mouseP;
+        //this is a fixed update loop since we are using a static drag coefficient
+        float updateTForMouse = params->dt;
+        float updatePerLoop = 1 / 480.0f;
+        
+        while(updateTForMouse > 0.0f) {
+            easyOS_processKeyStates(&params->overworldKeyStates, resolution, params->screenDim, params->menuInfo.running);
+            V2 overworldMouseP = params->overworldKeyStates.mouseP;
+            if(wasPressed(params->overworldKeyStates.gameButtons, BUTTON_LEFT_MOUSE)) {
+                params->lastMouseP = overworldMouseP;
+            }
+
+            V3 accel = v3(0, 0, 0);
+            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_LEFT_MOUSE)) {
+                V2 diffVec = v2_minus(overworldMouseP, params->lastMouseP);
+                diffVec = normalizeV2(diffVec);
+                accel.xy = v2_scale(1600.0f, diffVec);
+                // error_printFloat2("diff: ", accel.xy.E);
+                accel.x *= -1; //inverse the pull direction. Since y is down for mouseP, y is already flipped 
+            }
+
+            params->camVel = v3_plus(v3_scale(updatePerLoop, accel), params->camVel);
+            params->camVel = v3_minus(params->camVel, v3_scale(0.3f, params->camVel));
+            params->overworldCamera = v3_plus(v3_scale(updatePerLoop, params->camVel), params->overworldCamera);
+
+            //params->lastMouseP = overworldMouseP;
+            updateTForMouse -= updatePerLoop;
+            if(updateTForMouse < updatePerLoop) {
+                updatePerLoop = updateTForMouse;
+            }
         }
 
-        V3 accel = v3(0, 0, 0);
-        if(isDown(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
-            V2 diffVec = v2_minus(mouseP, params->lastMouseP);
-            diffVec = normalizeV2(diffVec);
-            accel.xy = v2_scale(600.0f, diffVec);
-            // error_printFloat2("diff: ", accel.xy.E);
-            accel.x *= -1; //inverse the pull direction. Since y is down for mouseP, y is already flipped 
-        }
-
-        params->camVel = v3_plus(v3_scale(params->dt, accel), params->camVel);
-        params->camVel = v3_minus(params->camVel, v3_scale(0.6f, params->camVel));
-        params->overworldCamera = v3_plus(v3_scale(params->dt, params->camVel), params->overworldCamera);
-
-        params->lastMouseP = mouseP;
-
-        float factor = 10.0f;
+        // float factor = 10.0f;
         V3 overworldCam = params->overworldCamera;
-        overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
-        overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
+        // overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
+        // overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
 
         char *at = (char *)params->overworldLayout.memory;
 
@@ -2807,7 +2843,7 @@ void gameUpdateAndRender(void *params_) {
                                 //Update Level icon
                                 
                                 // levelAt->angle += params->dt*levelAt->dA;
-                                    levelAt->angle = lerp(0, timeInfo.canonicalVal, 4*PI32);
+                                levelAt->angle = lerp(0, timeInfo.canonicalVal, 4*PI32);
                                 
                                 drawAndUpdateParticleSystem(&levelAt->particleSystem, params->dt, v3(xSpace*xAt, ySpace*yAt, -1), v3(0, 0 ,0), overworldCam, params->metresToPixels, resolution);
                                 
@@ -2902,7 +2938,7 @@ void gameUpdateAndRender(void *params_) {
     }
 
     // outputText(params->font, 0, 400, -1, resolution, "hey˙  हिन् दी df ©˙ \n∆˚ ", rect2f(0, 0, resolution.x, resolution.y), COLOR_BLACK, 1, true);
-   drawRenderGroup(&globalRenderGroup);
+   drawRenderGroup(globalRenderGroup);
    
    easyOS_endFrame(resolution, screenDim, &params->dt, params->windowHandle, params->mainFrameBuffer.bufferId, params->backbufferId, params->renderbufferId, &params->lastTime, 1.0f / 60.0f);
 }
@@ -2917,9 +2953,12 @@ int main(int argc, char *args[]) {
   assert(appInfo.valid);
         
   if(appInfo.valid) {
-    AppSetupInfo setupInfo = easyOS_setupApp(resolution, RESOURCE_PATH_EXTENSION);
+    Arena soundArena = createArena(Kilobytes(200));
+    Arena longTermArena = createArena(Kilobytes(200));
 
-    
+    AppSetupInfo setupInfo = easyOS_setupApp(resolution, RESOURCE_PATH_EXTENSION, &longTermArena);
+
+    assets = (Asset **)pushSize(&longTermArena, 4096*sizeof(Asset *));
 
     float dt = 1.0f / min((float)setupInfo.refresh_rate, 60.0f); //use monitor refresh rate 
     float idealFrameTime = 1.0f / 60.0f;
@@ -2929,9 +2968,6 @@ int main(int argc, char *args[]) {
     Font mainFont = initFont(fontName, 128);
     Font numberFont = initFont(concat(globalExeBasePath, "/fonts/UbuntuMono-Regular.ttf"), 42);
     ///
-
-    Arena soundArena = createArena(Megabytes(200));
-    Arena longTermArena = createArena(Megabytes(200));
 
 #define CREATE_FONT_ATLAS 0
 #if CREATE_FONT_ATLAS
@@ -2969,7 +3005,7 @@ int main(int argc, char *args[]) {
     }
 #endif
       
-    FrameParams params = {};
+
 
     Texture *stoneTex = findTextureAsset("elementStone023.png");
     Texture *woodTex = findTextureAsset("elementWood022.png");
@@ -2988,62 +3024,68 @@ int main(int argc, char *args[]) {
     Texture *alienTileTex = findTextureAsset("alienTile.png");
     Texture *mapTex = findTextureAsset("placeholder.png");
     Texture *refreshTex = findTextureAsset("reload.png");
-    params.muteTex = findTextureAsset("mute.png");
-    params.speakerTex = findTextureAsset("speaker.png");
-    params.loadTex = findTextureAsset("save.png");
-    params.errorTex = findTextureAsset("error.png");
+
+    FrameParams *params = (FrameParams *)calloc(sizeof(FrameParams), 1);
+    memset(params, 0, sizeof(FrameParams));
+    assert(params->levelGroups[0] == 0);
+    assert(params);
+
+    params->muteTex = findTextureAsset("mute.png");
+    params->speakerTex = findTextureAsset("speaker.png");
+    params->loadTex = findTextureAsset("save.png");
+    params->errorTex = findTextureAsset("error.png");
 
 
-    params.solidfyShapeSound = findSoundAsset("thud.wav");
-    params.successSound = findSoundAsset("Success2.wav");
-    params.explosiveSound = findSoundAsset("explosion.wav");
-    params.showLevelsSound = findSoundAsset("showLevels.wav");
-    initArray(&params.particleSystems, particle_system);
+    params->solidfyShapeSound = findSoundAsset("thud.wav");
+    params->successSound = findSoundAsset("Success2.wav");
+    params->explosiveSound = findSoundAsset("explosion.wav");
+    params->showLevelsSound = findSoundAsset("showLevels.wav");
+    initArray(&params->particleSystems, particle_system);
 
-    params.lastShownGroup = -1;
+    params->lastShownGroup = -1;
     
 
-    params.alienTex[0] = findTextureAsset("alienGreen.png");
-    params.alienTex[1] = findTextureAsset("alienYellow.png");
-    params.alienTex[2] = findTextureAsset("alienBlue.png");
-    params.alienTex[3] = findTextureAsset("alienPink.png");
-    params.alienTex[4] = findTextureAsset("alienBeige.png");
+    params->alienTex[0] = findTextureAsset("alienGreen.png");
+    params->alienTex[1] = findTextureAsset("alienYellow.png");
+    params->alienTex[2] = findTextureAsset("alienBlue.png");
+    params->alienTex[3] = findTextureAsset("alienPink.png");
+    params->alienTex[4] = findTextureAsset("alienBeige.png");
 
-    params.tilesTex[0] = findTextureAsset("tileTopLeft.png");
-    params.tilesTex[1] = findTextureAsset("tileTopMiddle.png");
-    params.tilesTex[2] = findTextureAsset("tileTopRight.png");
+    params->tilesTex[0] = findTextureAsset("tileTopLeft.png");
+    params->tilesTex[1] = findTextureAsset("tileTopMiddle.png");
+    params->tilesTex[2] = findTextureAsset("tileTopRight.png");
 
-    params.tilesTex[3] = findTextureAsset("tileMiddleLeft.png");
-    params.tilesTex[4] = findTextureAsset("tileMiddleMiddle.png");
-    params.tilesTex[5] = findTextureAsset("tileMiddleRight.png");
+    params->tilesTex[3] = findTextureAsset("tileMiddleLeft.png");
+    params->tilesTex[4] = findTextureAsset("tileMiddleMiddle.png");
+    params->tilesTex[5] = findTextureAsset("tileMiddleRight.png");
 
-    params.tilesTex[6] = findTextureAsset("tileBottomLeft.png");
-    params.tilesTex[7] = findTextureAsset("tileBottomMiddle.png");
-    params.tilesTex[8] = findTextureAsset("tileBottomRight.png");
+    params->tilesTex[6] = findTextureAsset("tileBottomLeft.png");
+    params->tilesTex[7] = findTextureAsset("tileBottomMiddle.png");
+    params->tilesTex[8] = findTextureAsset("tileBottomRight.png");
 
-    params.tilesTex[9] = findTextureAsset("tileCenterTopLeft.png");
-    params.tilesTex[10] = findTextureAsset("tileCenterTopRight.png");
-    params.tilesTex[11] = findTextureAsset("tileCenterLeftBottom.png");
-    params.tilesTex[12] = findTextureAsset("tileCenterRightBottom.png");
+    params->tilesTex[9] = findTextureAsset("tileCenterTopLeft.png");
+    params->tilesTex[10] = findTextureAsset("tileCenterTopRight.png");
+    params->tilesTex[11] = findTextureAsset("tileCenterLeftBottom.png");
+    params->tilesTex[12] = findTextureAsset("tileCenterRightBottom.png");
 
-    params.tilesTexSand[0] = findTextureAsset("tileTopLeftSand.png");
-    params.tilesTexSand[1] = findTextureAsset("tileTopMiddleSand.png");
-    params.tilesTexSand[2] = findTextureAsset("tileTopRightSand.png");
+    params->tilesTexSand[0] = findTextureAsset("tileTopLeftSand.png");
+    params->tilesTexSand[1] = findTextureAsset("tileTopMiddleSand.png");
+    params->tilesTexSand[2] = findTextureAsset("tileTopRightSand.png");
 
-    params.tilesTexSand[3] = findTextureAsset("tileMiddleLeftSand.png");
-    params.tilesTexSand[4] = findTextureAsset("tileMiddleMiddleSand.png");
-    params.tilesTexSand[5] = findTextureAsset("tileMiddleRightSand.png");
+    params->tilesTexSand[3] = findTextureAsset("tileMiddleLeftSand.png");
+    params->tilesTexSand[4] = findTextureAsset("tileMiddleMiddleSand.png");
+    params->tilesTexSand[5] = findTextureAsset("tileMiddleRightSand.png");
 
-    params.tilesTexSand[6] = findTextureAsset("tileBottomLeftSand.png");
-    params.tilesTexSand[7] = findTextureAsset("tileBottomMiddleSand.png");
-    params.tilesTexSand[8] = findTextureAsset("tileBottomRightSand.png");
+    params->tilesTexSand[6] = findTextureAsset("tileBottomLeftSand.png");
+    params->tilesTexSand[7] = findTextureAsset("tileBottomMiddleSand.png");
+    params->tilesTexSand[8] = findTextureAsset("tileBottomRightSand.png");
 
-    params.tilesTexSand[9] = findTextureAsset("tileCenterTopLeftSand.png");
-    params.tilesTexSand[10] = findTextureAsset("tileCenterTopRightSand.png");
-    params.tilesTexSand[11] = findTextureAsset("tileCenterLeftBottomSand.png");
-    params.tilesTexSand[12] = findTextureAsset("tileCenterRightBottomSand.png");
+    params->tilesTexSand[9] = findTextureAsset("tileCenterTopLeftSand.png");
+    params->tilesTexSand[10] = findTextureAsset("tileCenterTopRightSand.png");
+    params->tilesTexSand[11] = findTextureAsset("tileCenterLeftBottomSand.png");
+    params->tilesTexSand[12] = findTextureAsset("tileCenterRightBottomSand.png");
 
-    params.tileLayout = easyTile_initLayouts();
+    params->tileLayout = easyTile_initLayouts();
 
 #if 0 //particle system in background. Was to distracting. 
     particle_system_settings particleSet = InitParticlesSettings(PARTICLE_SYS_DEFAULT);
@@ -3063,22 +3105,22 @@ int main(int argc, char *args[]) {
     particleSet.pressureAffected = false;
 
 
-    InitParticleSystem(&params.overworldParticleSys, &particleSet);
-    params.overworldParticleSys.MaxParticleCount = 4;
-    params.overworldParticleSys.viewType = ORTHO_MATRIX;
-    setParticleLifeSpan(&params.overworldParticleSys, 0.01f);
-    Reactivate(&params.overworldParticleSys);
-    assert(params.overworldParticleSys.Active);
+    InitParticleSystem(&params->overworldParticleSys, &particleSet);
+    params->overworldParticleSys.MaxParticleCount = 4;
+    params->overworldParticleSys.viewType = ORTHO_MATRIX;
+    setParticleLifeSpan(&params->overworldParticleSys, 0.01f);
+    Reactivate(&params->overworldParticleSys);
+    assert(params->overworldParticleSys.Active);
 #endif
 
-    params.moveSound = findSoundAsset("menuSound.wav");
-    params.arrangeSound = findSoundAsset("click2.wav");
+    params->moveSound = findSoundAsset("menuSound.wav");
+    params->arrangeSound = findSoundAsset("click2.wav");
 
-    params.backgroundSound = findSoundAsset("Fitris_Soundtrack.wav");//findSoundAsset("Fitris_Soundtrack.wav");
-    params.backgroundSound2 = findSoundAsset("runaway.wav");//findSoundAsset("Fitris_Soundtrack.wav");
-    params.enterLevelSound = findSoundAsset("click2.wav");
+    params->backgroundSound = findSoundAsset("Fitris_Soundtrack.wav");//findSoundAsset("Fitris_Soundtrack.wav");
+    params->backgroundSound2 = findSoundAsset("runaway.wav");//findSoundAsset("Fitris_Soundtrack.wav");
+    params->enterLevelSound = findSoundAsset("click2.wav");
 
-    params.backgroundSoundPlaying = true;
+    params->backgroundSoundPlaying = true;
 
     PlayingSound *menuSound = playMenuSound(&soundArena, findSoundAsset("wind.wav"), 0, AUDIO_BACKGROUND);
     menuSound->volume = 0.6f;
@@ -3089,26 +3131,26 @@ int main(int argc, char *args[]) {
     
     //
 
-    params.soundArena = &soundArena;
-    params.longTermArena = &longTermArena;
-    params.dt = dt;
-    params.windowHandle = appInfo.windowHandle;
-    params.backbufferId = appInfo.frameBackBufferId;
-    params.renderbufferId = appInfo.renderBackBufferId;
-    params.mainFrameBuffer = createFrameBuffer(resolution.x, resolution.y, FRAMEBUFFER_DEPTH | FRAMEBUFFER_STENCIL);
-    params.resolution = &resolution;
-    params.screenDim = &screenDim;
-    params.metresToPixels = setupInfo.metresToPixels;
-    params.pixelsToMeters = setupInfo.pixelsToMeters;
-    AppKeyStates keyStates = {};
-    params.keyStates = &keyStates;
-    AppKeyStates playStateKeyStates = {};
-    params.playStateKeyStates = &playStateKeyStates;
-    params.font = &mainFont;
-    params.numberFont = &numberFont;
-    params.screenRelativeSize = setupInfo.screenRelativeSize;
+    params->soundArena = &soundArena;
+    params->longTermArena = &longTermArena;
+    params->dt = dt;
+    params->windowHandle = appInfo.windowHandle;
+    params->backbufferId = appInfo.frameBackBufferId;
+    params->renderbufferId = appInfo.renderBackBufferId;
+    params->mainFrameBuffer = createFrameBuffer(resolution.x, resolution.y, FRAMEBUFFER_DEPTH | FRAMEBUFFER_STENCIL);
+    params->resolution = &resolution;
+    params->screenDim = &screenDim;
+    params->metresToPixels = setupInfo.metresToPixels;
+    params->pixelsToMeters = setupInfo.pixelsToMeters;
+    
+    params->keyStates = pushStruct(&longTermArena, AppKeyStates);
+    params->playStateKeyStates = pushStruct(&longTermArena, AppKeyStates);
+    
+    params->font = &mainFont;
+    params->numberFont = &numberFont;
+    params->screenRelativeSize = setupInfo.screenRelativeSize;
 
-    params.bgTex = bgTex;
+    params->bgTex = bgTex;
 
     if(startGameMode == PLAY_MODE) {
         parentChannelVolumes_[AUDIO_FLAG_MENU] = 0;
@@ -3127,72 +3169,72 @@ int main(int argc, char *args[]) {
         setSoundType(AUDIO_FLAG_MENU);
     }
 
-    int totalLevelCount = loadLevelData(&params);
-    initBoard(&params, startLevel);
+    int totalLevelCount = loadLevelData(params);
+    initBoard(params, startLevel);
     
-    char *at = (char *)params.overworldLayout.memory;
+    char *at = (char *)params->overworldLayout.memory;
     assert(at);
-    params.overworldDim = parseGetBoardDim(at);
-    int boardCellSize = params.overworldDim.x*params.overworldDim.y;
-    params.overworldValues = (int *)calloc(boardCellSize*sizeof(int), 1);
-    params.overworldValuesOffset = (V2 *)calloc(boardCellSize*sizeof(V2), 1);
+    params->overworldDim = parseGetBoardDim(at);
+    int boardCellSize = params->overworldDim.x*params->overworldDim.y;
+    params->overworldValues = (int *)calloc(boardCellSize*sizeof(int), 1);
+    params->overworldValuesOffset = (V2 *)calloc(boardCellSize*sizeof(V2), 1);
     for(int i = 0; i < boardCellSize; ++i) {
-        params.overworldValuesOffset[i] = v2(getRandNum01() / 2, getRandNum01() / 2);
+        params->overworldValuesOffset[i] = v2(getRandNum01() / 2, getRandNum01() / 2);
     }
-    parseOverworldBoard(at, params.overworldValues, params.overworldDim);
+    parseOverworldBoard(at, params->overworldValues, params->overworldDim);
     
-    params.moveTimer = initTimer(MOVE_INTERVAL);
-    params.woodTex = woodTex;
-    params.stoneTex = stoneTex;
-    params.metalTex = metalTex;
-    params.explosiveTex = explosiveTex;
-    params.boarderTex = boarderTex;
-    params.heartFullTex = heartFullTex;
-    params.heartEmptyTex = heartEmptyTex;
-    params.starTex = starTex;
-    params.treeTex = treeTex;
-    params.waterTex = waterTex;
-    params.mushroomTex = mushroomTex;
-    params.rockTex = rockTex;
-    params.cactusTex = cactusTex;
-    params.alienTileTex = alienTileTex;
-    params.mapTex = mapTex;
-    params.refreshTex = refreshTex;
+    params->moveTimer = initTimer(MOVE_INTERVAL);
+    params->woodTex = woodTex;
+    params->stoneTex = stoneTex;
+    params->metalTex = metalTex;
+    params->explosiveTex = explosiveTex;
+    params->boarderTex = boarderTex;
+    params->heartFullTex = heartFullTex;
+    params->heartEmptyTex = heartEmptyTex;
+    params->starTex = starTex;
+    params->treeTex = treeTex;
+    params->waterTex = waterTex;
+    params->mushroomTex = mushroomTex;
+    params->rockTex = rockTex;
+    params->cactusTex = cactusTex;
+    params->alienTileTex = alienTileTex;
+    params->mapTex = mapTex;
+    params->refreshTex = refreshTex;
     
-    params.lastTime = SDL_GetTicks();
+    params->lastTime = SDL_GetTicks();
     
-    params.cameraPos = v3(0, 0, 0);
-    params.overworldCamera = v3(8, 2.5f, 0);
+    params->cameraPos = v3(0, 0, 0);
+    params->overworldCamera = v3(8, 2.5f, 0);
 
     TransitionState transState = {};
     transState.transitionSound = findSoundAsset("click.wav");
     transState.soundArena = &soundArena;
     transState.longTermArena = &longTermArena;
 
-    params.transitionState = transState;
+    params->transitionState = transState;
 
     MenuInfo menuInfo = {};
     menuInfo.font = &mainFont;
     menuInfo.windowHandle = appInfo.windowHandle; 
     menuInfo.running = &running;
     menuInfo.lastMode = menuInfo.gameMode = startGameMode; //from the defines file
-    menuInfo.transitionState = &params.transitionState;
+    menuInfo.transitionState = &params->transitionState;
     menuInfo.callback = changeMenuStateCallback;
-    menuInfo.callBackData = &params;
+    menuInfo.callBackData = params;
     menuInfo.totalLevelCount = totalLevelCount;
     menuInfo.backTex = findTextureAsset("back.png");
 
-    params.menuInfo = menuInfo;
+    params->menuInfo = menuInfo;
 
     int lastActiveSaveSlot = 0; //get this from a file that is saved out to disk
-    params.menuInfo.activeSaveSlot = lastActiveSaveSlot;
+    params->menuInfo.activeSaveSlot = lastActiveSaveSlot;
 
-    loadSaveFile(params.levelsData, arrayCount(params.levelsData), params.menuInfo.activeSaveSlot, &params.lastShownGroup);
+    loadSaveFile(params->levelsData, arrayCount(params->levelsData), params->menuInfo.activeSaveSlot, &params->lastShownGroup);
         
     //
 
 #if !DESKTOP    
-    if(SDL_iPhoneSetAnimationCallback(appInfo.windowHandle, 1, gameUpdateAndRender, &params) < 0) {
+    if(SDL_iPhoneSetAnimationCallback(appInfo.windowHandle, 1, gameUpdateAndRender, params) < 0) {
     	assert(!"falid to set");
     }
 #endif
@@ -3203,12 +3245,12 @@ int main(int argc, char *args[]) {
     while(running) {
         
 #if DESKTOP
-      gameUpdateAndRender(&params);
+      gameUpdateAndRender(params);
 #endif
     }
 
     for(int levelIndex = 0; levelIndex < LEVEL_COUNT; ++levelIndex) {
-        LevelData data = params.levelsData[levelIndex];
+        LevelData data = params->levelsData[levelIndex];
         if(data.valid) {
             if(data.name) {
                 //NOTE: should be able to do this once we have a name for every level. But not really neccessary!

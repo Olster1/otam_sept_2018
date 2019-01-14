@@ -57,6 +57,7 @@ char *getFileLastPortion_(char *buffer, int bufferLen, char *at) {
     }
     
     memcpy(result, recent, length - 1);
+    result[length - 1] = '\0';
     
     return result;
 }
@@ -244,6 +245,7 @@ bool platformDoesFileExist(char *FileName) {
 
 FileContents platformReadEntireFile(char *FileName, bool nullTerminate) {
     FileContents Result = {};
+    assert(FileName);
     SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r");
     
     if(FileHandle)
