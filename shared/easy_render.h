@@ -142,7 +142,7 @@ typedef struct {
     int indexCount; // this is to keep around so opnegl knows how many triangles to draw after the initialization frame
     bool valid;
     bool refresh;// this could be a flag with valid
-    
+    GLuint vboHandle; //this is for instancing data
 } VaoHandle;
 
 //just has a dim of 1 by 1 and you can rotate, scale etc. by a model matrix
@@ -862,58 +862,87 @@ typedef enum {
     DRAWCALL_INSTANCED,   
 } DrawCallType;
 
-static V2 globalBlurDir = {};
-void drawVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsigned int *indicesData, int indexCount_, RenderProgram *program, ShapeType type, u32 textureId, u32 PVMId, u32 colorId, u32 uvsId, V4 color, DrawCallType drawCallType, int instanceCount) {
-    
-    glUseProgram(program->glProgram);
-    renderCheckError();
-    
-    GLuint vaoHandle;  
-    GLuint vertices;
-    GLuint indices;
-    
-    int indexCount = indexCount_;
-    
-    bool initialization = true;
-    if(bufferHandles && bufferHandles->valid) {
-        vaoHandle = bufferHandles->vaoHandle;
-        indexCount = bufferHandles->indexCount;
-        assert(!bufferHandles->refresh);
-        glBindVertexArray(vaoHandle);
+static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsigned int *indicesData, int indexCount, RenderProgram *program) {
+    if(!bufferHandles->valid) {
+        glGenVertexArrays(1, &bufferHandles->vaoHandle);
         renderCheckError();
-        initialization = false;
-    } else {
-        glGenVertexArrays(1, &vaoHandle);
-        renderCheckError();
-        glBindVertexArray(vaoHandle);
+        glBindVertexArray(bufferHandles->vaoHandle);
         renderCheckError();
         
+        GLuint vertices;
+        GLuint indices;
+
         glGenBuffers(1, &vertices);
         renderCheckError();
-        // printf("INITIING %d\n", vertices);
+        
         glBindBuffer(GL_ARRAY_BUFFER, vertices);
         renderCheckError();
         
-        glBufferData(GL_ARRAY_BUFFER, triCount*sizeof(Vertex), triangleData, GL_DYNAMIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, triCount*sizeof(Vertex), triangleData, GL_STATIC_DRAW);
         renderCheckError();
         
+
         glGenBuffers(1, &indices);
-        // printf("INITIING %d\n", indices);
         renderCheckError();
+
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices);
         renderCheckError();
         
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount*sizeof(unsigned int), indicesData, GL_DYNAMIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount*sizeof(unsigned int), indicesData, GL_STATIC_DRAW);
+        renderCheckError();
+
+        glGenBuffers(1, &bufferHandles->vboHandle);
+        renderCheckError();
+
+
+        bufferHandles->indexCount = indexCount;
+        
+        assert(!bufferHandles->valid);
+        bufferHandles->valid = true;
+        assert(!bufferHandles->refresh);
+
+        //these can also be retrieved before hand to speed up the process!!!
+        GLint vertexAttrib = getAttribFromProgram(program, "vertex").handle;
+        renderCheckError();
+        GLint texUVAttrib = getAttribFromProgram(program, "texUV").handle;
         renderCheckError();
         
-        if(bufferHandles) {
-            assert(!bufferHandles->valid);
-            bufferHandles->vaoHandle = vaoHandle;
-            bufferHandles->indexCount = indexCount;
-            bufferHandles->valid = true;
-            assert(!bufferHandles->refresh);
-        }
+        
+        glEnableVertexAttribArray(texUVAttrib);  
+        renderCheckError();
+        unsigned int uvByteOffset = (intptr_t)(&(((Vertex *)0)->texUV));
+        glVertexAttribPointer(texUVAttrib, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), ((char *)0) + uvByteOffset);
+        renderCheckError();
+        
+        
+        glEnableVertexAttribArray(vertexAttrib);  
+        renderCheckError();
+        glVertexAttribPointer(vertexAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+        renderCheckError();
+        
+        //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices); //don't think we need this????
+        
+        //can delete buffers since we the reference is sstored in the vao
+        glBindVertexArray(0);
+
+        glDeleteBuffers(1, &vertices);
+        glDeleteBuffers(1, &indices);
     }
+}
+
+
+static V2 globalBlurDir = {};
+void drawVao(VaoHandle *bufferHandles, RenderProgram *program, ShapeType type, u32 textureId, u32 PVMId, u32 colorId, u32 uvsId, V4 color, DrawCallType drawCallType, int instanceCount) {
+    
+    assert(bufferHandles);
+    assert(bufferHandles->valid);
+    assert(!bufferHandles->refresh);
+
+    glUseProgram(program->glProgram);
+    renderCheckError();
+    
+    glBindVertexArray(bufferHandles->vaoHandle);
+    renderCheckError();
     
     GLint pvmUniform = getUniformFromProgram(program, "PVMArray").handle;
     //GLint pvmUniform = glGetUniformLocation(programId, "PVMArray");
@@ -952,24 +981,6 @@ void drawVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsig
         renderCheckError();
     }
     
-    /*
-        GLint PVMUniform = glGetUniformLocation(programId, "PVM");
-        renderCheckError();
-        
-        glUniformMatrix4fv(PVMUniform, pvmCount, GL_FALSE, (float *)PVMs);
-        renderCheckError();
-    */
-    
-    // GLint colorUniform = glGetUniformLocation(programId, "color");
-    // renderCheckError();
-    
-    // glUniform4f(colorUniform, color.x, color.y, color.z, color.w);
-    // renderCheckError();
-    
-    if(initialization) {
-        glBindBuffer(GL_ARRAY_BUFFER, vertices);
-        renderCheckError();
-    }
     
     if(type == SHAPE_TEXTURE || type == SHAPE_SHADOW || type == SHAPE_BLUR) {
         GLint texUniform = getUniformFromProgram(program, "tex").handle;
@@ -1016,70 +1027,16 @@ void drawVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsig
         renderCheckError();
     }
     
-    if(initialization)  {
-        //these can also be retrieved before hand to speed up the process!!!
-        GLint vertexAttrib = getAttribFromProgram(program, "vertex").handle;
-        //GLint vertexAttrib = glGetAttribLocation(programId, "vertex");
-        renderCheckError();
-        GLint texUVAttrib = getAttribFromProgram(program, "texUV").handle;
-        // assert(texUVAttrib > 0);
-        // GLint texUVAttrib = glGetAttribLocation(program->id, "texUV");
-        renderCheckError();
-        // GLint instanceAttrib = getAttribFromProgram(program, "instanceIndex").handle;
-        // GLint instanceAttrib = glGetAttribLocation(programId, "instanceIndex");
-        // renderCheckError();
-        
-        // GLint colorAttrib = glGetAttribLocation(programId, "color");
-        // renderCheckError();
-        
-        glEnableVertexAttribArray(texUVAttrib);  
-        renderCheckError();
-        unsigned int uvByteOffset = (intptr_t)(&(((Vertex *)0)->texUV));
-        glVertexAttribPointer(texUVAttrib, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), ((char *)0) + uvByteOffset);
-        renderCheckError();
-        
-        // glEnableVertexAttribArray(colorAttrib);  
-        // renderCheckError();
-        // unsigned int color_offset = 8;
-        // glVertexAttribPointer(colorAttrib, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), ((char *)0) + (color_offset*sizeof(float)));
-        // renderCheckError();
-        
-        // glEnableVertexAttribArray(instanceAttrib);  
-        // renderCheckError();
-        // unsigned int byteOffset = (intptr_t)(&(((Vertex *)0)->instanceIndex));
-        // glVertexAttribIPointer(instanceAttrib, 1, GL_INT, sizeof(Vertex), ((char *)0) + byteOffset);
-        // renderCheckError();
-        
-        
-        glEnableVertexAttribArray(vertexAttrib);  
-        renderCheckError();
-        glVertexAttribPointer(vertexAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-        renderCheckError();
-        
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices);
-        
-    }
     
     if(drawCallType == DRAWCALL_SINGLE) {
-        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0); 
+        glDrawElements(GL_TRIANGLES, bufferHandles->indexCount, GL_UNSIGNED_INT, 0); 
         renderCheckError();
     } else if(drawCallType == DRAWCALL_INSTANCED) {
-        glDrawElementsInstanced(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0, instanceCount); 
+        glDrawElementsInstanced(GL_TRIANGLES, bufferHandles->indexCount, GL_UNSIGNED_INT, 0, instanceCount); 
         renderCheckError();
     }
     
     glBindVertexArray(0);
-    
-    if(initialization) {
-        glDeleteBuffers(1, &vertices);
-        glDeleteBuffers(1, &indices);
-    }
-    
-    if(!bufferHandles) {
-        glDeleteBuffers(1, &vertices);
-        glDeleteBuffers(1, &indices);
-        glDeleteVertexArrays(1, &vaoHandle);
-    }
     
     glUseProgram(0);
     
@@ -1265,6 +1222,43 @@ BufferStorage createBufferStorage(InfiniteAlloc *array) {
     return result;
 }
 
+
+//Instancing data
+// typedef struct {
+//     float pvm[16];
+//     float color[4];
+//     float uvs[4];
+// }
+
+static inline void addInstancingAttrib (GLuint attribLoc, int numOfFloats, size_t offsetForStruct, size_t offsetInStruct, int divisor) {
+    glEnableVertexAttribArray(attribLoc);  
+    renderCheckError();
+
+    glVertexAttribPointer(attribLoc, numOfFloats, GL_FLOAT, GL_FALSE, offsetForStruct, ((char *)0) + offsetInStruct);
+    renderCheckError();
+
+    glVertexAttribDivisor(attribLoc, divisor);
+    renderCheckError();
+}
+
+void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array) {
+    glBindVertexArray(vao->vaoHandle);
+    glBindBuffer(GL_ARRAY_BUFFER, vao->vboHandle);
+    renderCheckError();
+
+    //send the data to GPU. glBufferData deletes the 
+    glBufferData(GL_ARRAY_BUFFER, array->sizeOfMember*array->count, array->memory, GL_DYNAMIC_DRAW);
+    renderCheckError();
+
+    size_t offsetForStruct = sizeof(float)*(16+4+4); //matrix plus vector4 plus vector4
+    // addInstancingAttrib (Gluint attribLoc, 16, offsetForStruct, 0, 1)
+    // addInstancingAttrib (Gluint attribLoc, 4, offsetForStruct, sizeof(float)*16, 1)
+    // addInstancingAttrib (Gluint attribLoc, 4, offsetForStruct, sizeof(float)*20, 0)
+    
+    glBindVertexArray(0);
+    
+}
+
 void deleteBufferStorage(BufferStorage *store) {
     // printf("buffer id: %d\n", store->buffer);
     glDeleteTextures(1, &store->buffer);
@@ -1341,6 +1335,8 @@ void beginRenderGroupForFrame(RenderGroup *group) {
 
 void drawRenderGroup(RenderGroup *group) {
     
+    
+
     sortItems(group);
     
     for(int i = 0; i < group->items.count; ++i) {
@@ -1383,12 +1379,21 @@ void drawRenderGroup(RenderGroup *group) {
         InfiniteAlloc pvms = initInfinteAlloc(float);
         InfiniteAlloc colors = initInfinteAlloc(float);
         InfiniteAlloc uvs = initInfinteAlloc(float);
+
+        InfiniteAlloc allInstanceData = initInfinteAlloc(float);        
         
         addElementInifinteAllocWithCount_(&pvms, info->PVM.val, 16);
+        addElementInifinteAllocWithCount_(&allInstanceData, info->PVM.val, 16);
+        
+
         addElementInifinteAllocWithCount_(&colors, info->color.E, 4);
+        addElementInifinteAllocWithCount_(&allInstanceData, info->color.E, 4);
         if(info->textureHandle != 0) {
             addElementInifinteAllocWithCount_(&uvs, info->textureUVs.E, 4);
+            addElementInifinteAllocWithCount_(&allInstanceData, info->textureUVs.E, 4);
         }
+
+
         
         int instanceCount = 1;
         bool collecting = true;
@@ -1402,10 +1407,15 @@ void drawRenderGroup(RenderGroup *group) {
                     assert(info->depthTest == nextItem->depthTest);
                     //collect data
                     addElementInifinteAllocWithCount_(&pvms, nextItem->PVM.val, 16);
+                    addElementInifinteAllocWithCount_(&allInstanceData, nextItem->PVM.val, 16);
+
                     addElementInifinteAllocWithCount_(&colors, nextItem->color.E, 4);
+                    addElementInifinteAllocWithCount_(&allInstanceData, nextItem->color.E, 4);
+
                     
                     if(nextItem->textureHandle) {
                         addElementInifinteAllocWithCount_(&uvs, nextItem->textureUVs.E, 4);
+                        addElementInifinteAllocWithCount_(&allInstanceData, nextItem->textureUVs.E, 4);
                     } else {
                         assert(uvs.count == 0);
                     }
@@ -1423,16 +1433,20 @@ void drawRenderGroup(RenderGroup *group) {
             }
         }
         
+        
+        initVao(info->bufferHandles, (Vertex *)info->triangleData.memory, info->triCount, (unsigned int *)info->indicesData.memory, info->indexCount, info->program);
+
+        createBufferStorage2(info->bufferHandles, &allInstanceData);
         BufferStorage pvmStore = createBufferStorage(&pvms);
         BufferStorage colorStore = createBufferStorage(&colors);
         BufferStorage uvStore = {};
         u32 uvId = 0;
-        if(uvs.count > 0) {
+        if(uvs.count > 0) {             
             uvStore = createBufferStorage(&uvs);
             uvId = uvStore.buffer;
         }
         
-        drawVao(info->bufferHandles, (Vertex *)info->triangleData.memory, info->triCount, (unsigned int *)info->indicesData.memory, info->indexCount, info->program, info->type, info->textureHandle, pvmStore.buffer, colorStore.buffer, uvId, info->color, DRAWCALL_INSTANCED, instanceCount);
+        drawVao(info->bufferHandles, info->program, info->type, info->textureHandle, pvmStore.buffer, colorStore.buffer, uvId, info->color, DRAWCALL_INSTANCED, instanceCount);
         drawCallCount++;
         
         assert(group->lastStorageBufferCount < arrayCount(group->lastBufferStorage));
@@ -1446,11 +1460,11 @@ void drawRenderGroup(RenderGroup *group) {
         
         releaseInfiniteAlloc(&info->triangleData);
         releaseInfiniteAlloc(&info->indicesData);
+
+        releaseInfiniteAlloc(&allInstanceData);
         releaseInfiniteAlloc(&pvms);
         releaseInfiniteAlloc(&colors);
-        
-        
-        
+        releaseInfiniteAlloc(&uvs);
     }
     releaseInfiniteAlloc(&group->items);
 #if PRINT_NUMBER_DRAW_CALLS
