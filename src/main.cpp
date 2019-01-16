@@ -18,8 +18,8 @@
 #include <sdl.h>
 #include "SDL_syswm.h"
 #else 
-#include <SDL2/sdl.h>
-#include <SDL2/SDL_syswm.h>
+#include "../SDL2/sdl.h"
+#include "../SDL2/SDL_syswm.h"
 #endif
 
 #include "easy_headers.h"
