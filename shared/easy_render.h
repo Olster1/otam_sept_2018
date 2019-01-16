@@ -301,14 +301,14 @@ RenderProgram createRenderProgram(char *vShaderSource, char *fShaderSource) {
     glAttachShader(result.glProgram, result.glShaderF);
     glLinkProgram(result.glProgram);
     glUseProgram(result.glProgram);
-
+    
     GLint success = 0;
     glGetShaderiv(result.glShaderV, GL_COMPILE_STATUS, &success);
-
+    
     GLint success1 = 0;
     glGetShaderiv(result.glShaderF, GL_COMPILE_STATUS, &success1); 
-
-
+    
+    
     if(success == GL_FALSE || success1 == GL_FALSE) {
         result.valid = false;
         int  vlength,    flength,    plength;
@@ -1085,9 +1085,9 @@ void renderDrawRectOutlineCenterDim_(V3 center, V2 dim, V4 color, float rot, Mat
     
     float rotations[4] = {
         0,
-        PI32 + HALF_PI32,
-        PI32,
-        HALF_PI32
+        (float)(PI32 + HALF_PI32),
+        (float)(PI32),
+        (float)(HALF_PI32)
     };
     
     float lengths[4] = {
