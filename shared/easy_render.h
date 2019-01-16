@@ -177,7 +177,7 @@ typedef struct {
     
     u32 textureHandle;
     Rect2f textureUVs;    
-
+    
     Matrix4 PVM; 
     float zAt;
     
@@ -205,7 +205,7 @@ typedef struct {
     
     int idAt; 
     InfiniteAlloc items; //type: RenderItem
-
+    
     int lastStorageBufferCount;
     BufferStorage lastBufferStorage[512];
     
@@ -287,7 +287,7 @@ RenderProgram createRenderProgram(char *vShaderSource, char *fShaderSource) {
     RenderProgram result = {};
     
     result.valid = true;
-        
+    
     result.glShaderV = glCreateShader(GL_VERTEX_SHADER);
     result.glShaderF = glCreateShader(GL_FRAGMENT_SHADER);
     
@@ -333,107 +333,107 @@ void renderCheckError_(int lineNumber, char *fileName) {
         assert(!err);
     }
     
-    }
-    
-    typedef struct {
-        s32 handle;
-        bool valid;
-    } ShaderValInfo;
-    
-    ShaderValInfo getAttribFromProgram(RenderProgram *prog, char *name) {
-        ShaderValInfo result = {};
-        for(int i = 0; i < prog->attribCount; ++i) {
-            ShaderVal *val = prog->attribs + i;
-            if(cmpStrNull(name, val->name)) {
-                result.handle = val->handle;
-                result.valid = true;
-                break;
-            }
+}
+
+typedef struct {
+    s32 handle;
+    bool valid;
+} ShaderValInfo;
+
+ShaderValInfo getAttribFromProgram(RenderProgram *prog, char *name) {
+    ShaderValInfo result = {};
+    for(int i = 0; i < prog->attribCount; ++i) {
+        ShaderVal *val = prog->attribs + i;
+        if(cmpStrNull(name, val->name)) {
+            result.handle = val->handle;
+            result.valid = true;
+            break;
         }
-        if(!result.valid) {
-            printf("%s\n", name);
+    }
+    if(!result.valid) {
+        printf("%s\n", name);
+    }
+    assert(result.valid);
+    return result;
+}
+
+ShaderValInfo getUniformFromProgram(RenderProgram *prog, char *name) {
+    ShaderValInfo result = {};
+    for(int i = 0; i < prog->uniformCount; ++i) {
+        ShaderVal *val = prog->uniforms + i;
+        if(cmpStrNull(name, val->name)) {
+            result.handle = val->handle;
+            //printf("%d\n", val->handle);
+            //assert(result.handle > 0);
+            result.valid = true;
+            break;
         }
-        assert(result.valid);
-        return result;
     }
-    
-    ShaderValInfo getUniformFromProgram(RenderProgram *prog, char *name) {
-        ShaderValInfo result = {};
-        for(int i = 0; i < prog->uniformCount; ++i) {
-            ShaderVal *val = prog->uniforms + i;
-            if(cmpStrNull(name, val->name)) {
-                result.handle = val->handle;
-                //printf("%d\n", val->handle);
-                //assert(result.handle > 0);
-                result.valid = true;
-                break;
-            }
-        }
-        if(!result.valid) {
-            printf("%s\n", name);
-        }
-        assert(result.valid);
-        return result;
+    if(!result.valid) {
+        printf("%s\n", name);
     }
+    assert(result.valid);
+    return result;
+}
+
+GLuint renderGetUniformLocation(RenderProgram *program, char *name) {
+    GLuint result = glGetUniformLocation(program->glProgram, name);
+    renderCheckError();
+    return result;
+}
+
+GLuint renderGetAttribLocation(RenderProgram *program, char *name) {
+    GLuint result = glGetAttribLocation(program->glProgram, name);
+    renderCheckError();
+    return result;
     
-    GLuint renderGetUniformLocation(RenderProgram *program, char *name) {
-        GLuint result = glGetUniformLocation(program->glProgram, name);
-        renderCheckError();
-        return result;
-    }
+}
+
+void findAttribsAndUniforms(RenderProgram *prog, char *stream, bool isVertexShader) {
+    EasyTokenizer tokenizer = lexBeginParsing(stream, true);
+    bool parsing = true;
     
-    GLuint renderGetAttribLocation(RenderProgram *program, char *name) {
-        GLuint result = glGetAttribLocation(program->glProgram, name);
-        renderCheckError();
-        return result;
-        
-    }
-    
-    void findAttribsAndUniforms(RenderProgram *prog, char *stream, bool isVertexShader) {
-        EasyTokenizer tokenizer = lexBeginParsing(stream, true);
-        bool parsing = true;
-        
-        while(parsing) {
-            char *at = tokenizer.src;
-            EasyToken token = lexGetNextToken(&tokenizer);
-            assert(at != tokenizer.src);
-            switch(token.type) {
-                case TOKEN_NULL_TERMINATOR: {
-                    parsing = false;
-                } break;
-                case TOKEN_WORD: {
-                    // lexPrintToken(&token);
-                    if(stringsMatchNullN("uniform", token.at, token.size)) {
-                        lexGetNextToken(&tokenizer);
-                        token = lexGetNextToken(&tokenizer);
-                        char *name = nullTerminate(token.at, token.size);
-                        //printf("Uniform Found: %s\n", name);
-                        assert(prog->uniformCount < arrayCount(prog->uniforms));
-                        ShaderVal *val = prog->uniforms + prog->uniformCount++;
-                        val->name = name;
-                        val->handle = renderGetUniformLocation(prog, name);
-                        
-                    }
-                    if(stringsMatchNullN("in", token.at, token.size) && isVertexShader) {
-                        lexGetNextToken(&tokenizer); //this is the type
-                        token = lexGetNextToken(&tokenizer);
-                        char *name = nullTerminate(token.at, token.size);
-                        // printf("Attrib Found: %s\n", name);
-                        assert(prog->attribCount < arrayCount(prog->attribs));
-                        ShaderVal *val = prog->attribs + prog->attribCount++;
-                        val->name = name;
-                        val->handle = renderGetAttribLocation(prog, name);
-                        
-                    }
-                } break;
-                default: {
-                    //don't mind
+    while(parsing) {
+        char *at = tokenizer.src;
+        EasyToken token = lexGetNextToken(&tokenizer);
+        assert(at != tokenizer.src);
+        switch(token.type) {
+            case TOKEN_NULL_TERMINATOR: {
+                parsing = false;
+            } break;
+            case TOKEN_WORD: {
+                // lexPrintToken(&token);
+                if(stringsMatchNullN("uniform", token.at, token.size)) {
+                    lexGetNextToken(&tokenizer);
+                    token = lexGetNextToken(&tokenizer);
+                    char *name = nullTerminate(token.at, token.size);
+                    //printf("Uniform Found: %s\n", name);
+                    assert(prog->uniformCount < arrayCount(prog->uniforms));
+                    ShaderVal *val = prog->uniforms + prog->uniformCount++;
+                    val->name = name;
+                    val->handle = renderGetUniformLocation(prog, name);
+                    
                 }
+                if(stringsMatchNullN("in", token.at, token.size) && isVertexShader) {
+                    lexGetNextToken(&tokenizer); //this is the type
+                    token = lexGetNextToken(&tokenizer);
+                    char *name = nullTerminate(token.at, token.size);
+                    // printf("Attrib Found: %s\n", name);
+                    assert(prog->attribCount < arrayCount(prog->attribs));
+                    ShaderVal *val = prog->attribs + prog->attribCount++;
+                    val->name = name;
+                    val->handle = renderGetAttribLocation(prog, name);
+                    
+                }
+            } break;
+            default: {
+                //don't mind
             }
         }
     }
-    
-    
+}
+
+
 RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentShaderFilename, bool isFileName) {
     char *vertMemory = vertexShaderFilename;
     char *fragMemory = fragmentShaderFilename;
@@ -441,7 +441,7 @@ RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentSh
         vertMemory = (char *)loadShader(vertexShaderFilename).memory;
         fragMemory= (char *)loadShader(fragmentShaderFilename).memory;
     } 
-        
+    
 #if DESKTOP
     char *shaderVersion = "#version 150\n";
 #else
@@ -461,78 +461,78 @@ RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentSh
         free(vertMemory);
         free(fragMemory);
     }
-
+    
     return result;
 }
+
+Matrix4 projectionMatrixFOV(float FOV, float aspectRatio) { //where aspect ratio = width/height of frame buffer resolution
+    float nearClip = NEAR_CLIP_PLANE;
+    float farClip = FAR_CLIP_PLANE;
     
-    Matrix4 projectionMatrixFOV(float FOV, float aspectRatio) { //where aspect ratio = width/height of frame buffer resolution
-        float nearClip = NEAR_CLIP_PLANE;
-        float farClip = FAR_CLIP_PLANE;
-
-        float t = tan(FOV/2)*nearClip;
-        float b = -t;
-        float r = t*aspectRatio;
-        float l = -r;
-
-        float a1 = (2*nearClip) / (r - l); 
-        float b1 = (2*nearClip) / (t - b);
-
-        float c1 = (r + l) / (r - l);
-        float d1 = (t + b) / (t - b);
-        
-        Matrix4 result = {{
-                a1,  0,  0,  0,
-                0,  b1,  0,  0,
-                c1,  d1,  -((farClip + nearClip)/(farClip - nearClip)),  RENDER_HANDNESS, 
-                0, 0,  (-2*nearClip*farClip)/(farClip - nearClip),  0
-            }};
-        
-        return result;
-    }
+    float t = tan(FOV/2)*nearClip;
+    float b = -t;
+    float r = t*aspectRatio;
+    float l = -r;
     
-
-    Matrix4 projectionMatrixToScreen(int width, int height) {
-        float a = 2 / (float)width; 
-        float b = 2 / (float)height;
-        
-        float nearClip = NEAR_CLIP_PLANE;
-        float farClip = FAR_CLIP_PLANE;
-        
-        Matrix4 result = {{
-                a,  0,  0,  0,
-                0,  b,  0,  0,
-                0,  0,  -((farClip + nearClip)/(farClip - nearClip)),  RENDER_HANDNESS, 
-                0, 0,  (-2*nearClip*farClip)/(farClip - nearClip),  0
-            }};
-        
-        return result;
-    }
+    float a1 = (2*nearClip) / (r - l); 
+    float b1 = (2*nearClip) / (t - b);
     
+    float c1 = (r + l) / (r - l);
+    float d1 = (t + b) / (t - b);
     
-    Matrix4 OrthoMatrixToScreen_(int width, int height, float offsetX, float offsetY) {
-        float a = 2.0f / (float)width; 
-        float b = 2.0f / (float)height;
-        
-        float nearClip = NEAR_CLIP_PLANE;
-        float farClip = FAR_CLIP_PLANE;
-        
-        Matrix4 result = {{
-                a,  0,  0,  0,
-                0,  b,  0,  0,
-                0,  0,  (-2)/(farClip - nearClip), 0, //definitley the projection coordinate. 
-                offsetX, offsetY, -((farClip + nearClip)/(farClip - nearClip)),  1
-            }};
-        
-        return result;
-    }
+    Matrix4 result = {{
+            a1,  0,  0,  0,
+            0,  b1,  0,  0,
+            c1,  d1,  -((farClip + nearClip)/(farClip - nearClip)),  RENDER_HANDNESS, 
+            0, 0,  (-2*nearClip*farClip)/(farClip - nearClip),  0
+        }};
+    
+    return result;
+}
 
-    Matrix4 OrthoMatrixToScreen(int width, int height) {
-        return OrthoMatrixToScreen_(width, height, 0, 0);
-    }
 
-    Matrix4 OrthoMatrixToScreen_BottomLeft(int width, int height) {
-        return OrthoMatrixToScreen_(width, height, -1, -1);
-    }
+Matrix4 projectionMatrixToScreen(int width, int height) {
+    float a = 2 / (float)width; 
+    float b = 2 / (float)height;
+    
+    float nearClip = NEAR_CLIP_PLANE;
+    float farClip = FAR_CLIP_PLANE;
+    
+    Matrix4 result = {{
+            a,  0,  0,  0,
+            0,  b,  0,  0,
+            0,  0,  -((farClip + nearClip)/(farClip - nearClip)),  RENDER_HANDNESS, 
+            0, 0,  (-2*nearClip*farClip)/(farClip - nearClip),  0
+        }};
+    
+    return result;
+}
+
+
+Matrix4 OrthoMatrixToScreen_(int width, int height, float offsetX, float offsetY) {
+    float a = 2.0f / (float)width; 
+    float b = 2.0f / (float)height;
+    
+    float nearClip = NEAR_CLIP_PLANE;
+    float farClip = FAR_CLIP_PLANE;
+    
+    Matrix4 result = {{
+            a,  0,  0,  0,
+            0,  b,  0,  0,
+            0,  0,  (-2)/(farClip - nearClip), 0, //definitley the projection coordinate. 
+            offsetX, offsetY, -((farClip + nearClip)/(farClip - nearClip)),  1
+        }};
+    
+    return result;
+}
+
+Matrix4 OrthoMatrixToScreen(int width, int height) {
+    return OrthoMatrixToScreen_(width, height, 0, 0);
+}
+
+Matrix4 OrthoMatrixToScreen_BottomLeft(int width, int height) {
+    return OrthoMatrixToScreen_(width, height, -1, -1);
+}
 
 V2 transformWorldPToScreenP(V2 inputA, float zPos, V2 resolution, V2 screenDim, ProjectionType type) {
     Matrix4 projMat;
@@ -575,7 +575,7 @@ V3 transformScreenPToWorldP(V2 inputA, float zPos, V2 resolution, V2 screenDim, 
 }
 
 void enableRenderer(int width, int height, Arena *arena) {
-
+    
     globalRenderGroup = pushStruct(arena, RenderGroup);
 #if RENDER_BACKEND == OPENGL_BACKEND
     glViewport(0, 0, width, height);
@@ -621,7 +621,7 @@ void enableRenderer(int width, int height, Arena *arena) {
     // char *fragShaderRing = concat(append, (char *)"frag_shader_ring.c");
     // char *fragShaderShadow = concat(append, (char *)"frag_shader_shadow.c");
     // char *fragShaderBlur = concat(append, (char *)"fragment_shader_blur.c");
-
+    
     // char *vertPhong = concat(append, (char *)"vertex_model.c");
     // char *fragPhong = concat(append, (char *)"frag_model.c");
     
@@ -630,11 +630,11 @@ void enableRenderer(int width, int height, Arena *arena) {
     
     // lineProgram = createProgramFromFile(vertShaderLine, fragShaderLine);
     // renderCheckError();
-
-        
+    
+    
     rectangleProgram = createProgramFromFile(vertex_shader_rectangle_shader, fragment_shader_rectangle_shader, false);
     renderCheckError();
-
+    
     // phongProgram = createProgramFromFile(vertex_model_shader, frag_model_shader, false);
     // renderCheckError();
     
@@ -705,14 +705,14 @@ typedef struct {
 
 
 void renderReadPixels(u32 bufferId, int x0, int y0,
-             int x1,
-             int y1,
-             u32 layout,
-             u32 format,
-             u8 *stream) {
-
+                      int x1,
+                      int y1,
+                      u32 layout,
+                      u32 format,
+                      u8 *stream) {
+    
     glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)bufferId);
-
+    
     glReadPixels(x0, y0,
                  x1, y1,
                  layout,
@@ -871,7 +871,7 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
         
         GLuint vertices;
         GLuint indices;
-
+        
         glGenBuffers(1, &vertices);
         renderCheckError();
         
@@ -881,26 +881,26 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
         glBufferData(GL_ARRAY_BUFFER, triCount*sizeof(Vertex), triangleData, GL_STATIC_DRAW);
         renderCheckError();
         
-
+        
         glGenBuffers(1, &indices);
         renderCheckError();
-
+        
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices);
         renderCheckError();
         
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount*sizeof(unsigned int), indicesData, GL_STATIC_DRAW);
         renderCheckError();
-
+        
         glGenBuffers(1, &bufferHandles->vboHandle);
         renderCheckError();
-
-
+        
+        
         bufferHandles->indexCount = indexCount;
         
         assert(!bufferHandles->valid);
         bufferHandles->valid = true;
         assert(!bufferHandles->refresh);
-
+        
         //these can also be retrieved before hand to speed up the process!!!
         GLint vertexAttrib = getAttribFromProgram(program, "vertex").handle;
         renderCheckError();
@@ -924,7 +924,7 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
         
         //can delete buffers since we the reference is sstored in the vao
         glBindVertexArray(0);
-
+        
         glDeleteBuffers(1, &vertices);
         glDeleteBuffers(1, &indices);
     }
@@ -937,7 +937,7 @@ void drawVao(VaoHandle *bufferHandles, RenderProgram *program, ShapeType type, u
     assert(bufferHandles);
     assert(bufferHandles->valid);
     assert(!bufferHandles->refresh);
-
+    
     glUseProgram(program->glProgram);
     renderCheckError();
     
@@ -967,11 +967,11 @@ void drawVao(VaoHandle *bufferHandles, RenderProgram *program, ShapeType type, u
     
     glBindTexture(RENDER_TEXTURE_BUFFER_ENUM, colorId); 
     renderCheckError();
-
+    
     if(uvsId) {
         GLint uvUniform = getUniformFromProgram(program, "UVArray").handle;
         renderCheckError();
-
+        
         glUniform1i(uvUniform, 2);
         renderCheckError();
         glActiveTexture(GL_TEXTURE2);
@@ -1047,7 +1047,7 @@ void getQuadVertexes(Vertex *triangleData) { //has to be length of four
     triangleData[1].position = globalQuadPositionData[1];
     triangleData[2].position = globalQuadPositionData[2];
     triangleData[3].position = globalQuadPositionData[3];
-
+    
     triangleData[0].texUV = v2(0, 0);
     triangleData[1].texUV = v2(0, 1);
     triangleData[2].texUV = v2(1, 0);
@@ -1136,15 +1136,15 @@ void renderDrawRectCenterDim_(V3 center, V2 dim, V4 *colors, float rot, Matrix4 
     Vertex triangleData[4] = {};
     if(!globalQuadVaoHandle.valid) {
         getQuadVertexes(triangleData);
-
+        
     }
     if(globalImmediateModeGraphics) {
     } else {
         int triCount = arrayCount(triangleData);
         int indicesCount = arrayCount(globalQuadIndicesData);
         pushRenderItem(&globalQuadVaoHandle, globalRenderGroup, triangleData, triCount, 
-            globalQuadIndicesData, indicesCount, program, type, texture, 
-            Mat4Mult(projectionMatrix, Mat4Mult(viewMatrix, rotationMat)), colors[0], center.z);
+                       globalQuadIndicesData, indicesCount, program, type, texture, 
+                       Mat4Mult(projectionMatrix, Mat4Mult(viewMatrix, rotationMat)), colors[0], center.z);
     }    
 }
 
@@ -1233,10 +1233,10 @@ BufferStorage createBufferStorage(InfiniteAlloc *array) {
 static inline void addInstancingAttrib (GLuint attribLoc, int numOfFloats, size_t offsetForStruct, size_t offsetInStruct, int divisor) {
     glEnableVertexAttribArray(attribLoc);  
     renderCheckError();
-
+    
     glVertexAttribPointer(attribLoc, numOfFloats, GL_FLOAT, GL_FALSE, offsetForStruct, ((char *)0) + offsetInStruct);
     renderCheckError();
-
+    
     glVertexAttribDivisor(attribLoc, divisor);
     renderCheckError();
 }
@@ -1245,11 +1245,11 @@ void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array) {
     glBindVertexArray(vao->vaoHandle);
     glBindBuffer(GL_ARRAY_BUFFER, vao->vboHandle);
     renderCheckError();
-
+    
     //send the data to GPU. glBufferData deletes the 
     glBufferData(GL_ARRAY_BUFFER, array->sizeOfMember*array->count, array->memory, GL_DYNAMIC_DRAW);
     renderCheckError();
-
+    
     size_t offsetForStruct = sizeof(float)*(16+4+4); //matrix plus vector4 plus vector4
     // addInstancingAttrib (Gluint attribLoc, 16, offsetForStruct, 0, 1)
     // addInstancingAttrib (Gluint attribLoc, 4, offsetForStruct, sizeof(float)*16, 1)
@@ -1315,7 +1315,7 @@ void sortItems(RenderGroup *group) {
             sorted = false;
             incrementIndex = false;
         }
-
+        
         if(incrementIndex) {
             index++;
         }
@@ -1336,7 +1336,7 @@ void beginRenderGroupForFrame(RenderGroup *group) {
 void drawRenderGroup(RenderGroup *group) {
     
     
-
+    
     sortItems(group);
     
     for(int i = 0; i < group->items.count; ++i) {
@@ -1352,7 +1352,7 @@ void drawRenderGroup(RenderGroup *group) {
     }
     
     int drawCallCount = 0;
-        
+    
     // printf("Render Items count: %d\n", group->items.count);
     // int instanceIndexAt = 0;
     for(int i = 0; i < group->items.count; ++i) {
@@ -1379,28 +1379,28 @@ void drawRenderGroup(RenderGroup *group) {
         InfiniteAlloc pvms = initInfinteAlloc(float);
         InfiniteAlloc colors = initInfinteAlloc(float);
         InfiniteAlloc uvs = initInfinteAlloc(float);
-
+        
         InfiniteAlloc allInstanceData = initInfinteAlloc(float);        
         
         addElementInifinteAllocWithCount_(&pvms, info->PVM.val, 16);
         addElementInifinteAllocWithCount_(&allInstanceData, info->PVM.val, 16);
         
-
+        
         addElementInifinteAllocWithCount_(&colors, info->color.E, 4);
         addElementInifinteAllocWithCount_(&allInstanceData, info->color.E, 4);
         if(info->textureHandle != 0) {
             addElementInifinteAllocWithCount_(&uvs, info->textureUVs.E, 4);
             addElementInifinteAllocWithCount_(&allInstanceData, info->textureUVs.E, 4);
         }
-
-
+        
+        
         
         int instanceCount = 1;
         bool collecting = true;
         while(collecting) {
             RenderItem *nextItem = getRenderItem(group, i + 1);
             if(nextItem) {
-
+                
                 if(info->bufferHandles == nextItem->bufferHandles && info->textureHandle == nextItem->textureHandle && info->program == nextItem->program) {
                     
                     assert(info->blendFuncType == nextItem->blendFuncType);
@@ -1408,10 +1408,10 @@ void drawRenderGroup(RenderGroup *group) {
                     //collect data
                     addElementInifinteAllocWithCount_(&pvms, nextItem->PVM.val, 16);
                     addElementInifinteAllocWithCount_(&allInstanceData, nextItem->PVM.val, 16);
-
+                    
                     addElementInifinteAllocWithCount_(&colors, nextItem->color.E, 4);
                     addElementInifinteAllocWithCount_(&allInstanceData, nextItem->color.E, 4);
-
+                    
                     
                     if(nextItem->textureHandle) {
                         addElementInifinteAllocWithCount_(&uvs, nextItem->textureUVs.E, 4);
@@ -1435,7 +1435,7 @@ void drawRenderGroup(RenderGroup *group) {
         
         
         initVao(info->bufferHandles, (Vertex *)info->triangleData.memory, info->triCount, (unsigned int *)info->indicesData.memory, info->indexCount, info->program);
-
+        
         createBufferStorage2(info->bufferHandles, &allInstanceData);
         BufferStorage pvmStore = createBufferStorage(&pvms);
         BufferStorage colorStore = createBufferStorage(&colors);
@@ -1460,7 +1460,7 @@ void drawRenderGroup(RenderGroup *group) {
         
         releaseInfiniteAlloc(&info->triangleData);
         releaseInfiniteAlloc(&info->indicesData);
-
+        
         releaseInfiniteAlloc(&allInstanceData);
         releaseInfiniteAlloc(&pvms);
         releaseInfiniteAlloc(&colors);
