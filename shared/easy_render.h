@@ -1,6 +1,6 @@
 #define PI32 3.14159265359
-#define NEAR_CLIP_PLANE -RENDER_HANDNESS*0.1;
-#define FAR_CLIP_PLANE -RENDER_HANDNESS*10000.0f
+#define NEAR_CLIP_PLANE -(RENDER_HANDNESS)*0.1;
+#define FAR_CLIP_PLANE -(RENDER_HANDNESS)*10000.0f
 
 
 #define PRINT_NUMBER_DRAW_CALLS 0
@@ -301,23 +301,33 @@ RenderProgram createRenderProgram(char *vShaderSource, char *fShaderSource) {
     glAttachShader(result.glProgram, result.glShaderF);
     glLinkProgram(result.glProgram);
     glUseProgram(result.glProgram);
-    
-    int  vlength,    flength,    plength;
-    char vlog[2048];
-    char flog[2048];
-    char plog[2048];
-    glGetShaderInfoLog(result.glShaderV, 2048, &vlength, vlog);
-    glGetShaderInfoLog(result.glShaderF, 2048, &flength, flog);
-    glGetProgramInfoLog(result.glProgram, 2048, &plength, plog);
-    
-    if(vlength || flength || plength) {
+
+    GLint success = 0;
+    glGetShaderiv(result.glShaderV, GL_COMPILE_STATUS, &success);
+
+    GLint success1 = 0;
+    glGetShaderiv(result.glShaderF, GL_COMPILE_STATUS, &success1); 
+
+
+    if(success == GL_FALSE || success1 == GL_FALSE) {
         result.valid = false;
-        printf("%s\n", vShaderSource);
-        printf("%s\n", fShaderSource);
-        printf("%s\n", vlog);
-        printf("%s\n", flog);
-        printf("%s\n", plog);
+        int  vlength,    flength,    plength;
+        char vlog[2048];
+        char flog[2048];
+        char plog[2048];
+        glGetShaderInfoLog(result.glShaderV, 2048, &vlength, vlog);
+        glGetShaderInfoLog(result.glShaderF, 2048, &flength, flog);
+        glGetProgramInfoLog(result.glProgram, 2048, &plength, plog);
         
+        if(vlength || flength || plength) {
+            
+            printf("%s\n", vShaderSource);
+            printf("%s\n", fShaderSource);
+            printf("%s\n", vlog);
+            printf("%s\n", flog);
+            printf("%s\n", plog);
+            
+        }
     }
     
     assert(result.valid);
@@ -1105,8 +1115,8 @@ void renderDrawRectOutlineCenterDim_(V3 center, V2 dim, V4 color, float rot, Mat
         V2 offset = offsets[i];
         
         Matrix4 rotationMat1 = {{
-                thickness*cos(rotat),  thickness*sin(rotat),  0,  0,
-                lengths[i]*-sin(rotat),  lengths[i]*cos(rotat),  0,  0,
+                thickness*(float)cos(rotat),  thickness*(float)sin(rotat),  0,  0,
+                lengths[i]*-(float)sin(rotat),  lengths[i]*(float)cos(rotat),  0,  0,
                 0,  0,  1,  0,
                 offset.x, offset.y, 0,  1
             }};
@@ -1256,7 +1266,6 @@ void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array) {
     // addInstancingAttrib (Gluint attribLoc, 4, offsetForStruct, sizeof(float)*20, 0)
     
     glBindVertexArray(0);
-    
 }
 
 void deleteBufferStorage(BufferStorage *store) {
