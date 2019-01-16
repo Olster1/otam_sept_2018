@@ -44,7 +44,7 @@ float signOf(float a) {
         result = -1;
     }
     return result;
-
+    
 }
 
 float absVal(float a) {
@@ -53,7 +53,7 @@ float absVal(float a) {
         result = -a;
     }
     return result;
-
+    
 }
 
 bool floatEqual_withError(float a, float b) {
@@ -67,7 +67,7 @@ inline float ATan2_0toTau(float Y, float X) {
     if(Result < 0) {
         Result += TAU32; // is in the bottom range ie. 180->360. -PI32 being PI32. So we can flip it up by adding TAU32
     }
-
+    
     assert(Result >= 0 && Result <= (TAU32 + 0.00001));
     return Result;
 }
@@ -100,7 +100,7 @@ typedef union {
     };
     struct {
         float x, y, z, w;
-
+        
     }; 
     struct {
         V2 xy;
@@ -170,13 +170,13 @@ V2 v2_negate(V2 a) {
 }
 
 V2 v2_floor(V2 a) {
-    V2 result = {floor(a.x), floor(a.y)};
+    V2 result = {(float)floor(a.x), (float)floor(a.y)};
     return result;
 }
 
 
 V2 v2_ceil(V2 a) {
-    V2 result = {ceil(a.x), ceil(a.y)};
+    V2 result = {(float)ceil(a.x), (float)ceil(a.y)};
     return result;
 }
 
@@ -268,11 +268,11 @@ V3 v3_negate(V3 b) {
 
 V3 v3_crossProduct(V3 a, V3 b) {
     V3 c = v3(0, 0, 0);
-
+    
     c.x = (a.y*b.z) - (a.z*b.y);
     c.y = (a.z*b.x) - (a.x*b.z);
     c.z = (a.x*b.y) - (a.y*b.x);
-
+    
     return c;
 }
 
@@ -422,10 +422,10 @@ Rect3f rect3fCenterDim(float centerX,
 }
 
 Rect3f rect3fCenterDimV3(V3 pos, V3 dim) {
-
+    
     Rect3f result = rect3fCenterDim(pos.x, pos.y, pos.z, dim.x, dim.y, dim.z);
     return result;
-
+    
 }
 
 bool inBoundsV3(V3 p, Rect3f rect) {
@@ -661,27 +661,27 @@ typedef union {
 Quaternion identityQuaternion() {
     Quaternion result = {};
     result.r = 1;
-
+    
     return result;
 }
 
 Matrix4 quaternionToMatrix(Quaternion q) {
-   Matrix4 result = mat4();
-
-   result.E_[0] = 1 - (2*q.j*q.j + 2*q.k*q.k);
-   result.E_[4] = 2*q.i*q.j + 2*q.k*q.r;
-   result.E_[8] = 2*q.i*q.k - 2*q.j*q.r;
-   
-   result.E_[1] = 2*q.i*q.j - 2*q.k*q.r;
-   result.E_[5] = 1 - (2*q.i*q.i  + 2*q.k*q.k);
-   result.E_[9] = 2*q.j*q.k + 2*q.i*q.r;
-
-   result.E_[2] = 2*q.i*q.k + 2*q.j*q.r;
-   result.E_[6] = 2*q.j*q.k - 2*q.i*q.r;
-   result.E_[10] = 1 - (2*q.i*q.i  + 2*q.j*q.j);
-   
+    Matrix4 result = mat4();
+    
+    result.E_[0] = 1 - (2*q.j*q.j + 2*q.k*q.k);
+    result.E_[4] = 2*q.i*q.j + 2*q.k*q.r;
+    result.E_[8] = 2*q.i*q.k - 2*q.j*q.r;
+    
+    result.E_[1] = 2*q.i*q.j - 2*q.k*q.r;
+    result.E_[5] = 1 - (2*q.i*q.i  + 2*q.k*q.k);
+    result.E_[9] = 2*q.j*q.k + 2*q.i*q.r;
+    
+    result.E_[2] = 2*q.i*q.k + 2*q.j*q.r;
+    result.E_[6] = 2*q.j*q.k - 2*q.i*q.r;
+    result.E_[10] = 1 - (2*q.i*q.i  + 2*q.j*q.j);
+    
     return result;
-
+    
 }
 
 Quaternion quaternion(float r, float i, float j, float k) {
@@ -690,13 +690,13 @@ Quaternion quaternion(float r, float i, float j, float k) {
     result.i = i;
     result.j = j;
     result.k = k;
-
+    
     return result;   
 }
 
 Quaternion quaternion_mult(Quaternion multiplier, Quaternion q){
     Quaternion result = {};
-
+    
     result.r = q.r*multiplier.r - q.i*multiplier.i -
         q.j*multiplier.j - q.k*multiplier.k;
     result.i = q.r*multiplier.i + q.i*multiplier.r +
@@ -705,23 +705,23 @@ Quaternion quaternion_mult(Quaternion multiplier, Quaternion q){
         q.k*multiplier.i - q.i*multiplier.k;
     result.k = q.r*multiplier.k + q.k*multiplier.r +
         q.i*multiplier.j - q.j*multiplier.i;
-
+    
     return result;
 }
 
 Quaternion addScaledVectorToQuaternion(Quaternion q_, V3 vector, float timeScale) {
     Quaternion result = q_;
     Quaternion q = quaternion(0,
-        vector.x * timeScale,
-        vector.y * timeScale,
-        vector.z * timeScale);
-
+                              vector.x * timeScale,
+                              vector.y * timeScale,
+                              vector.z * timeScale);
+    
     q = quaternion_mult(q_, q);
     q.r += q.r * 0.5f;
     q.i += q.i * 0.5f;
     q.j += q.j * 0.5f;
     q.k += q.k * 0.5f;
-
+    
     return q;
 }
 
@@ -730,29 +730,29 @@ Quaternion eulerAnglesToQuaternion(float y, float x, float z) {
     float h = y / 2;
     float p = x / 2;
     float b = z / 2;
-
+    
     result.r = cos(h)*cos(p)*cos(b) + sin(h)*sin(p)*sin(b);
     result.i = cos(h)*sin(p)*cos(b) + sin(h)*cos(p)*sin(b);
     result.j = sin(h)*cos(p)*cos(b) - cos(h)*sin(p)*sin(b);
     result.k = cos(h)*cos(p)*sin(b) - sin(h)*sin(p)*cos(b);
-
+    
     return result;
 }
 
 Matrix4 mat4_setOrientationAndPos(Quaternion q, V3 pos) {
     Matrix4 result = quaternionToMatrix(q);
-
+    
     result.E_[12] = pos.x;
     result.E_[13] = pos.y;
     result.E_[14] = pos.z;
-
+    
     return result;
 }
 
 Matrix4 mat4_angle_aroundZ(float angle) {
     Matrix4 result = {{
-            cos(angle), sin(angle), 0, 0,
-            cos(angle + HALF_PI32), sin(angle + HALF_PI32), 0, 0,
+            (float)cos(angle), (float)sin(angle), 0, 0,
+            (float)cos(angle + HALF_PI32), (float)sin(angle + HALF_PI32), 0, 0,
             0, 0, 1, 0,
             0, 0, 0, 1
         }};
@@ -789,6 +789,7 @@ Matrix4 mat4_transpose(Matrix4 val) {
     return result;
 }
 
+/*
 Matrix4 mat4_axisAngle(V3 axis, float angle) {
     //NOTE: this is around the wrong way I think, should be transposed
     axis = normalizeV3(axis);
@@ -803,7 +804,7 @@ Matrix4 mat4_axisAngle(V3 axis, float angle) {
         }};
     return result;
 }
-
+*/
 Matrix4 Matrix4_translate(Matrix4 a, V3 b) {
     a.d.x += b.x;
     a.d.y += b.y;
@@ -920,9 +921,9 @@ float smoothStep01010(float a, float t, float b) {
     if(mappedT < 0) {
         mappedT *= -1;
     }
-
+    
     float value = lerp(a, mappedT, b);
-
+    
     return value;
 }
 

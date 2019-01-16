@@ -17,17 +17,17 @@ OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim) {
 		result.valid = false;
 		return result;
 	} 
-	    
+    
 #if DESKTOP
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, OPENGL_MAJOR);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, OPENGL_MINOR);
 #else 
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
 #endif
-
+    
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
@@ -42,16 +42,16 @@ OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim) {
 		screenDim->x = DM.w;
 		screenDim->y = DM.h;
 	}
-
+    
     result.windowHandle = SDL_CreateWindow(
         windowName,
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
         screenDim->x,
         screenDim->y,
         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
-
+    
     SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1); 
-
+    
     // result.threadContext = SDL_GL_CreateContext(result.windowHandle);
     result.renderContext = SDL_GL_CreateContext(result.windowHandle);
     if(result.renderContext) {
@@ -59,10 +59,10 @@ OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim) {
         if(SDL_GL_MakeCurrent(result.windowHandle, result.renderContext) == 0) {
             if(SDL_GL_SetSwapInterval(1) == 0) {
             } else {
-            	#if DESKTOP
+#if DESKTOP
                 assert(!"Couldn't set swap interval\n");
                 result.valid = false;
-                #endif
+#endif
             }
         } else {
             assert(!"Couldn't make context current\n");
@@ -72,7 +72,7 @@ OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim) {
         assert(!"couldn't make a context");
         result.valid = false;
     }
-
+    
     SDL_SysWMinfo sysInfo;
     SDL_VERSION(&sysInfo.version);
     
@@ -82,13 +82,13 @@ OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim) {
         assert(!"couldn't get info");
         result.valid = false;
     }
-
-//TODO make this handle windows //
+    
+    //TODO make this handle windows //
 #if !DESKTOP
     result.frameBackBufferId = sysInfo.info.uikit.framebuffer;
     result.renderBackBufferId = sysInfo.info.uikit.colorbuffer;
 #endif
-
+    
     return result;
 }
 
@@ -102,45 +102,45 @@ typedef struct {
 
 AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder, Arena *memArena) {
 	AppSetupInfo result = {};
-
+    
 	V2 idealResolution = v2(1280, 720); // Not sure if this is the best place for this?? Have to see. 
-
+    
     SDL_DisplayMode mode;
     SDL_GetCurrentDisplayMode(0, &mode);
     result.refresh_rate = mode.refresh_rate;
-
+    
 #if DESKTOP
     gl3wInit();
 #endif
     
 	// globalExeBasePath = getResPathFromExePath(SDL_GetBasePath(), resPathFolder);
     globalExeBasePath = concat(SDL_GetBasePath(), resPathFolder);
-
+    
     //for stb_image so the images aren't upside down.
     stbi_set_flip_vertically_on_load(true);
     //
-
+    
 #if DEVELOPER_MODE
 #if WRITE_SHADERS
     char *fileTypes[]= {"glsl", "c"};
     compileFiles("shaders/", fileTypes, arrayCount(fileTypes));
 #endif
 #endif
-   
+    
     //////////SETUP AUDIO/////
     initAudioSpec(&result.audioSpec, 44100);
     initAudio(&result.audioSpec);
     //////////
-
+    
     ////SETUP OPEN GL//
     enableRenderer(resolution.x, resolution.y, memArena);
     renderCheckError();
     //////
-
+    
     ////INIT RANDOM GENERATOR
     srand (time(NULL));
     //////
-
+    
     /////////Scale the size factor to be keep size of app constant. 
     V2 screenRelativeSize = v2(idealResolution.x / resolution.x, idealResolution.y / resolution.y); 
     V2 ratio = v2_scale(60.0f, screenRelativeSize);
@@ -150,7 +150,7 @@ AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder, Arena *memArena
     result.pixelsToMeters = Matrix4_scale(mat4(), v3(1.0f / ratio.x, 1.0f / ratio.y, 1));
     result.screenRelativeSize = screenRelativeSize;
     /////
-
+    
     return result;
 }
 
@@ -166,7 +166,7 @@ void easyOS_beginFrame(V2 resolution) {
 
 void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *windowHandle, unsigned int compositedFrameBufferId, unsigned int backBufferId, unsigned int renderbufferId, unsigned int *lastTime, float monitorFrameTime) {
 	float dt = *dt_;
-
+    
 	////////Letterbox if the ratio isn't correct//
 	float screenRatio =  screenDim.x / resolution.x;
 	float h1 = resolution.y * screenRatio;
@@ -175,15 +175,15 @@ void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *window
 	    float w1 = resolution.x * screenRatio;
 	    // assert(w1 <= screenDim.x);
 	}
-
+    
 	float screenX = screenRatio*resolution.x;
 	float screenY = screenRatio*resolution.y;
 	// assert(screenX <= screenDim.x);
 	// assert(screenY <= screenDim.y);
-
+    
 	float wResidue = (screenDim.x - screenX) / 2.0f;
 	float yResidue = (screenDim.y - screenY) / 2.0f;
-
+    
 	////Resolve Frame
 	glViewport(0, 0, screenDim.x, screenDim.y);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, backBufferId);
@@ -194,47 +194,47 @@ void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *window
 	glBlitFramebuffer(0, 0, resolution.x, resolution.y, 0, 0, screenDim.x, screenDim.y, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 	renderCheckError();                    
 	///////
-   glViewport(0, 0, screenDim.x, screenDim.y);
-   updateChannelVolumes(dt);
+    glViewport(0, 0, screenDim.x, screenDim.y);
+    updateChannelVolumes(dt);
 #if !DESKTOP
-   glBindRenderbuffer(GL_RENDERBUFFER, renderbufferId);
+    glBindRenderbuffer(GL_RENDERBUFFER, renderbufferId);
 #endif
-   SDL_GL_SwapWindow(windowHandle);
-
-   unsigned int now = SDL_GetTicks();
-   float timeInFrameMilliSeconds = (now - *lastTime);
-   //TODO: Do our own wait if Vsync isn't on. 
-   //NOTE: This is us choosing the best frame time within the intervals of possible frame rates!!!
-   dt = timeInFrameMilliSeconds / 1000.0f;
-   float frameRates[] = {monitorFrameTime*1.0f, monitorFrameTime*2.0f, monitorFrameTime*3.0f, monitorFrameTime*4.0f};
-   float smallestDiff = 0;
-   bool set = false;
-   float newRate = monitorFrameTime;
-   for(int i = 0; i < arrayCount(frameRates); ++i) {
-       float val = frameRates[i];
-       float diff = dt - val;
-       if(diff < 0.0f) {
-           diff *= -1;
-       }
-       if(diff < smallestDiff || !set) {
-           set = true;
-           smallestDiff = diff;
-           newRate = val;
-       }
-   }
-   dt = *dt_ = newRate; //set the actual dt
+    SDL_GL_SwapWindow(windowHandle);
+    
+    unsigned int now = SDL_GetTicks();
+    float timeInFrameMilliSeconds = (now - *lastTime);
+    //TODO: Do our own wait if Vsync isn't on. 
+    //NOTE: This is us choosing the best frame time within the intervals of possible frame rates!!!
+    dt = timeInFrameMilliSeconds / 1000.0f;
+    float frameRates[] = {monitorFrameTime*1.0f, monitorFrameTime*2.0f, monitorFrameTime*3.0f, monitorFrameTime*4.0f};
+    float smallestDiff = 0;
+    bool set = false;
+    float newRate = monitorFrameTime;
+    for(int i = 0; i < arrayCount(frameRates); ++i) {
+        float val = frameRates[i];
+        float diff = dt - val;
+        if(diff < 0.0f) {
+            diff *= -1;
+        }
+        if(diff < smallestDiff || !set) {
+            set = true;
+            smallestDiff = diff;
+            newRate = val;
+        }
+    }
+    dt = *dt_ = newRate; //set the actual dt
 #if PRINT_FRAME_RATE
-   	printf("%f\n", 1.0f / (dt)); 
+    printf("%f\n", 1.0f / (dt)); 
 #endif
-   *lastTime = now;
+    *lastTime = now;
 }
 
 typedef struct {
 	GameButton gameButtons[BUTTON_COUNT];
-
+    
 	V2 mouseP;
 	V2 mouseP_yUp;
-
+    
 	int scrollWheelY;
 } AppKeyStates;
 
@@ -375,12 +375,12 @@ static inline void easyOS_processKeyStates(AppKeyStates *state, V2 resolution, V
 	}
 	
 	const Uint8* keystates = SDL_GetKeyboardState(NULL);
-
+    
 	bool leftArrowIsDown = keystates[SDL_SCANCODE_LEFT];
 	bool rightArrowIsDown = keystates[SDL_SCANCODE_RIGHT];
 	bool upArrowIsDown = keystates[SDL_SCANCODE_UP];
 	bool downArrowIsDown = keystates[SDL_SCANCODE_DOWN];
-
+    
 	bool shiftIsDown = keystates[SDL_SCANCODE_LSHIFT];
 	bool commandIsDown = keystates[SDL_SCANCODE_LGUI];
 	
@@ -390,17 +390,17 @@ static inline void easyOS_processKeyStates(AppKeyStates *state, V2 resolution, V
 	sdlProcessGameKey(&state->gameButtons[BUTTON_UP], upArrowIsDown, upArrowWasDown == upArrowIsDown);
 	sdlProcessGameKey(&state->gameButtons[BUTTON_SHIFT], shiftIsDown, shiftWasDown == shiftIsDown);
 	sdlProcessGameKey(&state->gameButtons[BUTTON_COMMAND], commandIsDown, commandWasDown == commandIsDown);
-
+    
 	int mouseX, mouseY;
-
+    
 	unsigned int mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-
+    
 	float screenDimX = screenDim->x;
 	float screenDimY = screenDim->y;
 	state->mouseP = v2(mouseX/screenDimX*resolution.x, mouseY/screenDimY*resolution.y);
 	
 	state->mouseP_yUp = v2_minus(v2(state->mouseP.x, -1*state->mouseP.y + resolution.y), v2_scale(0.5f, resolution));
-
+    
 	bool leftMouseDown = mouseState & SDL_BUTTON_LMASK;
 	sdlProcessGameKey(&state->gameButtons[BUTTON_LEFT_MOUSE], leftMouseDown, leftMouseDown == mouseWasDown);
 	
