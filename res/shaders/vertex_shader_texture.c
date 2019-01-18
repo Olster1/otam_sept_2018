@@ -22,12 +22,14 @@ void main() {
 	mat4 PVM = mat4(a, b, c, d);
     gl_Position = PVM * vec4(vertex, 1);
     colorOut = texelFetch(ColorArray, gl_InstanceID);
-
+    
     vec4 uvQuad = texelFetch(UVArray, gl_InstanceID);
-
+    
+    //The mesh we pass in is a quad with uvs being 0, 0, 1, 1, so we 
+    //times by two to get the right array coords.
     int xAt = int(texUV.x*2);
     int yAt = int(texUV.y*2) + 1;
     texUV_out = vec2(uvQuad[xAt], uvQuad[yAt]);
-
+    
     zAt = gl_Position.z;
 }

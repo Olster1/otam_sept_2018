@@ -81,74 +81,66 @@ typedef struct LevelData LevelData;
 typedef struct LevelData {
     char *name;
     bool valid;
-
+    
     LevelType levelType;
-
+    
     FileContents contents;
-
+    
     LevelState state;
-
+    
     //this is for the overworld
     float angle;
     float dA;
     particle_system particleSystem;
-
+    
     bool hasPlayedHoverSound;
     Timer showTimer;
-
+    
     int glyphCount;
     GlyphInfo glyphs[3];
     //
-
-
+    
+    V2 pos;
     int groupId;
-
+    
     LevelData *next; //this is used for the overworld level groups
 } LevelData;
-    
-typedef struct {
-    V2 pos;
-    LevelType type;
-} LevelOverworldButton;
-
-typedef struct {
-    LevelOverworldButton buttons[LEVEL_COUNT];
-} OverworldLevelState;
 
 typedef struct  {
-    LevelType groups[22];
+    LevelType levels[22];
     int count;    
 } LevelGroup;
 
+/*
 static inline V2 getPos(OverworldLevelState *state, LevelGroup *group) {
     V2 currentAverage = v2(0, 0);
     for(int i = 0; i < group->count; ++i) {
-        LevelType t = group->groups[i];
+        LevelType t = group->levels[i];
         currentAverage = v2_plus(state->buttons[(int)t].pos, currentAverage);
     }
     V2 average = v2_scale(1.0f / group->count, currentAverage);
     return average;
 }
-
+*/
 static inline void addLevelToGroup(LevelGroup *group, LevelType type) {
-    assert(group->count < arrayCount(group->groups));
-    group->groups[group->count++] = type;
+    assert(group->count < arrayCount(group->levels));
+    group->levels[group->count++] = type;
 }
 
 static inline LevelCountFromFile findLevelCount(char *readName) {
     LevelCountFromFile counts = {};
-
+    
     if(platformDoesFileExist(readName)) {
         counts.valid = true;
-
+        
         FileContents saveFileContents = getFileContentsNullTerminate(readName);
         assert(saveFileContents.valid);
-
+        
         EasyTokenizer tokenizer = lexBeginParsing((char *)saveFileContents.memory, true);
         bool parsing = true;
-
         
-
+        
+        
         while(parsing) {
             EasyToken token = lexGetNextToken(&tokenizer);
             InfiniteAlloc data = {};
@@ -174,7 +166,7 @@ static inline LevelCountFromFile findLevelCount(char *readName) {
                     }
                 } break;
                 default: {
-
+                    
                 }
             }
             releaseInfiniteAlloc(&data);
@@ -183,7 +175,7 @@ static inline LevelCountFromFile findLevelCount(char *readName) {
     } else {
         counts.valid = false;
     }
-
+    
     return counts;
 }
 
@@ -204,21 +196,21 @@ void updateSaveStateDetails(LevelCountFromFile *saveStateDetails, int count) {
 
 void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *lastShownGroup_) {
     
-
+    
     for(int i = 0; i < numberOfLevels; ++i) {
         LevelData *level = levelsData + i;
-
-       if(level->groupId == 0) {
-        level->state = LEVEL_STATE_UNLOCKED;
-       } else {
-        level->state = LEVEL_STATE_LOCKED;
+        
+        if(level->groupId == 0) {
+            level->state = LEVEL_STATE_UNLOCKED;
+        } else {
+            level->state = LEVEL_STATE_LOCKED;
 #if CHEAT_MODE
-        //unlock everything
-        level->state = LEVEL_STATE_UNLOCKED;
+            //unlock everything
+            level->state = LEVEL_STATE_UNLOCKED;
 #endif
-       }
+        }
     }
-
+    
     char readName[256] = {};
     sprintf(readName, "%ssaveFile%d.h", globalExeBasePath, saveSlot);
     assert(strlen(readName) < 255);
@@ -227,10 +219,10 @@ void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *
     if(platformDoesFileExist(readName)) {
         FileContents saveFileContents = getFileContentsNullTerminate(readName);
         assert(saveFileContents.valid);
-
+        
         EasyTokenizer tokenizer = lexBeginParsing((char *)saveFileContents.memory, true);
         bool parsing = true;
-
+        
         bool isLevelData = false;
         LevelType levelAt = LEVEL_NULL;
         while(parsing) {
@@ -275,10 +267,10 @@ void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *
                 } break;
                 case TOKEN_CLOSE_BRACKET: {
                     levelAt = LEVEL_NULL;
-
+                    
                 } break;
                 default: {
-
+                    
                 }
             }
             releaseInfiniteAlloc(&data);
@@ -288,6 +280,6 @@ void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *
         //assumes there is a group 0?
         lastShownGroup = -1;
     }
-
+    
     *lastShownGroup_ = lastShownGroup;
 }

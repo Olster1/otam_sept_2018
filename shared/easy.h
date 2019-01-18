@@ -8,16 +8,21 @@
 
 //#define calloc(size, item) malloc(size)
 
+
+#ifdef _WIN32
+//printf doens't print to the console annoyingly!!
+#define printf(...) {char str[256]; sprintf_s(str, __VA_ARGS__); OutputDebugString(str); }
+#endif
+
 #if !defined arrayCount
 #define arrayCount(array1) (sizeof(array1) / sizeof(array1[0]))
 #endif 
 
 #define invalidCodePathStr(msg) { printf(msg); exit(0); }
-
 #if DEVELOPER_MODE //turn off for crash assert
 #undef assert
 // #define assert(statement) if(!(statement)) { int *a = 0; a = 0;}
-#define assert(statement) if(!(statement)) {printf("Something went wrong at %d in %s\n", __LINE__, __FILE__);  ;}
+#define assert(statement) if(!(statement)) {printf("Something went wrong at %d in %s\n", __LINE__, __FILE__);  int *a = 0; *a = 0;}
 #define assertStr(statement, str) if(!(statement)) { printf("%s\n", str); } assert(statement); 
 #else
 #define assert(statement) 
@@ -176,7 +181,7 @@ char *concat(char *a, char *b) {
         *at++ = b[i];
     }
     assert(at == &newString[newStrLen - 1])
-    assert(newString[newStrLen - 1 ] == '\0');
+        assert(newString[newStrLen - 1 ] == '\0');
     return newString;
 }
 
@@ -305,7 +310,7 @@ char *getResPathFromExePath(char *exePath, char *folderName) {
     // resPath[indexAt + 3] = '/';
     // resPath[indexAt + 4] = '\0';
     // assert(strlen(resPath) <= execPathLength);
-
+    
     return 0;
 }
 
