@@ -1291,8 +1291,8 @@ IslandInfo getShapeIslandCount(FitrisShape *shape, V2 startPos, FrameParams *par
     }
     releaseMemoryMark(&memMark);
     if(info.count > shape->count) {
-        printf("Count At; %d\n", info.count);    
-        printf("Shape Count: %d\n", shape->count);    
+        // printf("Count At; %d\n", info.count);    
+        // printf("Shape Count: %d\n", shape->count);    
     }
     assert(info.count <= shape->count);
     
@@ -2306,8 +2306,10 @@ void gameUpdateAndRender(void *params_) {
     renderEnableDepthTest(globalRenderGroup);
     setBlendFuncType(globalRenderGroup, BLEND_FUNC_STANDARD);
     
-    if(params->menuInfo.gameMode != OVERWORLD_MODE) {
+    if(params->menuInfo.gameMode != OVERWORLD_MODE && params->menuInfo.gameMode != SPLASH_SCREEN_MODE) {
         renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -5), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
+    } else if(params->menuInfo.gameMode == SPLASH_SCREEN_MODE) {
+        clearBufferAndBind(params->mainFrameBuffer.bufferId, COLOR_WHITE);
     }
     
     for(int partIndex = 0; partIndex < params->particleSystems.count; ++partIndex) {
@@ -2505,7 +2507,7 @@ void gameUpdateAndRender(void *params_) {
         params->dt = oldDt;
     }
     
-    if(isPlayState || currentGameMode == OVERWORLD_MODE || currentGameMode == EDITOR_MODE || EDITOR_OVERVIEW_MODE) {
+    if(isPlayState || currentGameMode == OVERWORLD_MODE || currentGameMode == EDITOR_MODE) {
         if(currentGameMode == OVERWORLD_MODE) { //Load Button
             
             RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
@@ -2782,7 +2784,7 @@ void gameUpdateAndRender(void *params_) {
                 case '^':
                 case '*':
                 case '!': {
-                    printf("%c\n", tempChar);
+                    // printf("%c\n", tempChar);
                     
                     assert(tempChar != '-');
                     assert(xAt >= 0 && xAt < params->overworldDim.x);
@@ -3227,6 +3229,7 @@ int main(int argc, char *args[]) {
         menuInfo.callBackData = params;
         menuInfo.totalLevelCount = totalLevelCount;
         menuInfo.backTex = findTextureAsset("back.png");
+        menuInfo.splashScreenModeTimer = initTimer(5);
         
         params->menuInfo = menuInfo;
         

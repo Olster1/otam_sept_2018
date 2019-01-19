@@ -5,10 +5,10 @@ FUNC(PAUSE_MODE) \
 FUNC(PLAY_MODE) \
 FUNC(LOAD_MODE) \
 FUNC(SAVE_MODE) \
+FUNC(SPLASH_SCREEN_MODE) \
 FUNC(QUIT_MODE) \
 FUNC(DIED_MODE) \
 FUNC(EDITOR_MODE) \
-FUNC(EDITOR_OVERVIEW_MODE) \
 FUNC(CREDITS_MODE) \
 FUNC(SETTINGS_MODE) \
 
@@ -51,6 +51,7 @@ typedef struct {
     
     TransitionState *transitionState;
     
+    Timer splashScreenModeTimer;
     V2 lastMouseP;
     
     LevelCountFromFile saveStateDetails[1];
@@ -232,6 +233,21 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                 info->lastMode = LOAD_MODE;
             }
             
+        } break;
+        case SPLASH_SCREEN_MODE: {
+            float alpha = 0;
+            if(isOn(&info->splashScreenModeTimer)) {
+                TimerReturnInfo timeInfo = updateTimer(&info->splashScreenModeTimer, dt);
+                alpha = smoothStep00(0, timeInfo.canonicalVal, 1);
+                if(timeInfo.finished) {
+                    changeMenuState(info, MENU_MODE);
+                    turnTimerOff(&info->splashScreenModeTimer);
+                    
+                }
+            } 
+            RenderInfo renderInfo = calculateRenderInfo(v3(0, 0, -1), v3(0.7f*resolution.x, 0.7f*resolution.y, 1), v3(0, 0, 0), mat4());
+            renderTextureCentreDim(findTextureAsset("logo.png"), renderInfo.pos, renderInfo.dim.xy, v4(1, 1, 1, alpha), 0, mat4(), OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm); 
+
         } break;
         case CREDITS_MODE:{
             
@@ -675,10 +691,6 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             setSoundType(AUDIO_FLAG_MAIN);
         } break;
         case EDITOR_MODE: {
-            isPlayMode = true;
-            setSoundType(AUDIO_FLAG_MAIN);
-        } break;
-        case EDITOR_OVERVIEW_MODE: {
             isPlayMode = true;
             setSoundType(AUDIO_FLAG_MAIN);
         } break;

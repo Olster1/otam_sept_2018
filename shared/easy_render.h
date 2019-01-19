@@ -3,7 +3,7 @@
 #define FAR_CLIP_PLANE -(RENDER_HANDNESS)*10000.0f
 #define USING_ATTRIBS_FOR_INSTANCING 1
 
-#define PRINT_NUMBER_DRAW_CALLS 1
+#define PRINT_NUMBER_DRAW_CALLS 0
 
 #if !DESKTOP
 #define GL_TEXTURE_BUFFER                 0x8C2A
@@ -143,6 +143,7 @@ typedef struct {
     bool valid;
     bool refresh;// this could be a flag with valid
     GLuint vboHandle; //this is for instancing data
+    GLuint vboForRects; //this is for instancing data
 } VaoHandle;
 
 //just has a dim of 1 by 1 and you can rotate, scale etc. by a model matrix
@@ -913,7 +914,9 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
         
         glGenBuffers(1, &bufferHandles->vboHandle);
         renderCheckError();
-        
+
+        glGenBuffers(1, &bufferHandles->vboForRects);
+        renderCheckError();
         
         bufferHandles->indexCount = indexCount;
         
@@ -1294,7 +1297,12 @@ static inline void addInstancingAttrib (GLuint attribLoc, int numOfFloats, size_
 //This is using vertex attribs
 void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array, RenderProgram *program, bool hasUvs) {
     glBindVertexArray(vao->vaoHandle);
-    glBindBuffer(GL_ARRAY_BUFFER, vao->vboHandle);
+    if(program == &rectangleProgram) {
+        glBindBuffer(GL_ARRAY_BUFFER, vao->vboForRects);
+        //printf("%d\n", array->sizeOfMember*array->count);
+    } else {
+        glBindBuffer(GL_ARRAY_BUFFER, vao->vboHandle);
+    }
     renderCheckError();
     
     //send the data to GPU. glBufferData deletes the 
@@ -1303,7 +1311,7 @@ void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array, RenderProgram *p
     
     GLint pvmAttrib = getAttribFromProgram(program, "PVM").handle;
     renderCheckError();
-    GLint colorAttrib = getAttribFromProgram(program, "color").handle;
+    GLint colorAttrib = getAttribFromProgram(program, "color1").handle;
     renderCheckError();
     
     size_t offsetForStruct = sizeof(float)*(16+4+4); 
@@ -1507,7 +1515,10 @@ void drawRenderGroup(RenderGroup *group) {
         initVao(info->bufferHandles, (Vertex *)info->triangleData.memory, info->triCount, (unsigned int *)info->indicesData.memory, info->indexCount, info->program);
         
 #if USING_ATTRIBS_FOR_INSTANCING
-        createBufferStorage2(info->bufferHandles, &allInstanceData, info->program, uvs.count > 0);
+        if(info->program == &rectangleProgram) {
+            // printf("%s\n", "isQuad");
+        }
+        createBufferStorage2(info->bufferHandles, &allInstanceData, info->program, info->textureHandle);
         BufferStorage pvmStore = {};
         BufferStorage colorStore = {};
         u32 uvId = 0;
@@ -1521,6 +1532,7 @@ void drawRenderGroup(RenderGroup *group) {
             uvId = uvStore.buffer;
         }
 #endif
+        
         drawVao(info->bufferHandles, info->program, info->type, info->textureHandle, pvmStore.buffer, colorStore.buffer, uvId, info->color, DRAWCALL_INSTANCED, instanceCount);
         drawCallCount++;
         

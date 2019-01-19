@@ -63,7 +63,6 @@ bool updateTransitions(TransitionState *transState, V2 resolution, float dt) {
         Rect2f rect2 = rect2f(halfRes.x - transWidth, -halfRes.y, halfRes.x, halfRes.y);
         renderDrawRect(rect1, -0.5, COLOR_BLACK, 0, mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
         renderDrawRect(rect2, -0.5, COLOR_BLACK, 0, mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
-
         if(timeInfo.finished) {
             if(trans->direction) {
                 assert(trans->data);
