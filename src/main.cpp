@@ -2868,7 +2868,7 @@ void gameUpdateAndRender(void *params_) {
                         levelAt->angle = lerp(0, timeInfo.canonicalVal, 4*PI32);
                         
                         V3 starLocation = v3(levelAt->pos.x, levelAt->pos.y, -1);
-                        drawAndUpdateParticleSystem(&levelAt->particleSystem, params->dt, starLocation, v3(0, 0 ,0), overworldCam, params->metresToPixels, resolution);
+                        drawAndUpdateParticleSystem(&levelAt->particleSystem, params->dt, v3(starLocation.x, starLocation.y, starLocation.z + 0.1f), v3(0, 0 ,0), overworldCam, params->metresToPixels, resolution);
                         
                         
                         RenderInfo renderInfo = calculateRenderInfo(starLocation, v3(scale*1, scale*1, 1), overworldCam, params->metresToPixels);

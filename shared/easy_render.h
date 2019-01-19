@@ -1063,6 +1063,9 @@ void drawVao(VaoHandle *bufferHandles, RenderProgram *program, ShapeType type, u
         glDrawElements(GL_TRIANGLES, bufferHandles->indexCount, GL_UNSIGNED_INT, 0); 
         renderCheckError();
     } else if(drawCallType == DRAWCALL_INSTANCED) {
+        // if(program == &rectangleProgram) {
+            // printf("%s\n", "isQuad");
+        // }
         glDrawElementsInstanced(GL_TRIANGLES, bufferHandles->indexCount, GL_UNSIGNED_INT, 0, instanceCount); 
         renderCheckError();
     }
@@ -1297,12 +1300,9 @@ static inline void addInstancingAttrib (GLuint attribLoc, int numOfFloats, size_
 //This is using vertex attribs
 void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array, RenderProgram *program, bool hasUvs) {
     glBindVertexArray(vao->vaoHandle);
-    if(program == &rectangleProgram) {
-        glBindBuffer(GL_ARRAY_BUFFER, vao->vboForRects);
-        //printf("%d\n", array->sizeOfMember*array->count);
-    } else {
-        glBindBuffer(GL_ARRAY_BUFFER, vao->vboHandle);
-    }
+    
+    glBindBuffer(GL_ARRAY_BUFFER, vao->vboHandle);
+
     renderCheckError();
     
     //send the data to GPU. glBufferData deletes the 
@@ -1319,7 +1319,8 @@ void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array, RenderProgram *p
     //matrix plus vector4 plus vector4
     addInstancingAttrib (pvmAttrib, 16, offsetForStruct, 0, 1);
     addInstancingAttrib (colorAttrib, 4, offsetForStruct, sizeof(float)*16, 1);
-    if(hasUvs) {
+    // if(hasUvs) 
+    {
         GLint UVattrib = getAttribFromProgram(program, "uvAtlas").handle;
         renderCheckError();
         addInstancingAttrib (UVattrib, 4, offsetForStruct, sizeof(float)*20, 1);
@@ -1532,9 +1533,11 @@ void drawRenderGroup(RenderGroup *group) {
             uvId = uvStore.buffer;
         }
 #endif
-        
-        drawVao(info->bufferHandles, info->program, info->type, info->textureHandle, pvmStore.buffer, colorStore.buffer, uvId, info->color, DRAWCALL_INSTANCED, instanceCount);
-        drawCallCount++;
+        //if(info->program == &rectangleProgram) //Debug: just draw rectangles
+        {
+            drawVao(info->bufferHandles, info->program, info->type, info->textureHandle, pvmStore.buffer, colorStore.buffer, uvId, info->color, DRAWCALL_INSTANCED, instanceCount);
+            drawCallCount++;
+        }
         
 #if !USING_ATTRIBS_FOR_INSTANCING
         assert(group->lastStorageBufferCount < arrayCount(group->lastBufferStorage));
