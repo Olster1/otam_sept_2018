@@ -99,6 +99,9 @@ typedef struct LevelData {
     int glyphCount;
     GlyphInfo glyphs[3];
     //
+
+    Timer displayNameTimer;
+    bool justOn; //for displaying name
     
     V2 pos;
     int groupId;

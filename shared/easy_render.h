@@ -610,6 +610,8 @@ void enableRenderer(int width, int height, Arena *arena) {
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     //SRGB TEXTURE???
     // glEnable(GL_SAMPLE_ALPHA_TO_ONE);
+    // glEnable(GL_DEBUG_OUTPUT);
+    // renderCheckError();
     
 #if DESKTOP
     glEnable(GL_MULTISAMPLE);
@@ -1071,8 +1073,10 @@ void drawVao(VaoHandle *bufferHandles, RenderProgram *program, ShapeType type, u
     }
     
     glBindVertexArray(0);
-    
+
+    renderCheckError();    
     glUseProgram(0);
+    renderCheckError();
     
 }
 
@@ -1300,9 +1304,8 @@ static inline void addInstancingAttrib (GLuint attribLoc, int numOfFloats, size_
 //This is using vertex attribs
 void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array, RenderProgram *program, bool hasUvs) {
     glBindVertexArray(vao->vaoHandle);
-    
+    renderCheckError();
     glBindBuffer(GL_ARRAY_BUFFER, vao->vboHandle);
-
     renderCheckError();
     
     //send the data to GPU. glBufferData deletes the 
@@ -1310,8 +1313,10 @@ void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array, RenderProgram *p
     renderCheckError();
     
     GLint pvmAttrib = getAttribFromProgram(program, "PVM").handle;
+    // printf("PVM attrib: %d\n", pvmAttrib);
     renderCheckError();
-    GLint colorAttrib = getAttribFromProgram(program, "color1").handle;
+    GLint colorAttrib = getAttribFromProgram(program, "color").handle;
+    // printf("color attrib: %d\n", colorAttrib);
     renderCheckError();
     
     size_t offsetForStruct = sizeof(float)*(16+4+4); 
@@ -1319,9 +1324,10 @@ void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array, RenderProgram *p
     //matrix plus vector4 plus vector4
     addInstancingAttrib (pvmAttrib, 16, offsetForStruct, 0, 1);
     addInstancingAttrib (colorAttrib, 4, offsetForStruct, sizeof(float)*16, 1);
-    // if(hasUvs) 
+    if(hasUvs) 
     {
         GLint UVattrib = getAttribFromProgram(program, "uvAtlas").handle;
+        // printf("uv attrib: %d\n", UVattrib);
         renderCheckError();
         addInstancingAttrib (UVattrib, 4, offsetForStruct, sizeof(float)*20, 1);
     }
@@ -1329,6 +1335,7 @@ void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array, RenderProgram *p
     assert(offsetForStruct == sizeof(float)*24);
     
     glBindVertexArray(0);
+    renderCheckError();
 }
 
 void deleteBufferStorage(BufferStorage *store) {

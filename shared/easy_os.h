@@ -329,6 +329,24 @@ static inline void easyOS_processKeyStates(AppKeyStates *state, V2 resolution, V
 	            case SDLK_1: {
 	                buttonType = BUTTON_1;
 	            } break;
+	            case SDLK_2: {
+	                buttonType = BUTTON_2;
+	            } break;
+	            case SDLK_3: {
+	                buttonType = BUTTON_3;
+	            } break;
+	            case SDLK_4: {
+	                buttonType = BUTTON_4;
+	            } break;
+	            case SDLK_5: {
+	                buttonType = BUTTON_5;
+	            } break;
+	            case SDLK_6: {
+	                buttonType = BUTTON_6;
+	            } break;
+	            case SDLK_7: {
+	                buttonType = BUTTON_7;
+	            } break;
 	            case SDLK_BACKQUOTE: {
 	                buttonType = BUTTON_TILDE;
 	            } break;
@@ -345,7 +363,7 @@ static inline void easyOS_processKeyStates(AppKeyStates *state, V2 resolution, V
 	                buttonType = BUTTON_R;
 	            } break;
 	            case SDLK_LSHIFT: {
-	                //buttonType = BUTTON_SHIFT;
+	                // buttonType = BUTTON_SHIFT;
 	            } break;
 	            case SDLK_LEFT: {
 	                if(isDown) {

@@ -1,11 +1,9 @@
-in vec3 vertex;
-in vec4 texUV;	
-
 in mat4 PVM;
 in vec4 color;
 in vec4 uvAtlas;	
 
-//in int instanceIndex;
+in vec3 vertex;
+in vec2 texUV;	
 
 out vec4 colorOut; //out going
 out vec2 texUV_out;

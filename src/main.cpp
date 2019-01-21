@@ -145,6 +145,34 @@ typedef struct {
     bool isDead;
 } GlowingLine;
 
+#define ENTITY_TYPE(FUNC) \
+FUNC(ENTITY_TYPE_NULL) \
+FUNC(ENTITY_TYPE_SNOWMAN) \
+FUNC(ENTITY_TYPE_IGLOO) \
+FUNC(ENTITY_TYPE_MUSHROOM) \
+FUNC(ENTITY_TYPE_TREE) \
+FUNC(ENTITY_TYPE_CACTUS) \
+FUNC(ENTITY_TYPE_ROCK) \
+
+typedef enum {
+    ENTITY_TYPE(ENUM)
+} EntityType;
+
+static char *WorldEntityTypeStrings[] = { ENTITY_TYPE(STRING) };
+
+typedef struct {
+    EntityType type;
+
+    V2 pos;
+    V2 size;
+
+    float tAt;
+    bool grows;
+    bool direction;
+
+    
+} WorldEntity;
+
 typedef struct {
     Arena *soundArena;
     int boardWidth;
@@ -173,10 +201,13 @@ typedef struct {
     Texture *speakerTex;
     Texture *loadTex;
     Texture *errorTex;
+    Texture *iglooTex;
+    Texture *snowManTex;
     
     Texture *alienTex[5];
     Texture *tilesTex[13];
     Texture *tilesTexSand[13];
+    Texture *tilesTexSnow[13];
     
     
     OverworldDt *overworldDts[512];
@@ -253,9 +284,18 @@ typedef struct {
     bool isFreestyle;
     
     V2 lastMouseP;
+
+    int entityCount;
+    WorldEntity worldEntities[128];
+
+    WorldEntity *hotEntity;
     
     bool backgroundSoundPlaying;
-    
+#if EDITOR_MODE
+    LevelType grabbedLevel;
+#endif
+
+    LevelType lastBoundsStar;
     ////////TODO: This stuff below should be in another struct so isn't there for all projects. 
     Arena *longTermArena;
     float dt;
@@ -291,7 +331,123 @@ typedef enum {
     MOVE_DOWN
 } MoveType;
 
+void saveOverworldPositions(FrameParams *params) {
+    InfiniteAlloc data = initInfinteAlloc(char);
+    for(int lvlIndex = 0; lvlIndex < arrayCount(params->levelsData); lvlIndex++) {
+        LevelData *levelData = params->levelsData + lvlIndex;
+        if(levelData->valid) {
+            assert(levelData->state != LEVEL_STATE_NULL);
+            assert(levelData->name);
+            
+            char *lvlTypeStr = LevelTypeStrings[levelData->levelType];
+            
+            
+            char buffer[1028] = {};
+            sprintf(buffer, "{\nlevelType: \"%s\";\n", lvlTypeStr);
+            addElementInifinteAllocWithCount_(&data, buffer, strlen(buffer));
+            
+            sprintf(buffer, "pos: %f %f;\n}\n", levelData->pos.x, levelData->pos.y);
+            addElementInifinteAllocWithCount_(&data, buffer, strlen(buffer));
+        }
+    }
+    for(int entIndex = 0; entIndex < params->entityCount; entIndex++) {
+        WorldEntity *ent = params->worldEntities + entIndex;
+        
+        char *entityTypeStr = WorldEntityTypeStrings[ent->type];
+        
+        char buffer[1028] = {};
+        sprintf(buffer, "{\nentityType: \"%s\";\n", entityTypeStr);
+        addElementInifinteAllocWithCount_(&data, buffer, strlen(buffer));
+        
+        sprintf(buffer, "pos: %f %f;\n}\n", ent->pos.x, ent->pos.y);
+        addElementInifinteAllocWithCount_(&data, buffer, strlen(buffer));
+    }
+    char *writeName = concat(globalExeBasePath, "positions.txt");
+    
+    game_file_handle handle = platformBeginFileWrite(writeName);
+    platformWriteFile(&handle, data.memory, data.count*data.sizeOfMember, 0);
+    platformEndFile(handle);
+    
+    releaseInfiniteAlloc(&data);
+    free(writeName);
 
+}
+
+void updateAndRenderWorldEntity(WorldEntity *ent, FrameParams *params, float dt, V2 resolution, V3 overworldCam) {
+    Texture *tex = 0;
+    ent->size = v2(1, 1);
+    switch(ent->type) {
+        case ENTITY_TYPE_SNOWMAN: {
+            tex = params->snowManTex;
+            ent->grows = true;
+            ent->direction = false;
+        } break;
+        case ENTITY_TYPE_IGLOO: {
+            tex = params->iglooTex;
+            ent->grows = false;
+            ent->direction = false;
+        } break;
+        case ENTITY_TYPE_MUSHROOM: {
+            tex = params->mushroomTex;
+            ent->grows = false;
+            ent->direction = false;
+        } break;
+        case ENTITY_TYPE_TREE: {
+            tex = params->treeTex;
+            ent->grows = true;
+            ent->direction = true;
+        } break;
+        case ENTITY_TYPE_CACTUS:{
+            tex = params->cactusTex;
+            ent->grows = true;
+            ent->direction = false;
+        } break;
+        case ENTITY_TYPE_ROCK:  {
+            tex = params->rockTex;
+            ent->grows = false;
+            ent->direction = false;
+        } break;
+        default: {
+            assert(false);
+        }
+    }
+    assert(tex);
+
+    float width =  ent->size.x;
+    float height =  ent->size.y;
+    float extraVal = 0;
+    V2 placement = ent->pos;
+    if(ent->grows) {
+        ent->tAt += dt;
+        extraVal = 0.3f*sin(ent->tAt);
+        if(ent->direction) {
+            height += extraVal;
+            placement.y += 0.5f*extraVal;
+        } else {
+            width += extraVal;
+        }
+    }
+
+    
+    
+    RenderInfo extraRenderInfo = calculateRenderInfo(v3(placement.x, placement.y, -1), v3(width, height, 1), overworldCam, params->metresToPixels);
+
+    #if EDITOR_MODE
+        Rect2f outputDim = rect2fCenterDimV2(extraRenderInfo.transformPos.xy, extraRenderInfo.transformDim.xy);
+        if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT) && wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && params->grabbedLevel == LEVEL_NULL) {
+            params->hotEntity = ent;
+        }
+        if(params->hotEntity == ent) {
+            V2 worldP = params->keyStates->mouseP_yUp;
+            worldP = V4MultMat4(v4(worldP.x, worldP.y, 1, 1), params->pixelsToMeters).xy;
+            worldP = v2_plus(worldP, params->overworldCamera.xy);
+            ent->pos = worldP;
+            saveOverworldPositions(params);
+        }
+
+    #endif
+    renderTextureCentreDim(tex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+}
 
 static inline float getRandNum01_include() {
     float result = ((float)rand() / (float)RAND_MAX);
@@ -458,6 +614,7 @@ static inline void parseOverworldBoard(char *at, int *values, V2 dim) {
     }   
 }
 
+//init level
 static inline int loadLevelData(FrameParams *params) {
     //INITING ALL THE LEVELS
     char *b_ = concat("levels/", "level_overworld.txt");
@@ -492,10 +649,12 @@ static inline int loadLevelData(FrameParams *params) {
             levelData->showTimer.value = -1;
             levelData->glyphCount = 0;
             levelData->levelType = (LevelType)i;
-            levelData->pos = v2(20*getRandNum01_include(), 20*getRandNum01_include()); 
+            levelData->pos = v2(4*getRandNum01_include(), 4*getRandNum01_include()); 
             particle_system_settings particleSet = InitParticlesSettings(PARTICLE_SYS_DEFAULT);
             pushParticleBitmap(&particleSet, findTextureAsset("starGold.png"), "star");
-            
+                
+            levelData->displayNameTimer = initTimer(0.4f);
+            levelData->displayNameTimer.value = -1; //turn off
             particleSet.Loop = false;
             //particleSet.offsetP = v3(0.000000, 0.000000, 0.200000);
             particleSet.bitmapScale = 0.3f;
@@ -607,7 +766,9 @@ static inline int loadLevelData(FrameParams *params) {
             }
             
             levelIndexAt = groupNum + 1;
-            
+            #if EDITOR_MODE
+            levelIndexAt = levelData->groupId;
+            #endif
             if(levelIndexAt < 10) {
                 assert(levelData->glyphCount < arrayCount(levelData->glyphs));
                 levelData->glyphs[levelData->glyphCount++] = easyFont_getGlyph(params->numberFont, (u32)(levelIndexAt + 48));
@@ -875,6 +1036,31 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
     if(!hasBgImage) {
         params->bgTex = findTextureAsset("blue_grass.png");
     }
+
+    //Now overwride the background image so they are related to groups
+    LevelData *lvlData = params->levelsData + levelTypeIn;
+    
+    switch(lvlData->groupId) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5: {
+            params->bgTex = findTextureAsset("yellow_desert.png");//blue_grass
+        } break;
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10: {
+            params->bgTex = findTextureAsset("yellow_desert.png");
+        } break;
+        default: {
+            assert(false);
+        }
+    }
+
     if(!hasLifePoints) {
         
         params->lifePointsMax = 0;
@@ -1696,6 +1882,66 @@ Texture *getBoardTex(BoardValue *boardVal, BoardState boardState, BoardValType t
     return tex;
 }
 
+void loadOverworldPositions(FrameParams *params) {
+    char *loadName = concat(globalExeBasePath, "positions.txt");
+
+    LevelType levelType = LEVEL_NULL;
+    EntityType entityType = ENTITY_TYPE_NULL;
+    V2 pos = v2(0, 0);
+    bool parsing = true;
+    FileContents contents = getFileContentsNullTerminate(loadName);
+    EasyTokenizer tokenizer = lexBeginParsing((char *)contents.memory, true);
+    bool wasStar = false;
+    while(parsing) {
+        EasyToken token = lexGetNextToken(&tokenizer);
+        InfiniteAlloc data = {};
+        switch(token.type) {
+            case TOKEN_NULL_TERMINATOR: {
+                parsing = false;
+            } break;
+            case TOKEN_WORD: {
+                if(stringsMatchNullN("pos", token.at, token.size)) {
+                    pos = buildV2FromDataObjects(&data, &tokenizer);
+                }
+                if(stringsMatchNullN("levelType", token.at, token.size)) {
+                    wasStar = true;
+                    char *stringToCopy = getStringFromDataObjects(&data, &tokenizer);
+                    for(int i = 0; i < arrayCount(LevelTypeStrings); ++i) {
+                        if(cmpStrNull(LevelTypeStrings[i], stringToCopy)) {
+                            levelType = (LevelType)i;
+                        }
+                    }
+                }
+                if(stringsMatchNullN("entityType", token.at, token.size)) {
+                    wasStar = false;
+                    char *stringToCopy = getStringFromDataObjects(&data, &tokenizer);
+                    for(int i = 0; i < arrayCount(WorldEntityTypeStrings); ++i) {
+                        if(cmpStrNull(WorldEntityTypeStrings[i], stringToCopy)) {
+                            entityType = (EntityType)i;
+                        }
+                    }
+                }
+            } break;
+            case TOKEN_CLOSE_BRACKET: {
+                if(wasStar) {
+                    params->levelsData[levelType].pos = pos;
+                } else {
+                    assert(params->entityCount < arrayCount(params->worldEntities));
+                    WorldEntity *ent = params->worldEntities + params->entityCount++;
+                    ent->type = entityType;
+                    ent->pos = pos;
+                }
+            } break;
+            default: {
+
+            }
+        }
+    }
+    free(loadName);
+    free(contents.memory);
+
+}
+
 void initBoard(FrameParams *params, LevelType levelType) {
     params->extraShapeCount = 0;
     params->experiencePoints = 0;
@@ -2224,65 +2470,65 @@ static inline float getAndUpdateOverworldDtValue(FrameParams *params, float xAt,
     return returnVal;
 }
 
-void drawMapSquare(FrameParams *params, float xAt, float yAt, float xSpace, float ySpace, char *at, V2 resolution, V3 overworldCam, char lastEnvir) {
-    V2 offset = params->overworldValuesOffset[(int)(yAt*params->overworldDim.x) + (int)xAt];
-    float xVal = xSpace*xAt + xSpace*offset.x;
-    float yVal = ySpace*yAt + ySpace*offset.y;
-    if(*at == '#') {
-        float heightOfTree = 1.5f*ySpace;
-        float widthOfTree = xSpace;
-        float extraVal = 0.3f*sin(getAndUpdateOverworldDtValue(params, xAt, yAt, params->dt));
-        heightOfTree += extraVal;
-        // widthOfTree += extraVal;
+// void drawMapSquare(FrameParams *params, float xAt, float yAt, float xSpace, float ySpace, char *at, V2 resolution, V3 overworldCam, char lastEnvir) {
+//     V2 offset = params->overworldValuesOffset[(int)(yAt*params->overworldDim.x) + (int)xAt];
+//     float xVal = xSpace*xAt + xSpace*offset.x;
+//     float yVal = ySpace*yAt + ySpace*offset.y;
+//     if(*at == '#') {
+//         float heightOfTree = 1.5f*ySpace;
+//         float widthOfTree = xSpace;
+//         float extraVal = 0.3f*sin(getAndUpdateOverworldDtValue(params, xAt, yAt, params->dt));
+//         heightOfTree += extraVal;
+//         // widthOfTree += extraVal;
         
-        float yPosOfTree = yVal + 0.5f*extraVal;
-        float xPosOfTree = xVal;
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xPosOfTree, yPosOfTree, -1 - (yAt / 100)), v3(widthOfTree, heightOfTree, 1), overworldCam, params->metresToPixels);
-        renderTextureCentreDim(params->treeTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
-    }
-    if(*at == '$') {
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1 - (yAt / 100)), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
-        renderTextureCentreDim(params->alienTileTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
-    }
-    if(*at == '*') {
-        float heightOfTree = ySpace;
-        float widthOfTree = 1.4f*xSpace;
-        float extraVal = 0.3f*cos(getAndUpdateOverworldDtValue(params, xAt, yAt, params->dt));
-        widthOfTree += extraVal;
-        // widthOfTree += extraVal;
+//         float yPosOfTree = yVal + 0.5f*extraVal;
+//         float xPosOfTree = xVal;
+//         RenderInfo extraRenderInfo = calculateRenderInfo(v3(xPosOfTree, yPosOfTree, -1 - (yAt / 100)), v3(widthOfTree, heightOfTree, 1), overworldCam, params->metresToPixels);
+//         renderTextureCentreDim(params->treeTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+//     }
+//     if(*at == '$') {
+//         RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1 - (yAt / 100)), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
+//         renderTextureCentreDim(params->alienTileTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+//     }
+//     if(*at == '*') {
+//         float heightOfTree = ySpace;
+//         float widthOfTree = 1.4f*xSpace;
+//         float extraVal = 0.3f*cos(getAndUpdateOverworldDtValue(params, xAt, yAt, params->dt));
+//         widthOfTree += extraVal;
+//         // widthOfTree += extraVal;
         
-        float yPosOfTree = yVal;
-        float xPosOfTree = xVal;// + 0.3f*extraVal;
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xPosOfTree, yPosOfTree, -1 - (yAt / 100)), v3(widthOfTree, heightOfTree, 1), overworldCam, params->metresToPixels);
-        renderTextureCentreDim(params->cactusTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
-    }
-    if(*at == '^') {
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1 - (yAt / 100)), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
-        renderTextureCentreDim(params->rockTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
-    }
-    if(*at == '%') {
-        float heightOfMushroom = ySpace;
-        float widthOfMushroom = xSpace;
-        float extraVal = 0;//0.3f*sin(getAndUpdateOverworldDtValue(params, xAt, yAt, params->dt));
-        heightOfMushroom += extraVal;
-        // widthOfTree += extraVal;
+//         float yPosOfTree = yVal;
+//         float xPosOfTree = xVal;// + 0.3f*extraVal;
+//         RenderInfo extraRenderInfo = calculateRenderInfo(v3(xPosOfTree, yPosOfTree, -1 - (yAt / 100)), v3(widthOfTree, heightOfTree, 1), overworldCam, params->metresToPixels);
+//         renderTextureCentreDim(params->cactusTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+//     }
+//     if(*at == '^') {
+//         RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal, yVal, -1 - (yAt / 100)), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
+//         renderTextureCentreDim(params->rockTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+//     }
+//     if(*at == '%') {
+//         float heightOfMushroom = ySpace;
+//         float widthOfMushroom = xSpace;
+//         float extraVal = 0;//0.3f*sin(getAndUpdateOverworldDtValue(params, xAt, yAt, params->dt));
+//         heightOfMushroom += extraVal;
+//         // widthOfTree += extraVal;
         
-        float yPosOfMushroom = yVal + 0.5f*extraVal;
-        float xPosOfMushroom = xVal;
+//         float yPosOfMushroom = yVal + 0.5f*extraVal;
+//         float xPosOfMushroom = xVal;
         
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(xPosOfMushroom, yPosOfMushroom, -1 - (yAt / 100)), v3(widthOfMushroom, heightOfMushroom, 1), overworldCam, params->metresToPixels);
-        renderTextureCentreDim(params->mushroomTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
-    }
-    assert(*at == '!');
-    RenderInfo renderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
+//         RenderInfo extraRenderInfo = calculateRenderInfo(v3(xPosOfMushroom, yPosOfMushroom, -1 - (yAt / 100)), v3(widthOfMushroom, heightOfMushroom, 1), overworldCam, params->metresToPixels);
+//         renderTextureCentreDim(params->mushroomTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+//     }
+//     // assert(*at == '!');
+//     RenderInfo renderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
     
-    Texture **tilesTexArray = params->tilesTex;
-    if(*at == '|' || (lastEnvir == '|' && *at != '!')) {
-        tilesTexArray = params->tilesTexSand;
-    }
-    Texture *enviroTileTex = getTileTex(params, xSpace*xAt, ySpace*yAt, tilesTexArray);
-    renderTextureCentreDim(enviroTileTex, renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
-}
+//     Texture **tilesTexArray = params->tilesTex;
+//     if(*at == '|' || (lastEnvir == '|' && *at != '!')) {
+//         tilesTexArray = params->tilesTexSand;
+//     }
+//     Texture *enviroTileTex = getTileTex(params, xSpace*xAt, ySpace*yAt, tilesTexArray);
+//     renderTextureCentreDim(enviroTileTex, renderInfo.pos, renderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+// }
 
 void gameUpdateAndRender(void *params_) {
     
@@ -2319,25 +2565,6 @@ void gameUpdateAndRender(void *params_) {
     V2 mouseP = params->keyStates->mouseP;
     
     GameMode currentGameMode = drawMenu(&params->menuInfo, params->longTermArena, params->keyStates->gameButtons, 0, params->solidfyShapeSound, params->moveSound, params->dt, resolution, mouseP, params->levelsData, arrayCount(params->levelsData), &params->lastShownGroup);
-    
-    if(currentGameMode == EDITOR_MODE) {
-        // for(int i = 0; i < shape->count; ++i) {
-        //     //NOTE: Render the hover indications & check for hot player block 
-        //     V2 pos = params->shape->blocks[i].pos;
-        //     RenderInfo renderInfo = calculateRenderInfo(v3(pos.x, pos.y, -1), v3(1, 1, 1), cameraPos, metresToPixels);
-        
-        //     Rect2f blockBounds = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
-        
-        //     V4 color = COLOR_WHITE;
-        
-        //     if(inBounds(params->keyStates->mouseP_yUp, blockBounds, BOUNDS_RECT)) {
-        //         hotBlockIndex = i;
-        //         if(params->currentHotIndex < 0) {
-        //             color = alienColors.color1;
-        //         }
-        //     }
-        // }
-    }
     
     bool transitioning = updateTransitions(&params->transitionState, resolution, params->dt);
     Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
@@ -2507,7 +2734,7 @@ void gameUpdateAndRender(void *params_) {
         params->dt = oldDt;
     }
     
-    if(isPlayState || currentGameMode == OVERWORLD_MODE || currentGameMode == EDITOR_MODE) {
+    if(isPlayState || currentGameMode == OVERWORLD_MODE) {
         if(currentGameMode == OVERWORLD_MODE) { //Load Button
             
             RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
@@ -2591,7 +2818,7 @@ void gameUpdateAndRender(void *params_) {
     
     
     //Stil render when we are in a transition
-    if(isPlayState || currentGameMode == EDITOR_MODE) {
+    if(isPlayState) {
         
         { //Back to overworld button
             RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
@@ -2706,7 +2933,7 @@ void gameUpdateAndRender(void *params_) {
         float fontSize = 0.7f;
         float lowerY = 0.8f*resolution.y;
         float nameY = 0.9f*resolution.y;
-        float ySpace = 1.0f;
+        float ySpace = 0.5f;
         float xSpace = ySpace;
         
         //this is a fixed update loop since we are using a static drag coefficient
@@ -2729,9 +2956,15 @@ void gameUpdateAndRender(void *params_) {
                 accel.x *= -1; //inverse the pull direction. Since y is down for mouseP, y is already flipped 
             }
             
-            params->camVel = v3_plus(v3_scale(updatePerLoop, accel), params->camVel);
-            params->camVel = v3_minus(params->camVel, v3_scale(0.3f, params->camVel));
-            params->overworldCamera = v3_plus(v3_scale(updatePerLoop, params->camVel), params->overworldCamera);
+            #if EDITOR_MODE
+            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_SHIFT)) {
+            #endif
+                params->camVel = v3_plus(v3_scale(updatePerLoop, accel), params->camVel);
+                params->camVel = v3_minus(params->camVel, v3_scale(0.3f, params->camVel));
+                params->overworldCamera = v3_plus(v3_scale(updatePerLoop, params->camVel), params->overworldCamera);
+            #if EDITOR_MODE
+            }
+            #endif
             
             //params->lastMouseP = overworldMouseP;
             updateTForMouse -= updatePerLoop;
@@ -2777,35 +3010,16 @@ void gameUpdateAndRender(void *params_) {
                     yAt++;
                     at = lexEatWhiteSpace(at);
                 } break;
-                case '$':
-                case '#':
-                case '%':
-                case '|':
-                case '^':
-                case '*':
-                case '!': {
-                    // printf("%c\n", tempChar);
-                    
-                    assert(tempChar != '-');
-                    assert(xAt >= 0 && xAt < params->overworldDim.x);
-                    assert(yAt >= 0 && yAt < params->overworldDim.y);
-                    int brdVal = (params->overworldValues[(int)(yAt*(int)params->overworldDim.x + xAt)]);
-                    assert(brdVal == 1);
-                    drawMapSquare(params, xAt, yAt, xSpace, ySpace, at, resolution, overworldCam, lastEnvirChar);
-                    xAt++;
-                    at++;
-                    if(*at == '|' || *at == '!') {
-                        lastEnvirChar = *at;
-                    }
-                } break;
                 default: {
                     if(*at != '-') {
                         Texture **tilesTexArray = params->tilesTex;
-                        if(tempChar == '|' || (lastEnvirChar == '|' && tempChar != '!')) {
+                        if(tempChar == '|') {
                             tilesTexArray = params->tilesTexSand;
+                        } else if (tempChar == '=') {
+                            tilesTexArray = params->tilesTexSnow;
                         }
                         RenderInfo tileRenderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
-                        renderTextureCentreDim(getTileTex(params, xSpace*xAt, ySpace*yAt, tilesTexArray), tileRenderInfo.pos, tileRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), tileRenderInfo.pvm)); 
+                        renderTextureCentreDim(getTileTex(params, xAt, yAt, tilesTexArray), tileRenderInfo.pos, tileRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), tileRenderInfo.pvm)); 
                         
                     }
                     
@@ -2814,9 +3028,53 @@ void gameUpdateAndRender(void *params_) {
                 }
             }
         }
+
+        #if EDITOR_MODE
+        if(wasPressed(params->keyStates->gameButtons, BUTTON_1)) {
+            assert(params->entityCount < arrayCount(params->worldEntities));
+            WorldEntity *ent = params->worldEntities + params->entityCount++;
+            ent->type = ENTITY_TYPE_ROCK;
+        }
+        if(wasPressed(params->keyStates->gameButtons, BUTTON_2)) {
+            assert(params->entityCount < arrayCount(params->worldEntities));
+            WorldEntity *ent = params->worldEntities + params->entityCount++;
+            ent->type = ENTITY_TYPE_TREE;
+        }
+        if(wasPressed(params->keyStates->gameButtons, BUTTON_3)) {
+            assert(params->entityCount < arrayCount(params->worldEntities));
+            WorldEntity *ent = params->worldEntities + params->entityCount++;
+            ent->type = ENTITY_TYPE_MUSHROOM;
+        }
+        if(wasPressed(params->keyStates->gameButtons, BUTTON_4)) {
+            assert(params->entityCount < arrayCount(params->worldEntities));
+            WorldEntity *ent = params->worldEntities + params->entityCount++;
+            ent->type = ENTITY_TYPE_CACTUS;
+        }
+        if(wasPressed(params->keyStates->gameButtons, BUTTON_5)) {
+            assert(params->entityCount < arrayCount(params->worldEntities));
+            WorldEntity *ent = params->worldEntities + params->entityCount++;
+            ent->type = ENTITY_TYPE_IGLOO;
+        }
+        if(wasPressed(params->keyStates->gameButtons, BUTTON_6)) {
+            assert(params->entityCount < arrayCount(params->worldEntities));
+            WorldEntity *ent = params->worldEntities + params->entityCount++;
+            ent->type = ENTITY_TYPE_SNOWMAN;
+        }
+        #endif
+        for(int entIndex = 0; entIndex < params->entityCount; ++entIndex) {
+            WorldEntity *ent = params->worldEntities + entIndex;
+
+            updateAndRenderWorldEntity(ent, params, params->dt, resolution, overworldCam);
+        }
+        #if EDITOR_MODE 
+        if(wasReleased(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
+            params->hotEntity = 0;    
+        }
+        
+        #endif
         
         bool playedSound = false;
-        
+        LevelData *nextName = 0;
         for(int levelIndex = 0; levelIndex < LEVEL_COUNT; ++levelIndex) {
             LevelData *levelData = params->levelsData + levelIndex;
             if(levelData->valid) {
@@ -2837,21 +3095,24 @@ void gameUpdateAndRender(void *params_) {
                     levelsAtStore[groupId] = levelAt;
                     
                     //make sure we haven't over specified in the overworld layout
-                    if(levelAt->state != LEVEL_STATE_LOCKED) {
+                    //if(levelAt->state != LEVEL_STATE_LOCKED) 
+                    {
                         
-                        if(groupId > params->lastShownGroup) {
-                            if(highestGroupId < groupId) {
-                                highestGroupId = groupId;
-                            }
-                            if(levelAt->state != LEVEL_STATE_COMPLETED) {
-                                assert(levelAt->state == LEVEL_STATE_UNLOCKED);
-                                if(!playedSound) {
-                                    playMenuSound(params->soundArena, params->showLevelsSound, 0, AUDIO_FOREGROUND);
-                                    playedSound = true;
+                        if(levelAt->state != LEVEL_STATE_LOCKED) {   
+                            if(groupId > params->lastShownGroup) {
+                                if(highestGroupId < groupId) {
+                                    highestGroupId = groupId;
                                 }
-                                levelAt->showTimer = initTimer(2.0f);
-                                Reactivate(&levelAt->particleSystem);
-                                levelAt->dA = 10;
+                                if(levelAt->state != LEVEL_STATE_COMPLETED) {
+                                    assert(levelAt->state == LEVEL_STATE_UNLOCKED);
+                                    if(!playedSound) {
+                                        playMenuSound(params->soundArena, params->showLevelsSound, 0, AUDIO_FOREGROUND);
+                                        playedSound = true;
+                                    }
+                                    levelAt->showTimer = initTimer(2.0f);
+                                    Reactivate(&levelAt->particleSystem);
+                                    levelAt->dA = 10;
+                                }
                             }
                         }
                         
@@ -2894,7 +3155,17 @@ void gameUpdateAndRender(void *params_) {
                         dim.y /= scale;
                         Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, dim);
                         
+                        V4 nameColor = COLOR_BLACK;
+                        if(isOn(&levelAt->displayNameTimer)) {
+                            TimerReturnInfo nameTimerInfo = updateTimer(&levelAt->displayNameTimer, params->dt);
+                            nameColor.w = smoothStep01(0, nameTimerInfo.canonicalVal, 1);
+                            if(nameTimerInfo.finished) {
+                                turnTimerOff(&levelAt->displayNameTimer);
+                            }
+                        } 
+
                         if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+
                             //Output the levels name
                             char *levelName = levelAt->name;
                             if(!levelAt->hasPlayedHoverSound) {
@@ -2904,19 +3175,50 @@ void gameUpdateAndRender(void *params_) {
                             //printf("%s\n", levelName);
                             Rect2f outputNameDim = outputText(params->font, 0, 0, -1, resolution, levelName, menuMargin, COLOR_WHITE, fontSize, false);
                             V2 nameDim = getDim(outputNameDim);
-                            outputText(params->font, 0.5f*(resolution.x - nameDim.x), nameY, -1, resolution, levelName, menuMargin, COLOR_BLUE, fontSize, true);
+
                             
-                            if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && levelAt->state != LEVEL_STATE_LOCKED) {
+                            nextName = levelData;
+
+                            if(!isOn(&levelAt->displayNameTimer) && !levelAt->justOn) {
+                                nameColor = COLOR_NULL;
+                                turnTimerOn(&nextName->displayNameTimer);
+                            }
+                            outputText(params->font, 0.5f*(resolution.x - nameDim.x), nameY, -1, resolution, levelName, menuMargin, nameColor, fontSize, true);
+                            
+                            levelAt->justOn = true;
+
+                            if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
                                 // float torqueForce = 1000.0f;
                                 // levelAt->dA += params->dt*torqueForce;
-                                playGameSound(params->soundArena, params->enterLevelSound, 0, AUDIO_FOREGROUND);
-                                
-                                setStartOrEndGameTransition(params, levelAt->levelType, PLAY_MODE);
+
+                                #if EDITOR_MODE
+                                if(!params->hotEntity) {
+                                    params->grabbedLevel = levelAt->levelType;
+                                }
+                                #else
+                                    if(levelAt->state != LEVEL_STATE_LOCKED) {
+                                        playGameSound(params->soundArena, params->enterLevelSound, 0, AUDIO_FOREGROUND);
+                                        
+                                        setStartOrEndGameTransition(params, levelAt->levelType, PLAY_MODE);
+                                }
+                                #endif
                             }
                         } else {
                             levelAt->hasPlayedHoverSound = false;
+                            levelAt->justOn = false;
                         }
-                        
+                        #if EDITOR_MODE
+                        if(wasReleased(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
+                            params->grabbedLevel = LEVEL_NULL;
+                        }   
+                        if(params->grabbedLevel != LEVEL_NULL && params->grabbedLevel == levelAt->levelType) {
+                            V2 worldP = params->keyStates->mouseP_yUp;
+                            worldP = V4MultMat4(v4(worldP.x, worldP.y, 1, 1), params->pixelsToMeters).xy;
+                            worldP = v2_plus(worldP, params->overworldCamera.xy);
+                            levelAt->pos = worldP;
+                            saveOverworldPositions(params);
+                        }
+                        #endif
                         
                         renderTextureCentreDim(params->starTex, renderInfo.pos, renderInfo.dim.xy, color, levelAt->angle, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
                         
@@ -2941,6 +3243,15 @@ void gameUpdateAndRender(void *params_) {
                 }
             }
         }
+
+        // if(nextName) {
+        //     if(params->lastBoundsStar != nextName->levelType) {
+        //         turnTimerOn(&nextName->displayNameTimer);
+        //         params->lastBoundsStar = nextName->levelType;
+        //     }
+        // } else {
+        //     params->lastBoundsStar = LEVEL_NULL;
+        // }
         
         params->lastShownGroup = highestGroupId;
     }
@@ -3026,6 +3337,7 @@ int main(int argc, char *args[]) {
         Texture *mushroomTex = findTextureAsset("mushrooomTile.png");
         Texture *rockTex = findTextureAsset("brownRock.png");
         Texture *cactusTex = findTextureAsset("cactus.png");
+
         Texture *waterTex = findTextureAsset("waterTile.png");
         Texture *alienTileTex = findTextureAsset("alienTile.png");
         Texture *mapTex = findTextureAsset("placeholder.png");
@@ -3040,7 +3352,8 @@ int main(int argc, char *args[]) {
         params->speakerTex = findTextureAsset("speaker.png");
         params->loadTex = findTextureAsset("save.png");
         params->errorTex = findTextureAsset("error.png");
-        
+        params->snowManTex = findTextureAsset("snowman.png");
+        params->iglooTex = findTextureAsset("iceHouse.png");
         
         params->solidfyShapeSound = findSoundAsset("thud.wav");
         params->successSound = findSoundAsset("Success2.wav");
@@ -3090,7 +3403,26 @@ int main(int argc, char *args[]) {
         params->tilesTexSand[10] = findTextureAsset("tileCenterTopRightSand.png");
         params->tilesTexSand[11] = findTextureAsset("tileCenterLeftBottomSand.png");
         params->tilesTexSand[12] = findTextureAsset("tileCenterRightBottomSand.png");
+
+        params->tilesTexSnow[0] = findTextureAsset("tileTopLeftSnow.png");
+        params->tilesTexSnow[1] = findTextureAsset("tileTopMiddleSnow.png");
+        params->tilesTexSnow[2] = findTextureAsset("tileTopRightSnow.png");
         
+        params->tilesTexSnow[3] = findTextureAsset("tileMiddleLeftSnow.png");
+        params->tilesTexSnow[4] = findTextureAsset("tileMiddleMiddleSnow.png");
+        params->tilesTexSnow[5] = findTextureAsset("tileMiddleRightSnow.png");
+        
+        params->tilesTexSnow[6] = findTextureAsset("tileBottomLeftSnow.png");
+        params->tilesTexSnow[7] = findTextureAsset("tileBottomMiddleSnow.png");
+        params->tilesTexSnow[8] = findTextureAsset("tileBottomRightSnow.png");
+        
+        params->tilesTexSnow[9] = findTextureAsset("tileCenterTopLeftSnow.png");
+        params->tilesTexSnow[10] = findTextureAsset("tileCenterTopRightSnow.png");
+        params->tilesTexSnow[11] = findTextureAsset("tileCenterLeftBottomSnow.png");
+        params->tilesTexSnow[12] = findTextureAsset("tileCenterRightBottomSnow.png");
+        
+
+
         params->tileLayout = easyTile_initLayouts();
         
 #if 0 //particle system in background. Was to distracting. 
@@ -3238,6 +3570,7 @@ int main(int argc, char *args[]) {
         
         loadSaveFile(params->levelsData, arrayCount(params->levelsData), params->menuInfo.activeSaveSlot, &params->lastShownGroup);
         
+        loadOverworldPositions(params);
         //
         
 #if !DESKTOP    

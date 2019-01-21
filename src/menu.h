@@ -8,7 +8,6 @@ FUNC(SAVE_MODE) \
 FUNC(SPLASH_SCREEN_MODE) \
 FUNC(QUIT_MODE) \
 FUNC(DIED_MODE) \
-FUNC(EDITOR_MODE) \
 FUNC(CREDITS_MODE) \
 FUNC(SETTINGS_MODE) \
 
@@ -687,10 +686,6 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             // }
         } break;
         case PLAY_MODE: {
-            isPlayMode = true;
-            setSoundType(AUDIO_FLAG_MAIN);
-        } break;
-        case EDITOR_MODE: {
             isPlayMode = true;
             setSoundType(AUDIO_FLAG_MAIN);
         } break;

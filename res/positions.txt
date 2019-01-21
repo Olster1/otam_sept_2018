@@ -1,0 +1,260 @@
+{
+levelType: "LEVEL_0";
+pos: 1.228557 3.799044;
+}
+{
+levelType: "LEVEL_1";
+pos: 4.351627 5.312385;
+}
+{
+levelType: "LEVEL_2";
+pos: 4.722312 5.959915;
+}
+{
+levelType: "LEVEL_3";
+pos: 9.822202 3.262533;
+}
+{
+levelType: "LEVEL_4";
+pos: 9.480226 2.350594;
+}
+{
+levelType: "LEVEL_5";
+pos: 8.084961 8.763783;
+}
+{
+levelType: "LEVEL_6";
+pos: 9.846892 1.743404;
+}
+{
+levelType: "LEVEL_7";
+pos: 9.680225 5.770036;
+}
+{
+levelType: "LEVEL_8";
+pos: 8.688979 8.244869;
+}
+{
+levelType: "LEVEL_9";
+pos: 10.213559 2.462445;
+}
+{
+levelType: "LEVEL_10";
+pos: 5.231033 1.409656;
+}
+{
+levelType: "LEVEL_11";
+pos: 4.551628 2.196539;
+}
+{
+levelType: "LEVEL_12";
+pos: 5.214367 2.592080;
+}
+{
+levelType: "LEVEL_13";
+pos: 10.413559 5.370568;
+}
+{
+levelType: "LEVEL_14";
+pos: 12.333145 10.159646;
+}
+{
+levelType: "LEVEL_15";
+pos: 13.183146 9.392668;
+}
+{
+levelType: "LEVEL_16";
+pos: 14.116479 6.772162;
+}
+{
+levelType: "LEVEL_17";
+pos: 12.766479 10.910645;
+}
+{
+levelType: "LEVEL_18";
+pos: 14.616479 1.674958;
+}
+{
+levelType: "LEVEL_19";
+pos: 19.046892 9.397200;
+}
+{
+levelType: "LEVEL_20";
+pos: 14.783146 6.037142;
+}
+{
+levelType: "LEVEL_21";
+pos: 19.981161 8.855448;
+}
+{
+levelType: "LEVEL_22";
+pos: 19.322203 8.727247;
+}
+{
+levelType: "LEVEL_23";
+pos: 14.766479 0.876023;
+}
+{
+levelType: "LEVEL_24";
+pos: 19.155537 10.005543;
+}
+{
+levelType: "LEVEL_25";
+pos: 22.422203 4.988233;
+}
+{
+levelType: "LEVEL_26";
+pos: 19.717621 5.822459;
+}
+{
+levelType: "LEVEL_27";
+pos: 21.284286 2.083444;
+}
+{
+levelType: "LEVEL_28";
+pos: 21.605536 4.492893;
+}
+{
+levelType: "LEVEL_29";
+pos: 20.305536 2.623386;
+}
+{
+levelType: "LEVEL_30";
+pos: 22.822203 4.013533;
+}
+{
+levelType: "LEVEL_31";
+pos: 22.300955 2.738570;
+}
+{
+levelType: "LEVEL_32";
+pos: 20.905537 3.757873;
+}
+{
+levelType: "LEVEL_33";
+pos: 22.200954 3.425654;
+}
+{
+levelType: "LEVEL_34";
+pos: 21.234287 2.834443;
+}
+{
+levelType: "LEVEL_35";
+pos: 18.684288 6.637372;
+}
+{
+levelType: "LEVEL_36";
+pos: 19.900955 6.653351;
+}
+{
+levelType: "LEVEL_37";
+pos: 19.988869 9.574118;
+}
+{
+levelType: "LEVEL_38";
+pos: 18.605536 5.643360;
+}
+{
+levelType: "LEVEL_39";
+pos: 20.714495 6.187006;
+}
+{
+entityType: "ENTITY_TYPE_ROCK";
+pos: 16.269836 3.372064;
+}
+{
+entityType: "ENTITY_TYPE_TREE";
+pos: 5.604714 6.425735;
+}
+{
+entityType: "ENTITY_TYPE_TREE";
+pos: 5.988048 1.839849;
+}
+{
+entityType: "ENTITY_TYPE_TREE";
+pos: 8.988048 9.062220;
+}
+{
+entityType: "ENTITY_TYPE_TREE";
+pos: 10.154715 6.329863;
+}
+{
+entityType: "ENTITY_TYPE_TREE";
+pos: 9.004714 5.514949;
+}
+{
+entityType: "ENTITY_TYPE_MUSHROOM";
+pos: 4.654714 1.488318;
+}
+{
+entityType: "ENTITY_TYPE_MUSHROOM";
+pos: 4.246179 6.371695;
+}
+{
+entityType: "ENTITY_TYPE_MUSHROOM";
+pos: 7.788048 8.007626;
+}
+{
+entityType: "ENTITY_TYPE_MUSHROOM";
+pos: 5.804714 5.403098;
+}
+{
+entityType: "ENTITY_TYPE_MUSHROOM";
+pos: 9.471381 7.863818;
+}
+{
+entityType: "ENTITY_TYPE_MUSHROOM";
+pos: 9.163559 2.845934;
+}
+{
+entityType: "ENTITY_TYPE_ROCK";
+pos: 13.888048 6.010289;
+}
+{
+entityType: "ENTITY_TYPE_ROCK";
+pos: 12.354714 9.429729;
+}
+{
+entityType: "ENTITY_TYPE_ROCK";
+pos: 13.330018 10.413084;
+}
+{
+entityType: "ENTITY_TYPE_CACTUS";
+pos: 15.269835 6.647696;
+}
+{
+entityType: "ENTITY_TYPE_CACTUS";
+pos: 13.769835 2.141704;
+}
+{
+entityType: "ENTITY_TYPE_CACTUS";
+pos: 15.869835 1.071132;
+}
+{
+entityType: "ENTITY_TYPE_CACTUS";
+pos: 15.488869 3.438299;
+}
+{
+entityType: "ENTITY_TYPE_CACTUS";
+pos: 12.177026 10.767441;
+}
+{
+entityType: "ENTITY_TYPE_IGLOO";
+pos: 19.200954 7.052818;
+}
+{
+entityType: "ENTITY_TYPE_IGLOO";
+pos: 21.267620 3.729249;
+}
+{
+entityType: "ENTITY_TYPE_SNOWMAN";
+pos: 22.200954 4.368398;
+}
+{
+entityType: "ENTITY_TYPE_SNOWMAN";
+pos: 18.850954 5.982245;
+}
+{
+entityType: "ENTITY_TYPE_SNOWMAN";
+pos: 18.500954 9.497559;
+}
