@@ -153,6 +153,8 @@ FUNC(ENTITY_TYPE_MUSHROOM) \
 FUNC(ENTITY_TYPE_TREE) \
 FUNC(ENTITY_TYPE_CACTUS) \
 FUNC(ENTITY_TYPE_ROCK) \
+FUNC(ENTITY_TYPE_SNOW_PARTICLES) \
+FUNC(ENTITY_TYPE_CLOUD) \
 
 typedef enum {
     ENTITY_TYPE(ENUM)
@@ -170,7 +172,7 @@ typedef struct {
     bool grows;
     bool direction;
 
-    
+    particle_system particleSystem;
 } WorldEntity;
 
 typedef struct {
@@ -202,15 +204,13 @@ typedef struct {
     Texture *loadTex;
     Texture *errorTex;
     Texture *iglooTex;
+    Texture *snowflakeTex;
     Texture *snowManTex;
     
     Texture *alienTex[5];
     Texture *tilesTex[13];
     Texture *tilesTexSand[13];
     Texture *tilesTexSnow[13];
-    
-    
-    OverworldDt *overworldDts[512];
     
     WavFile *solidfyShapeSound;
     WavFile *moveSound;
@@ -263,6 +263,7 @@ typedef struct {
     Array_Dynamic particleSystems;
     
     particle_system overworldParticleSys;
+    particle_system cloudParticleSys;
     
     int *overworldValues;
     V2 overworldDim;
@@ -278,8 +279,6 @@ typedef struct {
     int glowingLinesCount;
     
     TileLayouts tileLayout;
-    
-    V2 *overworldValuesOffset;
     
     bool isFreestyle;
     
@@ -374,79 +373,100 @@ void saveOverworldPositions(FrameParams *params) {
 }
 
 void updateAndRenderWorldEntity(WorldEntity *ent, FrameParams *params, float dt, V2 resolution, V3 overworldCam) {
-    Texture *tex = 0;
-    ent->size = v2(1, 1);
-    switch(ent->type) {
-        case ENTITY_TYPE_SNOWMAN: {
-            tex = params->snowManTex;
-            ent->grows = true;
-            ent->direction = false;
-        } break;
-        case ENTITY_TYPE_IGLOO: {
-            tex = params->iglooTex;
-            ent->grows = false;
-            ent->direction = false;
-        } break;
-        case ENTITY_TYPE_MUSHROOM: {
-            tex = params->mushroomTex;
-            ent->grows = false;
-            ent->direction = false;
-        } break;
-        case ENTITY_TYPE_TREE: {
-            tex = params->treeTex;
-            ent->grows = true;
-            ent->direction = true;
-        } break;
-        case ENTITY_TYPE_CACTUS:{
-            tex = params->cactusTex;
-            ent->grows = true;
-            ent->direction = false;
-        } break;
-        case ENTITY_TYPE_ROCK:  {
-            tex = params->rockTex;
-            ent->grows = false;
-            ent->direction = false;
-        } break;
-        default: {
-            assert(false);
+    if(ent->type == ENTITY_TYPE_SNOW_PARTICLES || ent->type == ENTITY_TYPE_CLOUD) {
+        #if EDITOR_MODE
+            RenderInfo extraRenderInfo = calculateRenderInfo(v3(ent->pos.x, ent->pos.y, -1), v3(1, 1, 1), overworldCam, params->metresToPixels);
+
+            Rect2f outputDim = rect2fCenterDimV2(extraRenderInfo.transformPos.xy, extraRenderInfo.transformDim.xy);
+            if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT) && wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && params->grabbedLevel == LEVEL_NULL) {
+                params->hotEntity = ent;
+            }
+            if(params->hotEntity == ent) {
+                V2 worldP = params->keyStates->mouseP_yUp;
+                worldP = V4MultMat4(v4(worldP.x, worldP.y, 1, 1), params->pixelsToMeters).xy;
+                worldP = v2_plus(worldP, params->overworldCamera.xy);
+                ent->pos = worldP;
+                saveOverworldPositions(params);
+            }
+
+        #endif
+
+        drawAndUpdateParticleSystem(&ent->particleSystem, params->dt, v3(ent->pos.x, ent->pos.y, -0.3), v3(0, 0 ,0), COLOR_WHITE, overworldCam, params->metresToPixels, resolution, true);
+    } else {
+        Texture *tex = 0;
+        ent->size = v2(1, 1);
+        switch(ent->type) {
+            case ENTITY_TYPE_SNOWMAN: {
+                tex = params->snowManTex;
+                ent->grows = true;
+                ent->direction = false;
+            } break;
+            case ENTITY_TYPE_IGLOO: {
+                tex = params->iglooTex;
+                ent->grows = false;
+                ent->direction = false;
+            } break;
+            case ENTITY_TYPE_MUSHROOM: {
+                tex = params->mushroomTex;
+                ent->grows = false;
+                ent->direction = false;
+            } break;
+            case ENTITY_TYPE_TREE: {
+                tex = params->treeTex;
+                ent->grows = true;
+                ent->direction = true;
+            } break;
+            case ENTITY_TYPE_CACTUS:{
+                tex = params->cactusTex;
+                ent->grows = true;
+                ent->direction = false;
+            } break;
+            case ENTITY_TYPE_ROCK:  {
+                tex = params->rockTex;
+                ent->grows = false;
+                ent->direction = false;
+            } break;
+            default: {
+                assert(false);
+            }
         }
+        assert(tex);
+
+        float width =  ent->size.x;
+        float height =  ent->size.y;
+        float extraVal = 0;
+        V2 placement = ent->pos;
+        if(ent->grows) {
+            ent->tAt += dt;
+            extraVal = 0.1f*sin(ent->tAt);
+            if(ent->direction) {
+                height += extraVal;
+                placement.y += 0.5f*extraVal;
+            } else {
+                width += extraVal;
+            }
+        }
+
+        
+        
+        RenderInfo extraRenderInfo = calculateRenderInfo(v3(placement.x, placement.y, -1), v3(width, height, 1), overworldCam, params->metresToPixels);
+
+        #if EDITOR_MODE
+            Rect2f outputDim = rect2fCenterDimV2(extraRenderInfo.transformPos.xy, extraRenderInfo.transformDim.xy);
+            if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT) && wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && params->grabbedLevel == LEVEL_NULL) {
+                params->hotEntity = ent;
+            }
+            if(params->hotEntity == ent) {
+                V2 worldP = params->keyStates->mouseP_yUp;
+                worldP = V4MultMat4(v4(worldP.x, worldP.y, 1, 1), params->pixelsToMeters).xy;
+                worldP = v2_plus(worldP, params->overworldCamera.xy);
+                ent->pos = worldP;
+                saveOverworldPositions(params);
+            }
+
+        #endif
+        renderTextureCentreDim(tex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
     }
-    assert(tex);
-
-    float width =  ent->size.x;
-    float height =  ent->size.y;
-    float extraVal = 0;
-    V2 placement = ent->pos;
-    if(ent->grows) {
-        ent->tAt += dt;
-        extraVal = 0.3f*sin(ent->tAt);
-        if(ent->direction) {
-            height += extraVal;
-            placement.y += 0.5f*extraVal;
-        } else {
-            width += extraVal;
-        }
-    }
-
-    
-    
-    RenderInfo extraRenderInfo = calculateRenderInfo(v3(placement.x, placement.y, -1), v3(width, height, 1), overworldCam, params->metresToPixels);
-
-    #if EDITOR_MODE
-        Rect2f outputDim = rect2fCenterDimV2(extraRenderInfo.transformPos.xy, extraRenderInfo.transformDim.xy);
-        if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT) && wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && params->grabbedLevel == LEVEL_NULL) {
-            params->hotEntity = ent;
-        }
-        if(params->hotEntity == ent) {
-            V2 worldP = params->keyStates->mouseP_yUp;
-            worldP = V4MultMat4(v4(worldP.x, worldP.y, 1, 1), params->pixelsToMeters).xy;
-            worldP = v2_plus(worldP, params->overworldCamera.xy);
-            ent->pos = worldP;
-            saveOverworldPositions(params);
-        }
-
-    #endif
-    renderTextureCentreDim(tex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
 }
 
 static inline float getRandNum01_include() {
@@ -669,7 +689,7 @@ static inline int loadLevelData(FrameParams *params) {
             InitParticleSystem(&levelData->particleSystem, &particleSet);
             // params->overworldParticleSys.MaxParticleCount = 4;
             levelData->particleSystem.viewType = ORTHO_MATRIX;
-            setParticleLifeSpan(&levelData->particleSystem, 20.0f);
+            setParticleLifeSpan(&levelData->particleSystem, 1.0f);
             // Reactivate(&levelData->particleSystem);
             // assert(levelData->particleSystem.Active);
             
@@ -1047,10 +1067,12 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
         case 3:
         case 4:
         case 5: {
-            params->bgTex = findTextureAsset("yellow_desert.png");//blue_grass
+            params->bgTex = findTextureAsset("blue_grass.png");
         } break;
         case 6:
-        case 7:
+        case 7: {
+            params->bgTex = findTextureAsset("yellow_desert.png");
+        } break;
         case 8:
         case 9:
         case 10: {
@@ -1930,6 +1952,13 @@ void loadOverworldPositions(FrameParams *params) {
                     WorldEntity *ent = params->worldEntities + params->entityCount++;
                     ent->type = entityType;
                     ent->pos = pos;
+                    if(ent->type == ENTITY_TYPE_SNOW_PARTICLES) {
+                        ent->particleSystem = params->overworldParticleSys;
+                        prewarmParticleSystem(&ent->particleSystem, v3(0, 0, 0));
+                    } else if(ent->type == ENTITY_TYPE_CLOUD) {
+                        ent->particleSystem = params->cloudParticleSys;
+                        prewarmParticleSystem(&ent->particleSystem, v3(0, 0, 0));
+                    }
                 }
             } break;
             default: {
@@ -2438,37 +2467,37 @@ static inline Texture *getTileTex(FrameParams *params, int xAt, int yAt, Texture
     return tileTex;
 }
 
-static inline float getAndUpdateOverworldDtValue(FrameParams *params, float xAt, float yAt, float dtIn) {   
-    float dtVal = 0;
-    int indexIn = xAt*19 + yAt*19;
-    indexIn %= arrayCount(params->overworldDts);
+// static inline float getAndUpdateOverworldDtValue(FrameParams *params, float xAt, float yAt, float dtIn) {   
+//     float dtVal = 0;
+//     int indexIn = xAt*19 + yAt*19;
+//     indexIn %= arrayCount(params->overworldDts);
     
-    OverworldDt *ow_dt = params->overworldDts[indexIn];
+//     OverworldDt *ow_dt = params->overworldDts[indexIn];
     
-    while(ow_dt) {
-        if(ow_dt->x == xAt && ow_dt->y == yAt) {
-            dtVal = ow_dt->val;
-            break;
-        }
-        ow_dt = ow_dt->next; 
-    }
+//     while(ow_dt) {
+//         if(ow_dt->x == xAt && ow_dt->y == yAt) {
+//             dtVal = ow_dt->val;
+//             break;
+//         }
+//         ow_dt = ow_dt->next; 
+//     }
     
-    if(!ow_dt) {
-        OverworldDt *newOne = (OverworldDt *)pushStruct(params->longTermArena, OverworldDt);
-        ow_dt = newOne;
-        newOne->x = xAt;
-        newOne->y = yAt;
-        newOne->val = 0;
+//     if(!ow_dt) {
+//         OverworldDt *newOne = (OverworldDt *)pushStruct(params->longTermArena, OverworldDt);
+//         ow_dt = newOne;
+//         newOne->x = xAt;
+//         newOne->y = yAt;
+//         newOne->val = 0;
         
-        newOne->next = params->overworldDts[indexIn];
-        params->overworldDts[indexIn] = newOne;
-    }
+//         newOne->next = params->overworldDts[indexIn];
+//         params->overworldDts[indexIn] = newOne;
+//     }
     
-    assert(ow_dt);
-    float returnVal = ow_dt->val;
-    ow_dt->val += dtIn;
-    return returnVal;
-}
+//     assert(ow_dt);
+//     float returnVal = ow_dt->val;
+//     ow_dt->val += dtIn;
+//     return returnVal;
+// }
 
 // void drawMapSquare(FrameParams *params, float xAt, float yAt, float xSpace, float ySpace, char *at, V2 resolution, V3 overworldCam, char lastEnvir) {
 //     V2 offset = params->overworldValuesOffset[(int)(yAt*params->overworldDim.x) + (int)xAt];
@@ -2544,6 +2573,7 @@ void gameUpdateAndRender(void *params_) {
     easyOS_beginFrame(resolution);
     
     beginRenderGroupForFrame(globalRenderGroup);
+    globalRenderGroup->whiteTexture = findTextureAsset("white.png");
     //////CLEAR BUFFERS
     // 
     clearBufferAndBind(params->backbufferId, COLOR_BLACK);
@@ -2973,10 +3003,10 @@ void gameUpdateAndRender(void *params_) {
             }
         }
         
-        // float factor = 10.0f;
+        float factor = 10.0f;
         V3 overworldCam = params->overworldCamera;
-        // overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
-        // overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
+        overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
+        overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
         
         char *at = (char *)params->overworldLayout.memory;
         
@@ -2993,7 +3023,7 @@ void gameUpdateAndRender(void *params_) {
             
         }
         char lastEnvirChar = '!';
-        // drawAndUpdateParticleSystem(&params->overworldParticleSys, params->dt, v3(0, 0, -4), v3(0, 0 ,0), params->cameraPos, params->metresToPixels, resolution);
+        
         int highestGroupId = params->lastShownGroup;
         at = lexEatWhiteSpace(at);
         bool parsing = true;
@@ -3030,6 +3060,7 @@ void gameUpdateAndRender(void *params_) {
         }
 
         #if EDITOR_MODE
+        
         if(wasPressed(params->keyStates->gameButtons, BUTTON_1)) {
             assert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
@@ -3059,6 +3090,20 @@ void gameUpdateAndRender(void *params_) {
             assert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
             ent->type = ENTITY_TYPE_SNOWMAN;
+        }
+        if(wasPressed(params->keyStates->gameButtons, BUTTON_7)) {
+            assert(params->entityCount < arrayCount(params->worldEntities));
+            WorldEntity *ent = params->worldEntities + params->entityCount++;
+            ent->type = ENTITY_TYPE_SNOW_PARTICLES;
+            ent->particleSystem = params->overworldParticleSys;
+            prewarmParticleSystem(&ent->particleSystem, v3(0, 0, 0));
+        }
+        if(wasPressed(params->keyStates->gameButtons, BUTTON_8)) {
+            assert(params->entityCount < arrayCount(params->worldEntities));
+            WorldEntity *ent = params->worldEntities + params->entityCount++;
+            ent->type = ENTITY_TYPE_CLOUD;
+            ent->particleSystem = params->cloudParticleSys;
+            prewarmParticleSystem(&ent->particleSystem, v3(0, 0, 0));
         }
         #endif
         for(int entIndex = 0; entIndex < params->entityCount; ++entIndex) {
@@ -3129,7 +3174,7 @@ void gameUpdateAndRender(void *params_) {
                         levelAt->angle = lerp(0, timeInfo.canonicalVal, 4*PI32);
                         
                         V3 starLocation = v3(levelAt->pos.x, levelAt->pos.y, -1);
-                        drawAndUpdateParticleSystem(&levelAt->particleSystem, params->dt, v3(starLocation.x, starLocation.y, starLocation.z + 0.1f), v3(0, 0 ,0), overworldCam, params->metresToPixels, resolution);
+                        drawAndUpdateParticleSystem(&levelAt->particleSystem, params->dt, v3(starLocation.x, starLocation.y, starLocation.z + 0.1f), v3(0, 0 ,0), COLOR_WHITE, overworldCam, params->metresToPixels, resolution, true);
                         
                         
                         RenderInfo renderInfo = calculateRenderInfo(starLocation, v3(scale*1, scale*1, 1), overworldCam, params->metresToPixels);
@@ -3354,6 +3399,7 @@ int main(int argc, char *args[]) {
         params->errorTex = findTextureAsset("error.png");
         params->snowManTex = findTextureAsset("snowman.png");
         params->iglooTex = findTextureAsset("iceHouse.png");
+        params->snowflakeTex = findTextureAsset("snowflake.png");
         
         params->solidfyShapeSound = findSoundAsset("thud.wav");
         params->successSound = findSoundAsset("Success2.wav");
@@ -3425,30 +3471,55 @@ int main(int argc, char *args[]) {
 
         params->tileLayout = easyTile_initLayouts();
         
-#if 0 //particle system in background. Was to distracting. 
+#if 1 //particle system in background. Was to distracting. 
         particle_system_settings particleSet = InitParticlesSettings(PARTICLE_SYS_DEFAULT);
-        pushParticleBitmap(&particleSet, findTextureAsset("cloud1.png"), "cloud1");
-        pushParticleBitmap(&particleSet, findTextureAsset("cloud2.png"), "cloud1");
-        pushParticleBitmap(&particleSet, findTextureAsset("cloud3.png"), "cloud1");
-        pushParticleBitmap(&particleSet, findTextureAsset("cloud4.png"), "cloud1");
+        // pushParticleBitmap(&particleSet, findTextureAsset("cloud1.png"), "cloud1");
+        // pushParticleBitmap(&particleSet, findTextureAsset("cloud2.png"), "cloud1");
+        // pushParticleBitmap(&particleSet, findTextureAsset("cloud3.png"), "cloud1");
+        // pushParticleBitmap(&particleSet, findTextureAsset("cloud4.png"), "cloud1");
+        pushParticleBitmap(&particleSet, findTextureAsset("snowflake.png"), "snowflake");
         
         particleSet.Loop = true;
         //particleSet.offsetP = v3(0.000000, 0.000000, 0.200000);
-        particleSet.bitmapScale = 3.0f;
-        particleSet.posBias = rect2f(-10.000000, 0, 10.000000, 10);
-        particleSet.VelBias = rect2f(-0.02000, 0.000000, -1.000000, 0.000000);
-        // particleSet.angleBias = v2(0.000000, 6.280000);
+        particleSet.bitmapScale = 0.3f;
+        particleSet.posBias = rect2f(-1, 0, 1, 0);
+        particleSet.VelBias = rect2f(0, -0.5f, 0, -1.0f);
+        particleSet.angleBias = v2(0.000000, 6.280000);
         // particleSet.angleForce = v2(-3.000000, 3.000000);
         particleSet.collidesWithFloor = false;
         particleSet.pressureAffected = false;
         
         
         InitParticleSystem(&params->overworldParticleSys, &particleSet);
-        params->overworldParticleSys.MaxParticleCount = 4;
+        params->overworldParticleSys.MaxParticleCount = 16;
         params->overworldParticleSys.viewType = ORTHO_MATRIX;
-        setParticleLifeSpan(&params->overworldParticleSys, 0.01f);
+        setParticleLifeSpan(&params->overworldParticleSys, 5.0f);
         Reactivate(&params->overworldParticleSys);
         assert(params->overworldParticleSys.Active);
+
+
+        ////////////  Set up the cloud particle system //////////////
+        particleSet = InitParticlesSettings(PARTICLE_SYS_DEFAULT);
+        pushParticleBitmap(&particleSet, findTextureAsset("cloud1.png"), "cloud1");
+        pushParticleBitmap(&particleSet, findTextureAsset("cloud2.png"), "cloud1");
+        pushParticleBitmap(&particleSet, findTextureAsset("cloud3.png"), "cloud1");
+        // pushParticleBitmap(&particleSet, findTextureAsset("clouds4.png"), "cloud1");
+        // pushParticleBitmap(&particleSet, findTextureAsset("snowflake.png"), "snowflake");
+        
+        particleSet.Loop = true;
+        particleSet.bitmapScale = 4.0f;
+        particleSet.posBias = rect2f(0, -5, 0, 5);
+        particleSet.VelBias = rect2f(0.1, 0, 0.2f, 0);
+        particleSet.collidesWithFloor = false;
+        particleSet.pressureAffected = false;
+        
+        
+        InitParticleSystem(&params->cloudParticleSys, &particleSet);
+        params->cloudParticleSys.MaxParticleCount = 6;
+        params->cloudParticleSys.viewType = ORTHO_MATRIX;
+        setParticleLifeSpan(&params->cloudParticleSys, 0.1f);
+        Reactivate(&params->cloudParticleSys);
+        assert(params->cloudParticleSys.Active);
 #endif
         
         params->moveSound = findSoundAsset("menuSound.wav");
@@ -3458,7 +3529,7 @@ int main(int argc, char *args[]) {
         params->backgroundSound2 = findSoundAsset("runaway.wav");//findSoundAsset("Fitris_Soundtrack.wav");
         params->enterLevelSound = findSoundAsset("click2.wav");
         
-        params->backgroundSoundPlaying = true;
+        params->backgroundSoundPlaying = false;
         
         PlayingSound *menuSound = playMenuSound(&soundArena, findSoundAsset("wind.wav"), 0, AUDIO_BACKGROUND);
         menuSound->volume = 0.6f;
@@ -3515,10 +3586,7 @@ int main(int argc, char *args[]) {
         params->overworldDim = parseGetBoardDim(at);
         int boardCellSize = params->overworldDim.x*params->overworldDim.y;
         params->overworldValues = (int *)calloc(boardCellSize*sizeof(int), 1);
-        params->overworldValuesOffset = (V2 *)calloc(boardCellSize*sizeof(V2), 1);
-        for(int i = 0; i < boardCellSize; ++i) {
-            params->overworldValuesOffset[i] = v2(getRandNum01() / 2, getRandNum01() / 2);
-        }
+        
         parseOverworldBoard(at, params->overworldValues, params->overworldDim);
         
         params->moveTimer = initTimer(MOVE_INTERVAL);
