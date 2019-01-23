@@ -173,7 +173,7 @@ void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info
         
         if(clickable) {
             if(menuIndex == info->menuCursorAt) {
-                menuItemColor = COLOR_RED;
+                menuItemColor = COLOR_YELLOW;
             }
         }
         outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, menuItemColor, fontSize, true);
@@ -186,7 +186,7 @@ MenuOptions initDefaultMenuOptions() {
     
     for(int i = 0; i < arrayCount(result.options); ++i) {
         MenuOption *opt = result.optionSettings + i;
-        opt->color = COLOR_BLUE;
+        opt->color = COLOR_BLACK;
         opt->notClickable = false;
         opt->size = 1.0f;
     }

@@ -296,6 +296,8 @@ typedef struct {
     V3 overworldGroupPosAt;
 
     //
+
+    bool confirmCloseScreen;
     
     bool backgroundSoundPlaying;
 #if EDITOR_MODE
@@ -2375,7 +2377,7 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
             bool settingBlock = (toBoardState == BOARD_NULL && stateToSet == staticState);
             bool isInBounds = inBoardBounds(params, newPos);
             bool blocked = (toBoardState != BOARD_NULL && stateToSet == staticState);
-            if(blocked || !isInBounds) {
+            if((blocked || !isInBounds) && shape->isOut) {
                 assert(shape->isOut);
                 if(shape->count == 1) {
                     assert(stateToSet != BOARD_NULL);
@@ -2399,8 +2401,13 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
                 
                 assert(isInBounds);
                 if(settingBlock || stateToSet == BOARD_NULL) {
-                    if(stateToSet == BOARD_NULL) { assert(toBoardState == staticState); }
-                    setBoardState(params, newPos, stateToSet, BOARD_VAL_DYNAMIC);
+                    bool goThrough = true;
+                    if(stateToSet == BOARD_NULL) { 
+                        if(toBoardState != staticState) { goThrough = false; }
+                    }
+                    if(goThrough) {
+                        setBoardState(params, newPos, stateToSet, BOARD_VAL_DYNAMIC);
+                    }
                     
                 }
             }
@@ -2635,7 +2642,8 @@ void gameUpdateAndRender(void *params_) {
     setBlendFuncType(globalRenderGroup, BLEND_FUNC_STANDARD);
     
     if(params->menuInfo.gameMode != OVERWORLD_MODE && params->menuInfo.gameMode != SPLASH_SCREEN_MODE) {
-        if(params->menuInfo.gameMode == SAVE_MODE) {
+        if(params->menuInfo.gameMode == SETTINGS_MODE || params->menuInfo.gameMode == QUIT_MODE || params->menuInfo.gameMode == MENU_MODE) {
+            
             params->bgTex = params->blueBackgroundTex;
         }
         renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -5), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
@@ -2657,6 +2665,7 @@ void gameUpdateAndRender(void *params_) {
     bool isPlayState = (currentGameMode == PLAY_MODE);
     
     float helpTextY = 40;
+    float uiZAt = -0.3f;
     
     bool retryButtonPressed = false;    
     if(isPlayState) {
@@ -2697,7 +2706,7 @@ void gameUpdateAndRender(void *params_) {
         }   
     }
     
-    if(!transitioning && isPlayState) {   
+    if(!transitioning && isPlayState && !params->confirmCloseScreen) {   
         float dtLeft = params->dt;
         float oldDt = params->dt;
         float increment = 1.0f / 480.0f;
@@ -2822,8 +2831,9 @@ void gameUpdateAndRender(void *params_) {
     
     if(isPlayState || currentGameMode == OVERWORLD_MODE) {
         if(currentGameMode == OVERWORLD_MODE) { //Load Button
+
             
-            RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -2847,7 +2857,7 @@ void gameUpdateAndRender(void *params_) {
             renderTextureCentreDim(params->loadTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
 
             { //Back to overworld button
-                RenderInfo renderInfo = calculateRenderInfo(v3(3, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+                RenderInfo renderInfo = calculateRenderInfo(v3(3, 5, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
                 
                 Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
                 static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -2873,7 +2883,7 @@ void gameUpdateAndRender(void *params_) {
         }
         
         { //Sound Button
-            RenderInfo renderInfo = calculateRenderInfo(v3(7, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(7, 5, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -2900,7 +2910,7 @@ void gameUpdateAndRender(void *params_) {
         }
         
         { //Exit Button
-            RenderInfo renderInfo = calculateRenderInfo(v3(9, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(9, 5, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -2916,23 +2926,20 @@ void gameUpdateAndRender(void *params_) {
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
                 setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
                 if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
-                    globalSoundOn = !globalSoundOn;
-                    // changeMenuState(&params->menuInfo, SETTINGS_MODE);
-                    *params->menuInfo.running = false;
+                    changeMenuState(&params->menuInfo, QUIT_MODE);
+                    
                 }
             }
             
             renderTextureCentreDim(params->errorTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
         }
     }
-    
-    
-    
+
     //Stil render when we are in a transition
     if(isPlayState) {
         
         { //Back to overworld button
-            RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -3044,14 +3051,13 @@ void gameUpdateAndRender(void *params_) {
         float fontSize = 0.7f;
         float lowerY = 0.8f*resolution.y;
         float nameY = 0.9f*resolution.y;
-        float ySpace = 0.5f;
+        float ySpace = 0.7f;
         float xSpace = ySpace;
         
         //this is a fixed update loop since we are using a static drag coefficient
         float updateTForMouse = params->dt;
         float updatePerLoop = 1 / 480.0f;
         
-
         while(updateTForMouse > 0.0f) {
             easyOS_processKeyStates(&params->overworldKeyStates, resolution, params->screenDim, params->menuInfo.running);
             V2 overworldMouseP = params->overworldKeyStates.mouseP;
@@ -3060,6 +3066,7 @@ void gameUpdateAndRender(void *params_) {
             }
             
             V3 accel = v3(0, 0, 0);
+            #if 0
             if(isDown(params->overworldKeyStates.gameButtons, BUTTON_LEFT_MOUSE)) {
                 V2 diffVec = v2_minus(overworldMouseP, params->lastMouseP);
                 diffVec = normalizeV2(diffVec);
@@ -3067,10 +3074,27 @@ void gameUpdateAndRender(void *params_) {
                 // error_printFloat2("diff: ", accel.xy.E);
                 accel.x *= -1; //inverse the pull direction. Since y is down for mouseP, y is already flipped 
             }
+            #else
+            
+            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_LEFT)) {
+                accel.x = -1;
+            } 
+            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_RIGHT)) {
+                accel.x = 1;
+            }
+            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_UP)) {
+                accel.y = 1;
+            }
+            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_DOWN)) {
+               accel.y = -1;
+            }
+            accel.xy = v2_scale(1600.0f, accel.xy);
+            #endif
             
             #if EDITOR_MODE
             if(isDown(params->overworldKeyStates.gameButtons, BUTTON_SHIFT)) {
             #endif
+
                 params->camVel = v3_plus(v3_scale(updatePerLoop, accel), params->camVel);
                 params->camVel = v3_minus(params->camVel, v3_scale(0.3f, params->camVel));
                 params->overworldCamera = v3_plus(v3_scale(updatePerLoop, params->camVel), params->overworldCamera);
@@ -3096,8 +3120,8 @@ void gameUpdateAndRender(void *params_) {
         
         float factor = 10.0f;
         V3 overworldCam = params->overworldCamera;
-        // overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
-        // overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
+        overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
+        overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
         
         char *at = (char *)params->overworldLayout.memory;
         
@@ -3139,7 +3163,7 @@ void gameUpdateAndRender(void *params_) {
                         } else if (tempChar == '=') {
                             tilesTexArray = params->tilesTexSnow;
                         }
-                        RenderInfo tileRenderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
+                        RenderInfo tileRenderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2.5f), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
                         renderTextureCentreDim(getTileTex(params, xAt, yAt, tilesTexArray), tileRenderInfo.pos, tileRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), tileRenderInfo.pvm)); 
                         
                     }
@@ -3306,6 +3330,7 @@ void gameUpdateAndRender(void *params_) {
                                 playMenuSound(params->soundArena, params->arrangeSound, 0, AUDIO_BACKGROUND);    
                                 levelAt->hasPlayedHoverSound = true;
                             }
+                            //printf("%s\n", levelName);
                             Rect2f outputNameDim = outputText(params->font, 0, 0, -1, resolution, levelName, menuMargin, COLOR_WHITE, fontSize, false);
                             V2 nameDim = getDim(outputNameDim);
 
@@ -3316,6 +3341,7 @@ void gameUpdateAndRender(void *params_) {
                                 nameColor = COLOR_NULL;
                                 turnTimerOn(&nextName->displayNameTimer);
                             }
+                            outputText(params->font, 0.5f*(resolution.x - nameDim.x), nameY, -0.1f, resolution, levelName, menuMargin, nameColor, fontSize, true);
                             
                             levelAt->justOn = true;
 
@@ -3397,7 +3423,8 @@ void gameUpdateAndRender(void *params_) {
 int main(int argc, char *args[]) {
     V2 screenDim = {}; //init in create app function
     V2 resolution = v2(1280, 720); //this could be variable -> passed in by the app etc. like unity window 
-    // V2 resolution = v2(750, 1334); //this could be variable -> passed in by the app etc. like unity window 
+    // V2 resolution = v2(2*750, 2*1334); //this could be variable -> passed in by the app etc. like unity window 
+    screenDim = resolution;
     
     OSAppInfo appInfo = easyOS_createApp(APP_TITLE, &screenDim);
     assert(appInfo.valid);
@@ -3421,11 +3448,13 @@ int main(int argc, char *args[]) {
         
 #define CREATE_FONT_ATLAS 0
 #if CREATE_FONT_ATLAS
-        easyAtlas_createTextureAtlas("img/", "atlas/", appInfo.windowHandle, &longTermArena);
+        easyAtlas_createTextureAtlas("textureAtlas", "img/", "atlas/", appInfo.windowHandle, &longTermArena, TEXTURE_FILTER_LINEAR);
+        easyAtlas_createTextureAtlas("tileAtlas", "tiles/", "atlas/", appInfo.windowHandle, &longTermArena, TEXTURE_FILTER_NEAREST);
         exit(0);
 #endif
         // loadAndAddImagesToAssets("img/");
-        easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/textureAtlas_1"));
+        easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/textureAtlas_1"), TEXTURE_FILTER_LINEAR);
+        easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/tileAtlas_1"), TEXTURE_FILTER_NEAREST);
         loadAndAddSoundsToAssets("sounds/", &setupInfo.audioSpec);
         
         bool running = true;
