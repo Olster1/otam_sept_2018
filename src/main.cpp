@@ -249,6 +249,9 @@ typedef struct {
     LevelData *levelGroups[LEVEL_COUNT]; //this is for the overworld. 
     FileContents overworldLayout;
     
+    int maxGroupId;
+    LevelGroup groups[LEVEL_COUNT];
+
     Timer moveTimer;
     
     float moveTime;
@@ -268,8 +271,6 @@ typedef struct {
     int *overworldValues;
     V2 overworldDim;
     
-    LevelGroup groups[LEVEL_COUNT];
-    
     float accumHoldTime;
     bool letGo;  //let the shape go
     
@@ -288,11 +289,20 @@ typedef struct {
     WorldEntity worldEntities[128];
 
     WorldEntity *hotEntity;
+
+//For the 'back to origin button'
+    Timer backToOriginTimer;
+    V3 backToOriginStart;
+    V3 overworldGroupPosAt;
+
+    //
     
     bool backgroundSoundPlaying;
 #if EDITOR_MODE
     LevelType grabbedLevel;
 #endif
+
+    Texture *blueBackgroundTex;
 
     LevelType lastBoundsStar;
     ////////TODO: This stuff below should be in another struct so isn't there for all projects. 
@@ -449,7 +459,7 @@ void updateAndRenderWorldEntity(WorldEntity *ent, FrameParams *params, float dt,
 
         
         
-        RenderInfo extraRenderInfo = calculateRenderInfo(v3(placement.x, placement.y, -1), v3(width, height, 1), overworldCam, params->metresToPixels);
+        RenderInfo extraRenderInfo = calculateRenderInfo(v3(placement.x, placement.y, -2), v3(width, height, 1), overworldCam, params->metresToPixels);
 
         #if EDITOR_MODE
             Rect2f outputDim = rect2fCenterDimV2(extraRenderInfo.transformPos.xy, extraRenderInfo.transformDim.xy);
@@ -738,6 +748,16 @@ static inline int loadLevelData(FrameParams *params) {
                 levelData->state = LEVEL_STATE_UNLOCKED;
             }
             levelData->groupId = groupId;
+
+            ///Add to group structure
+            if(params->maxGroupId < levelData->groupId) {
+                params->maxGroupId = levelData->groupId;
+            }
+            LevelGroup *group = params->groups + levelData->groupId;
+            addLevelToGroup(group, levelData->levelType);
+            ///
+            
+            
             
 #if CHEAT_MODE
             //unlock everything
@@ -1991,6 +2011,35 @@ void initBoard(FrameParams *params, LevelType levelType) {
     
 }
 
+static inline V2 findAveragePos(FrameParams *params) {
+    bool foundHighestGroup = false;
+    V2 result = v2(0, 0);
+    for(int i = 0; i <= params->maxGroupId && !foundHighestGroup; ++i) {
+        LevelGroup *group = params->groups + i;
+        if(group->count > 0) {
+            V2 averagePos = v2(0, 0);
+            for(int j = 0; j < group->count; ++j) {
+                LevelType type = group->levels[j];
+                LevelData *data = &params->levelsData[(int)type];
+
+                averagePos = v2_plus(averagePos, data->pos);
+                if(data->state == LEVEL_STATE_COMPLETED) {
+
+                } else if(data->state == LEVEL_STATE_UNLOCKED) {
+                    foundHighestGroup = true;
+                } else {
+                    //shouldn't hit any locked groups!!
+                    assert(false);
+                }
+            }
+            result = v2_scale(1.0f / (float)group->count, averagePos);
+        }
+    }
+
+    assert(!(result.x == 0 && result.y == 0));
+    return result;
+}
+
 typedef struct {
     LevelType levelType;
     FrameParams *params;
@@ -2033,6 +2082,10 @@ void transitionCallbackForBackToOverworld(void *data_) {
         params->levelsData[i].angle = 0;
         params->levelsData[i].dA = 0;
     }
+
+    V3 newPos = v2ToV3(findAveragePos(params), params->overworldCamera.z);
+    params->overworldGroupPosAt = newPos;
+    params->overworldCamera = newPos;
     params->bgTex = findTextureAsset("blue_grass.png");
     trans->info->gameMode = trans->newMode;
     trans->info->lastMode = trans->lastMode;
@@ -2146,13 +2199,16 @@ static void updateBoardRows(FrameParams *params) {
         for(int boardX = 0; boardX < params->boardWidth && isFull; ++boardX) {
             BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
             
-            if(!(boardVal->state == BOARD_STATIC && boardVal->type == BOARD_VAL_OLD)) {
+            if(!(boardVal->state == BOARD_STATIC && (boardVal->type == BOARD_VAL_OLD || boardVal->type == BOARD_VAL_ALWAYS))) {
                 isFull = false;
             }
         }
         if(isFull) {
             for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
-                setBoardState(params, v2(boardX, boardY), BOARD_NULL, BOARD_VAL_OLD);
+                BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
+                if(boardVal->state == BOARD_STATIC && boardVal->type == BOARD_VAL_OLD) {
+                    setBoardState(params, v2(boardX, boardY), BOARD_NULL, BOARD_VAL_OLD);
+                }
             }
         }
     }
@@ -2272,11 +2328,7 @@ static void updateBoardWinState(FrameParams *params) {
             
             if(goToNextLevel) {
                 if(completedGroup) {
-#if GO_TO_NEXT_GROUP_AUTO
-                    setLevelTransition(params, nextLevel); 
-#else
                     setBackToOverworldTransition(params);
-#endif
                 } else {
                     setLevelTransition(params, nextLevel); 
                 }
@@ -2583,6 +2635,9 @@ void gameUpdateAndRender(void *params_) {
     setBlendFuncType(globalRenderGroup, BLEND_FUNC_STANDARD);
     
     if(params->menuInfo.gameMode != OVERWORLD_MODE && params->menuInfo.gameMode != SPLASH_SCREEN_MODE) {
+        if(params->menuInfo.gameMode == SAVE_MODE) {
+            params->bgTex = params->blueBackgroundTex;
+        }
         renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -5), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
     } else if(params->menuInfo.gameMode == SPLASH_SCREEN_MODE) {
         clearBufferAndBind(params->mainFrameBuffer.bufferId, COLOR_WHITE);
@@ -2755,6 +2810,7 @@ void gameUpdateAndRender(void *params_) {
             }
             if(!params->isFreestyle) {
                 updateBoardWinState(params);
+                updateBoardRows(params);
             } else {
                 updateBoardRows(params);
             }
@@ -2789,6 +2845,31 @@ void gameUpdateAndRender(void *params_) {
             }
             
             renderTextureCentreDim(params->loadTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+
+            { //Back to overworld button
+                RenderInfo renderInfo = calculateRenderInfo(v3(3, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+                
+                Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+                static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
+                
+                if(!updateLerpV4(&cLerp, params->dt, LINEAR)) {
+                    if(!easyLerp_isAtDefault(&cLerp)) {
+                        setLerpInfoV4_s(&cLerp, COLOR_WHITE, 0.01, &cLerp.value);
+                    }
+                }
+                
+                V4 uiColor = cLerp.value;
+                if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                    setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
+                    if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning && !isOn(&params->backToOriginTimer)) {
+                        params->backToOriginTimer = initTimer(1);
+                        params->backToOriginStart = params->overworldCamera;
+                        params->overworldGroupPosAt = v2ToV3(findAveragePos(params), params->overworldCamera.z);
+                    }
+                }
+                
+                renderTextureCentreDim(params->mapTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+            }
         }
         
         { //Sound Button
@@ -2970,6 +3051,7 @@ void gameUpdateAndRender(void *params_) {
         float updateTForMouse = params->dt;
         float updatePerLoop = 1 / 480.0f;
         
+
         while(updateTForMouse > 0.0f) {
             easyOS_processKeyStates(&params->overworldKeyStates, resolution, params->screenDim, params->menuInfo.running);
             V2 overworldMouseP = params->overworldKeyStates.mouseP;
@@ -3002,11 +3084,20 @@ void gameUpdateAndRender(void *params_) {
                 updatePerLoop = updateTForMouse;
             }
         }
+
+        if(isOn(&params->backToOriginTimer)) {
+            TimerReturnInfo timerInfo = updateTimer(&params->backToOriginTimer, params->dt);
+            params->overworldCamera = smoothStep01V3(params->backToOriginStart, timerInfo.canonicalVal, params->overworldGroupPosAt);
+            if(timerInfo.finished) {
+                turnTimerOff(&params->backToOriginTimer);
+            }
+
+        }
         
         float factor = 10.0f;
         V3 overworldCam = params->overworldCamera;
-        overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
-        overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
+        // overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
+        // overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
         
         char *at = (char *)params->overworldLayout.memory;
         
@@ -3014,8 +3105,8 @@ void gameUpdateAndRender(void *params_) {
         bool finished[LEVEL_COUNT] = {};
         
         float waterDim = 2.0f;
-        for(int yVal = -6; yVal < 6; ++yVal) {
-            for(int xVal = -8; xVal < 8; ++xVal) {
+        for(int yVal = -4; yVal < 4; ++yVal) {
+            for(int xVal = -6; xVal < 6; ++xVal) {
                 
                 RenderInfo extraRenderInfo = calculateRenderInfo(v3(waterDim*xVal, waterDim*yVal, -3), v3(waterDim, waterDim, 1), v3(0, 0, 0), params->metresToPixels);
                 renderTextureCentreDim(params->waterTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
@@ -3139,8 +3230,6 @@ void gameUpdateAndRender(void *params_) {
                     }
                     levelsAtStore[groupId] = levelAt;
                     
-                    //make sure we haven't over specified in the overworld layout
-                    //if(levelAt->state != LEVEL_STATE_LOCKED) 
                     {
                         
                         if(levelAt->state != LEVEL_STATE_LOCKED) {   
@@ -3217,7 +3306,6 @@ void gameUpdateAndRender(void *params_) {
                                 playMenuSound(params->soundArena, params->arrangeSound, 0, AUDIO_BACKGROUND);    
                                 levelAt->hasPlayedHoverSound = true;
                             }
-                            //printf("%s\n", levelName);
                             Rect2f outputNameDim = outputText(params->font, 0, 0, -1, resolution, levelName, menuMargin, COLOR_WHITE, fontSize, false);
                             V2 nameDim = getDim(outputNameDim);
 
@@ -3228,7 +3316,6 @@ void gameUpdateAndRender(void *params_) {
                                 nameColor = COLOR_NULL;
                                 turnTimerOn(&nextName->displayNameTimer);
                             }
-                            outputText(params->font, 0.5f*(resolution.x - nameDim.x), nameY, -1, resolution, levelName, menuMargin, nameColor, fontSize, true);
                             
                             levelAt->justOn = true;
 
@@ -3310,6 +3397,7 @@ void gameUpdateAndRender(void *params_) {
 int main(int argc, char *args[]) {
     V2 screenDim = {}; //init in create app function
     V2 resolution = v2(1280, 720); //this could be variable -> passed in by the app etc. like unity window 
+    // V2 resolution = v2(750, 1334); //this could be variable -> passed in by the app etc. like unity window 
     
     OSAppInfo appInfo = easyOS_createApp(APP_TITLE, &screenDim);
     assert(appInfo.valid);
@@ -3400,6 +3488,8 @@ int main(int argc, char *args[]) {
         params->snowManTex = findTextureAsset("snowman.png");
         params->iglooTex = findTextureAsset("iceHouse.png");
         params->snowflakeTex = findTextureAsset("snowflake.png");
+
+        params->blueBackgroundTex = findTextureAsset("blue_grass.png");
         
         params->solidfyShapeSound = findSoundAsset("thud.wav");
         params->successSound = findSoundAsset("Success2.wav");
@@ -3610,7 +3700,7 @@ int main(int argc, char *args[]) {
         params->lastTime = SDL_GetTicks();
         
         params->cameraPos = v3(0, 0, 0);
-        params->overworldCamera = v3(8, 2.5f, 0);
+
         
         TransitionState transState = {};
         transState.transitionSound = findSoundAsset("click.wav");
@@ -3639,6 +3729,9 @@ int main(int argc, char *args[]) {
         loadSaveFile(params->levelsData, arrayCount(params->levelsData), params->menuInfo.activeSaveSlot, &params->lastShownGroup);
         
         loadOverworldPositions(params);
+
+        params->overworldCamera = v2ToV3(findAveragePos(params), 0);
+        turnTimerOff(&params->backToOriginTimer);
         //
         
 #if !DESKTOP    
