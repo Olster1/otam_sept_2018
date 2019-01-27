@@ -31,7 +31,8 @@ typedef struct {
     FontSheet *sheets;
 } Font;
 
-#define FONT_SIZE 512 //I think this can be any reasonable number, it doesn't affect the size of the font. Maybe the clarity of the glyphs? 
+static stbtt_bakedchar *gh;
+#define FONT_SIZE 1028 //This matters. We need to pack our own font glyphs in the future, since it's not garunteed to fit!!!
 FontSheet *createFontSheet(Font *font, int firstChar, int endChar) {
 
     FontSheet *sheet = (FontSheet *)calloc(sizeof(FontSheet), 1);
@@ -46,13 +47,14 @@ FontSheet *createFontSheet(Font *font, int firstChar, int endChar) {
     //TODO: use platform file io functions instead. 
     FileContents contents = platformReadEntireFile(font->fileName, false);
     
-    int numOfChars = endChar - firstChar;
+    int numOfChars = (endChar - firstChar - 1);
     //TODO: do we want to use an arena for this?
     sheet->cdata = (stbtt_bakedchar *)calloc(numOfChars*sizeof(stbtt_bakedchar), 1);
     //
     
     stbtt_BakeFontBitmap(contents.memory, 0, font->fontHeight, (unsigned char *)temp_bitmap, bitmapW, bitmapH, firstChar, numOfChars, sheet->cdata);
     // no guarantee this fits!
+    gh = sheet->cdata + (int)'y';
     
     free(contents.memory);
     // NOTE(Oliver): We expand the the data out from 8 bits per pixel to 32 bits per pixel. It doens't matter that the char data is based on the smaller size since getBakedQuad divides by the width of original, smaller bitmap. 
@@ -73,7 +75,7 @@ FontSheet *createFontSheet(Font *font, int firstChar, int endChar) {
         }
     }
 
-#define WRITE_FONT_PNG 1
+#define WRITE_FONT_PNG 0
 #if WRITE_FONT_PNG
     int bytesPerPixel = 4;
     int stride_in_bytes = bytesPerPixel*bitmapW;
@@ -90,6 +92,7 @@ FontSheet *createFontSheet(Font *font, int firstChar, int endChar) {
 }
 
 FontSheet *findFontSheet(Font *font, unsigned int character) {
+
     FontSheet *sheet = font->sheets;
     FontSheet *result = 0;
     while(sheet) {
@@ -103,7 +106,7 @@ FontSheet *findFontSheet(Font *font, unsigned int character) {
     if(!result) {
         printf("%s\n", "Creating sheet");
         unsigned int interval = 256;
-        unsigned int firstUnicode = (character / interval) * interval;
+        unsigned int firstUnicode = ((int)(character / interval)) * interval;
         result = sheet = createFontSheet(font, firstUnicode, firstUnicode + interval);
 
         //put at the start of the list
@@ -126,7 +129,7 @@ Font initFont_(char *fileName, int firstChar, int endChar, int fontHeight) {
 
 
 Font initFont(char *fileName, int fontHeight) {
-    Font result = initFont_(fileName, 32, 126, fontHeight); // ASCII 32..126 is 95 glyphs
+    Font result = initFont_(fileName, 0, 256, fontHeight); // ASCII 0..256 not inclusive
     return result;
 }
 
@@ -136,6 +139,7 @@ typedef struct {
     V2 lastXY;
     u32 textureHandle;
     Rect2f uvCoords;
+    u32 unicodePoint;
 } GlyphInfo;
 
 
@@ -165,9 +169,9 @@ static inline GlyphInfo easyFont_getGlyph(Font *font, u32 unicodePoint) {
 }
 
 //This does unicode now 
-Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, char *text_, Rect2f margin, V4 color, float size, CursorInfo *cursorInfo, bool display) {
+Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, char *text_, Rect2f margin, V4 color, float size, CursorInfo *cursorInfo, bool display, float resolutionDiffScale) {
     Rect2f bounds = InverseInfinityRect2f();
-        
+    size *= resolutionDiffScale;
     if(x < margin.min.x) { x = margin.min.x; }
 
     //if(bounds.min.y > y) { y = bounds.min.x; }
@@ -197,6 +201,8 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, c
         char *tempR = text;
         unsigned int unicodePoint = easyUnicode_utf8ToUtf32((unsigned char **)&text, false);
         int unicodeLen = easyUnicode_unicodeLength(*text);
+        // unsigned int unicodePoint = *text;
+        // int unicodeLen = 1;
 
         assert(tempR == text);
         bool increment = true;
@@ -208,12 +214,17 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, c
         if(unicodePoint != '\n') {
             if (((int)(unicodePoint) >= sheet->minText && (int)(unicodePoint) < sheet->maxText)) {
                 stbtt_aligned_quad q  = {};
-
-                stbtt_GetBakedQuad(sheet->cdata, FONT_SIZE, FONT_SIZE, unicodePoint - sheet->minText, &x,&y,&q, 1);
+                // if(unicodePoint == 'y') {
+                //     printf("%s\n", "is y before");
+                //     Rect2f uvCoords = rect2f(q.s0, q.t1, q.s1, q.t0);
+                //     error_printFloat4("uv values", uvCoords.E);
+                // }
+                stbtt_GetBakedQuad(sheet->cdata, FONT_SIZE, FONT_SIZE, unicodePoint - sheet->minText, &x, &y, &q, 1);
                 assert(quadCount < arrayCount(qs));
                 GlyphInfo *glyph = qs + quadCount++; 
                 glyph->textureHandle = sheet->handle;
                 // if(unicodePoint == 'y') {
+                //     printf("%s\n", "is y");
                 //     Texture tempTex = {};
                 //     tempTex.id = glyph->textureHandle;
                 //     tempTex.uvCoords = rect2f(q.s0, q.t1, q.s1, q.t0);
@@ -222,8 +233,10 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, c
                 // }
                 // printf("sheet handles: %d ", sheet->handle);
                 glyph->q = q;
+                
                 glyph->index = (int)(text - text_);
                 glyph->lastXY = lastXY;
+                glyph->unicodePoint = unicodePoint;
             } else {
                 assert(!"false");
             }
@@ -257,6 +270,12 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, c
             for(int i = 0; i < quadCount; ++i) {
                 GlyphInfo *glyph = qs + i;
                 stbtt_aligned_quad q = glyph->q;
+                // if(glyph->unicodePoint == 'y') {
+                //     printf("%s\n", "is y after");
+                //     Rect2f uvCoords = rect2f(q.s0, q.t1, q.s1, q.t0);
+                //     // Rect2f uvCoords = rect2f(q.x0, q.x1, q.y1, q.y0);
+                //     error_printFloat4("uv values", uvCoords.E);
+                // }
                 q.x0 = ((q.x0 - startP.x)*size) + startP.x;
                 q.y0 = ((q.y0 - startP.y)*size) + startP.y;
                 q.y1 = ((q.y1 - startP.y)*size) + startP.y;
@@ -269,6 +288,7 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, c
                     Texture tempTex = {};
                     tempTex.id = glyph->textureHandle;
                     tempTex.uvCoords = rect2f(q.s0, q.t1, q.s1, q.t0);
+
                     renderTextureCentreDim(&tempTex, v2ToV3(getCenter(b), zAt), getDim(b), color, 0, mat4TopLeftToBottomLeft(resolution.y), mat4(), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y));            
 
                 }
@@ -329,42 +349,42 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, c
     
 }
 
-Rect2f outputText_with_cursor(Font *font, float x, float y, float z, V2 resolution, char *text, Rect2f margin, V4 color, float size, int cursorIndex, V4 cursorColor, bool display) {
+Rect2f outputText_with_cursor(Font *font, float x, float y, float z, V2 resolution, char *text, Rect2f margin, V4 color, float size, int cursorIndex, V4 cursorColor, bool display, float resolutionDiffScale) {
     CursorInfo cursorInfo = {};
     cursorInfo.index = cursorIndex;
     cursorInfo.color = cursorColor;
     
-    Rect2f result = my_stbtt_print_(font, x, y, z, resolution, text, margin, color, size, &cursorInfo, display);
+    Rect2f result = my_stbtt_print_(font, x, y, z, resolution, text, margin, color, size, &cursorInfo, display, resolutionDiffScale);
     return result;
 }
 
-Rect2f outputText(Font *font, float x, float y, float z, V2 resolution, char *text, Rect2f margin, V4 color, float size, bool display) {
-    Rect2f result = my_stbtt_print_(font, x, y, z, resolution, text, margin, color, size, 0, display);
+Rect2f outputText(Font *font, float x, float y, float z, V2 resolution, char *text, Rect2f margin, V4 color, float size, bool display, float resolutionDiffScale) {
+    Rect2f result = my_stbtt_print_(font, x, y, z, resolution, text, margin, color, size, 0, display, resolutionDiffScale);
     return result;
 }
 
-Rect2f outputTextWithLength(Font *font, float x, float y, float z, V2 resolution, char *allText, int textLength, Rect2f margin, V4 color, float size, bool display) {
+Rect2f outputTextWithLength(Font *font, float x, float y, float z, V2 resolution, char *allText, int textLength, Rect2f margin, V4 color, float size, bool display, float resolutionDiffScale) {
     char *text = (char *)malloc(sizeof(char)*(textLength + 1));
     for(int i = 0; i < textLength; ++i) {
         text[i] = allText[i];
     }
 
     text[textLength] = '\0'; //null terminate. 
-    Rect2f result = my_stbtt_print_(font, x, y, z, resolution, text, margin, color, size, 0, display);
+    Rect2f result = my_stbtt_print_(font, x, y, z, resolution, text, margin, color, size, 0, display, resolutionDiffScale);
     free(text);
     return result;
 }
 
-V2 getBounds(char *string, Rect2f margin, Font *font, float size, V2 resolution) {
-    Rect2f bounds  = outputText(font, margin.minX, margin.minY, -1, resolution, string, margin, v4(0, 0, 0, 1), size, false);
+V2 getBounds(char *string, Rect2f margin, Font *font, float size, V2 resolution, float resolutionDiffScale) {
+    Rect2f bounds  = outputText(font, margin.minX, margin.minY, -1, resolution, string, margin, v4(0, 0, 0, 1), size, false, resolutionDiffScale);
     
     V2 result = getDim(bounds);
     return result;
 }
 
 
-Rect2f getBoundsRectf(char *string, float xAt, float yAt, Rect2f margin, Font *font, float size, V2 resolution) {
-    Rect2f bounds  = outputText(font, xAt, yAt, -1, resolution, string, margin, v4(0, 0, 0, 1), size, false);
+Rect2f getBoundsRectf(char *string, float xAt, float yAt, Rect2f margin, Font *font, float size, V2 resolution, float resolutionDiffScale) {
+    Rect2f bounds  = outputText(font, xAt, yAt, -1, resolution, string, margin, v4(0, 0, 0, 1), size, false, resolutionDiffScale);
     
     return bounds;
 }

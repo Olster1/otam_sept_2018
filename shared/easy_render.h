@@ -209,6 +209,8 @@ typedef struct {
     
     int lastStorageBufferCount;
     BufferStorage lastBufferStorage[512];
+
+    Texture *whiteTexture;
     
 } RenderGroup;
 
@@ -276,6 +278,16 @@ void pushRenderItem(VaoHandle *handles, RenderGroup *group, Vertex *triangleData
     
     info->program = program;
     info->type = type;
+    //We are now overriding rectangles with texture calls & using a white dummy texture.
+    //Could make this cleaner by original making it a SHAPE_TEXTURE. Might prevent possible bugs that 
+    //might occur??!! - Oliver 22/1/19
+    if(program == &rectangleProgram) {
+        info->program = &textureProgram;
+        info->type = SHAPE_TEXTURE; 
+        //set the texture so the render item gets assigned the uv data.
+        texture = group->whiteTexture;
+    } 
+    
     if(texture) {
         info->textureHandle = (u32)texture->id;
         assert(info->textureHandle);
@@ -885,6 +897,39 @@ typedef enum {
     DRAWCALL_INSTANCED,   
 } DrawCallType;
 
+static inline void addInstanceAttribForMatrix(int index, GLuint attribLoc, int numOfFloats, size_t offsetForStruct, size_t offsetInStruct, int divisor) {
+    
+    glEnableVertexAttribArray(attribLoc + index);  
+    renderCheckError();
+    
+    glVertexAttribPointer(attribLoc + index, numOfFloats, GL_FLOAT, GL_FALSE, offsetForStruct, ((char *)0) + offsetInStruct + (4*sizeof(float)*index));
+    renderCheckError();
+    glVertexAttribDivisor(attribLoc + index, divisor);
+    renderCheckError();
+}
+
+static inline void addInstancingAttrib (GLuint attribLoc, int numOfFloats, size_t offsetForStruct, size_t offsetInStruct, int divisor) {
+    
+    assert(attribLoc < GL_MAX_VERTEX_ATTRIBS);
+    assert(offsetForStruct > 0);
+    if(numOfFloats == 16) {
+        addInstanceAttribForMatrix(0, attribLoc, 4, offsetForStruct, offsetInStruct, divisor);
+        addInstanceAttribForMatrix(1, attribLoc, 4, offsetForStruct, offsetInStruct, divisor);
+        addInstanceAttribForMatrix(2, attribLoc, 4, offsetForStruct, offsetInStruct, divisor);
+        addInstanceAttribForMatrix(3, attribLoc, 4, offsetForStruct, offsetInStruct, divisor);
+    } else {
+        glEnableVertexAttribArray(attribLoc);  
+        renderCheckError();
+        
+        assert(numOfFloats <= 4);
+        glVertexAttribPointer(attribLoc, numOfFloats, GL_FLOAT, GL_FALSE, offsetForStruct, ((char *)0) + offsetInStruct);
+        renderCheckError();
+        
+        glVertexAttribDivisor(attribLoc, divisor);
+        renderCheckError();
+    }
+}
+
 static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsigned int *indicesData, int indexCount, RenderProgram *program) {
     if(!bufferHandles->valid) {
         glGenVertexArrays(1, &bufferHandles->vaoHandle);
@@ -904,7 +949,6 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
         glBufferData(GL_ARRAY_BUFFER, triCount*sizeof(Vertex), triangleData, GL_STATIC_DRAW);
         renderCheckError();
         
-        
         glGenBuffers(1, &indices);
         renderCheckError();
         
@@ -912,12 +956,6 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
         renderCheckError();
         
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount*sizeof(unsigned int), indicesData, GL_STATIC_DRAW);
-        renderCheckError();
-        
-        glGenBuffers(1, &bufferHandles->vboHandle);
-        renderCheckError();
-
-        glGenBuffers(1, &bufferHandles->vboForRects);
         renderCheckError();
         
         bufferHandles->indexCount = indexCount;
@@ -946,10 +984,33 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
         renderCheckError();
         glVertexAttribPointer(vertexAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
         renderCheckError();
+
+        glGenBuffers(1, &bufferHandles->vboHandle);
+        renderCheckError();
+
+        glBindBuffer(GL_ARRAY_BUFFER, bufferHandles->vboHandle);
+        renderCheckError();
+
+        GLint pvmAttrib = getAttribFromProgram(program, "PVM").handle;
+        renderCheckError();
+        GLint colorAttrib = getAttribFromProgram(program, "color").handle;
+        renderCheckError();
         
-        //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices); //don't think we need this????
+        size_t offsetForStruct = sizeof(float)*(16+4+4); 
         
-        //can delete buffers since we the reference is sstored in the vao
+        //matrix plus vector4 plus vector4
+        addInstancingAttrib (pvmAttrib, 16, offsetForStruct, 0, 1);
+        addInstancingAttrib (colorAttrib, 4, offsetForStruct, sizeof(float)*16, 1);
+        // if(hasUvs) 
+        {
+            GLint UVattrib = getAttribFromProgram(program, "uvAtlas").handle;
+            // printf("uv attrib: %d\n", UVattrib);
+            renderCheckError();
+            addInstancingAttrib (UVattrib, 4, offsetForStruct, sizeof(float)*20, 1);
+        }
+        
+        assert(offsetForStruct == sizeof(float)*24);
+        
         glBindVertexArray(0);
         
         glDeleteBuffers(1, &vertices);
@@ -1268,38 +1329,7 @@ BufferStorage createBufferStorage(InfiniteAlloc *array) {
 //     float uvs[4];
 // }
 
-static inline void addInstanceAttribForMatrix(int index, GLuint attribLoc, int numOfFloats, size_t offsetForStruct, size_t offsetInStruct, int divisor) {
-    
-    glEnableVertexAttribArray(attribLoc + index);  
-    renderCheckError();
-    
-    glVertexAttribPointer(attribLoc + index, numOfFloats, GL_FLOAT, GL_FALSE, offsetForStruct, ((char *)0) + offsetInStruct + (4*sizeof(float)*index));
-    renderCheckError();
-    glVertexAttribDivisor(attribLoc + index, divisor);
-    renderCheckError();
-}
 
-static inline void addInstancingAttrib (GLuint attribLoc, int numOfFloats, size_t offsetForStruct, size_t offsetInStruct, int divisor) {
-    
-    assert(attribLoc < GL_MAX_VERTEX_ATTRIBS);
-    assert(offsetForStruct > 0);
-    if(numOfFloats == 16) {
-        addInstanceAttribForMatrix(0, attribLoc, 4, offsetForStruct, offsetInStruct, divisor);
-        addInstanceAttribForMatrix(1, attribLoc, 4, offsetForStruct, offsetInStruct, divisor);
-        addInstanceAttribForMatrix(2, attribLoc, 4, offsetForStruct, offsetInStruct, divisor);
-        addInstanceAttribForMatrix(3, attribLoc, 4, offsetForStruct, offsetInStruct, divisor);
-    } else {
-        glEnableVertexAttribArray(attribLoc);  
-        renderCheckError();
-        
-        assert(numOfFloats <= 4);
-        glVertexAttribPointer(attribLoc, numOfFloats, GL_FLOAT, GL_FALSE, offsetForStruct, ((char *)0) + offsetInStruct);
-        renderCheckError();
-        
-        glVertexAttribDivisor(attribLoc, divisor);
-        renderCheckError();
-    }
-}
 
 //This is using vertex attribs
 void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array, RenderProgram *program, bool hasUvs) {
@@ -1311,28 +1341,6 @@ void createBufferStorage2(VaoHandle *vao, InfiniteAlloc *array, RenderProgram *p
     //send the data to GPU. glBufferData deletes the 
     glBufferData(GL_ARRAY_BUFFER, array->sizeOfMember*array->count, array->memory, GL_DYNAMIC_DRAW);
     renderCheckError();
-    
-    GLint pvmAttrib = getAttribFromProgram(program, "PVM").handle;
-    // printf("PVM attrib: %d\n", pvmAttrib);
-    renderCheckError();
-    GLint colorAttrib = getAttribFromProgram(program, "color").handle;
-    // printf("color attrib: %d\n", colorAttrib);
-    renderCheckError();
-    
-    size_t offsetForStruct = sizeof(float)*(16+4+4); 
-    
-    //matrix plus vector4 plus vector4
-    addInstancingAttrib (pvmAttrib, 16, offsetForStruct, 0, 1);
-    addInstancingAttrib (colorAttrib, 4, offsetForStruct, sizeof(float)*16, 1);
-    if(hasUvs) 
-    {
-        GLint UVattrib = getAttribFromProgram(program, "uvAtlas").handle;
-        // printf("uv attrib: %d\n", UVattrib);
-        renderCheckError();
-        addInstancingAttrib (UVattrib, 4, offsetForStruct, sizeof(float)*20, 1);
-    }
-    
-    assert(offsetForStruct == sizeof(float)*24);
     
     glBindVertexArray(0);
     renderCheckError();
@@ -1352,6 +1360,7 @@ int cmpRenderItemFunc (const void * a, const void * b) {
     RenderItem *itemA = (RenderItem *)a;
     RenderItem *itemB = (RenderItem *)b;
     bool result = true;
+    
     if(itemA->zAt == itemB->zAt) {
         if(itemA->textureHandle == itemB->textureHandle) {
             if(itemA->bufferHandles == itemB->bufferHandles) {
@@ -1410,6 +1419,8 @@ void beginRenderGroupForFrame(RenderGroup *group) {
     }
     group->lastStorageBufferCount = 0;
     //
+
+
 }
 
 void drawRenderGroup(RenderGroup *group) {
@@ -1571,7 +1582,13 @@ void drawRenderGroup(RenderGroup *group) {
     group->idAt = 0;
 }
 
-Texture createTextureOnGPU(unsigned char *image, int w, int h, int comp) {
+typedef enum {
+    TEXTURE_FILTER_LINEAR, 
+    TEXTURE_FILTER_NEAREST, 
+} RenderTextureFilter;
+
+
+Texture createTextureOnGPU(unsigned char *image, int w, int h, int comp, RenderTextureFilter filter) {
     Texture result = {};
     if(image) {
         
@@ -1583,8 +1600,14 @@ Texture createTextureOnGPU(unsigned char *image, int w, int h, int comp) {
         
         glBindTexture(GL_TEXTURE_2D, result.id);
         
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        GLuint filterVal = GL_LINEAR;
+        if(filter == TEXTURE_FILTER_NEAREST) {
+            filterVal = GL_NEAREST;
+        } 
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterVal);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
         
         if(comp == 3) {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
@@ -1600,7 +1623,7 @@ Texture createTextureOnGPU(unsigned char *image, int w, int h, int comp) {
     return result;
 }
 
-Texture loadImage(char *fileName) {
+Texture loadImage(char *fileName, RenderTextureFilter filter) {
     int w;
     int h;
     int comp = 4;
@@ -1618,7 +1641,7 @@ Texture loadImage(char *fileName) {
         assert(!"no image found");
     }
     
-    Texture result = createTextureOnGPU(image, w, h, comp);
+    Texture result = createTextureOnGPU(image, w, h, comp, filter);
     
     if(image) {
         stbi_image_free(image);

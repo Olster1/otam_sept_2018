@@ -184,18 +184,21 @@ static inline LevelCountFromFile findLevelCount(char *readName) {
 
 void startGameAgain(int level) {
     assert(level >= 0 && level < 3);
-    char readName[256] = {};
+    char readName[1028] = {};
     sprintf(readName, "%ssaveFile%d.h", globalExeBasePath, level);
     platformDeleteFile(readName);
 }
 
-void updateSaveStateDetails(LevelCountFromFile *saveStateDetails, int count) {
-    for(int i = 0; i < count; i++) {
-        char readName[512] = {};
-        sprintf(readName, "%ssaveFile%d.h", globalExeBasePath, i);
-        saveStateDetails[i] = findLevelCount(readName);
-    }
-}
+
+//This is used when there is more than one save file & we actually have to look up the details.  
+//Now we just use the data we have in frame params;
+// void updateSaveStateDetailsWithFile(LevelCountFromFile *saveStateDetails, int count) {
+//     for(int i = 0; i < count; i++) {
+//         char readName[512] = {};
+//         sprintf(readName, "%ssaveFile%d.h", globalExeBasePath, i);
+//         saveStateDetails[i] = findLevelCount(readName);
+//     }
+// }
 
 void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *lastShownGroup_) {
     

@@ -17,6 +17,7 @@ static char* globalExeBasePath;
 #include "easy_render.h"
 #include "easy_camera.h"
 
+
 //#include "easy_3d.h"
 #include "easy_utf8.h"
 #include "easy_font.h"
@@ -36,3 +37,4 @@ static char* globalExeBasePath;
 #include "easy_assets.h"
 #include "easy_tile.h"
 #include "easy_texture_atlas.h"
+#include "easy_ui.h"

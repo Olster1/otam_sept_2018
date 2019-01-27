@@ -6,7 +6,7 @@
 
 #endif
 
-//#define calloc(size, item) malloc(size)
+#define calloc(size, item) malloc(size)
 
 
 #ifdef _WIN32
@@ -219,6 +219,7 @@ typedef enum {
     BUTTON_5,
     BUTTON_6,
     BUTTON_7,
+    BUTTON_8,
     BUTTON_F1,
     BUTTON_Z,
     BUTTON_R,

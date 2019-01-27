@@ -77,7 +77,8 @@ char *getFileLastPortionWithoutExtension(char *name) {
     int length = (int)(at - lastPortion) + 1; //for null termination
     char *result = (char *)calloc(length, 1);
     
-    memcpy(result, lastPortion, length - 1 );
+    memcpy(result, lastPortion, length - 1);
+    result[length - 1] = '\0';
 
     free(lastPortion);
     return result;

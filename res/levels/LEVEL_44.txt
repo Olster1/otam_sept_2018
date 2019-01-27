@@ -1,0 +1,41 @@
+//just moving blocks with bombs (shuffling)
+LevelData: {
+	name: "Booby Trap";
+	groupId: 8;
+	shapeSize: 3;
+	lifePoints: 1;
+}
+Windmill: {
+	id: 1;
+	growDir: 1 0;
+	isBomb: true;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 0.0;
+
+	timeAffected: true;
+
+	perpSize: 1;
+	max: 2;
+}
+Windmill: {
+	id: 2;
+	growDir: 1 0;
+	isBomb: true;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 1.0;
+
+	timeAffected: true;
+
+	perpSize: 1;
+	max: 2;
+}
+Board: {
+	000000
+	001000
+	000000
+	000020
+	010000
+	000000/
+}

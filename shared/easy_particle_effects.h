@@ -139,7 +139,7 @@ inline void setParticleLifeSpan(particle_system *partSys, float value) {
     partSys->creationTimer.period = 1.0f / value;
 }
 
-internal inline void drawAndUpdateParticleSystem(particle_system *System, float dt, V3 Origin, V3 Acceleration, V3 camPos, Matrix4 metresToPixels, V2 resolution) {
+internal inline void drawAndUpdateParticleSystem(particle_system *System, float dt, V3 Origin, V3 Acceleration, V4 particleTint, V3 camPos, Matrix4 metresToPixels, V2 resolution, bool render) {
     if(System->Active) {
         float particleLifeSpan = 0;
         float GridScale = 0.4f;
@@ -165,6 +165,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
                     particlesToCreate = (int)(timer->value / timer->period);
                     assert(particlesToCreate > 0);
                     timer->value = 0;
+
                 }
                 if(System->particleCount == 0) {
                     particlesToCreate = System->MaxParticleCount;
@@ -177,7 +178,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
                 {
                     particle_system_settings *Set = &System->Set;
                     particle *Particle = System->Particles + System->NextParticle++;
-                    Particle->Color = v4(1, 1, 1, 1.0f);
+                    Particle->Color = particleTint;
                         
                     Particle->dead = false;
                     //NOTE(oliver): Paricles start with motion 
@@ -242,6 +243,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
             ParticleIndex < System->particleCount;
             ++ParticleIndex)
         {
+
             particle *Particle = System->Particles + ParticleIndex;
             
             V3 P = v3_scale(Inv_GridScale, Particle->P);
@@ -303,9 +305,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
 
             if(Particle->dead) {
                 deadCount++;
-            } else 
-            {
-            
+            } else {
                 V3 P = v3_scale(Inv_GridScale, Particle->P);
                 
                 if(System->Set.pressureAffected) {
@@ -405,7 +405,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
 
                 RenderInfo renderInfo = calculateRenderInfo(v3_plus(Particle->P, Origin), v3(Particle->scale.x*Set->bitmapScale, Particle->scale.y*Set->bitmapScale, 0), camPos, metresToPixels);
 
-                if(Bitmap) {
+                if(Bitmap && render) {
                     renderTextureCentreDim(Bitmap, renderInfo.pos, renderInfo.dim.xy, Color, Particle->angle, mat4(), renderInfo.pvm, screenMatrix);    
                 } else {
                     //renderDrawRing(&Particle->renderHandle, renderInfo.pos, renderInfo.dim.xy, Color, mat4(), renderInfo.pvm, screenMatrix);                
@@ -418,7 +418,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
             
         }
 
-        if(System->Set.finished && deadCount == System->particleCount) {
+        if(System->Set.finished){// && deadCount == System->particleCount) {
             if(System->Set.Loop) {
                 Reactivate(System);
             } else {
@@ -427,4 +427,17 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
             System->Set.finished = false;
         }
     }
+}
+
+void prewarmParticleSystem(particle_system *System, V3 Acceleration) {
+    float dtLeft = System->Set.LifeSpan;
+    float dtUpdate = 1.0f / 15.0f;
+    while(dtLeft > 0) {
+        drawAndUpdateParticleSystem(System, dtUpdate, v3(0, 0, 0), Acceleration, COLOR_WHITE,  v3(0, 0, 0), mat4(), v2(0, 0), false);
+        dtLeft -= dtUpdate;
+        if(dtLeft < dtUpdate) {
+            dtUpdate = dtLeft;
+        }
+    }
+    Reactivate(System);
 }

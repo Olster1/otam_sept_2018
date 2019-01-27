@@ -36,7 +36,7 @@ static void InitAnimation(animation *Animation, char **FileNames, u32 FileNameCo
     
     for(u32 i = 0; i < FileNameCount; ++i) {
         Texture *Bitmap = Animation->Frames + Animation->FrameCount++; 
-        *Bitmap = loadImage(FileNames[i]);
+        *Bitmap = loadImage(FileNames[i], TEXTURE_FILTER_LINEAR);
     }
 }
 

@@ -193,6 +193,7 @@ typedef struct {
     Texture *starTex;
     Texture *treeTex;
     Texture *waterTex;
+    Texture *waterTexBig;
     Texture *mushroomTex;
     Texture *cactusTex;
     Texture *rockTex;
@@ -274,8 +275,6 @@ typedef struct {
     float accumHoldTime;
     bool letGo;  //let the shape go
     
-    int lastShownGroup; //this is for showing the completed groups in the overworld
-    
     GlowingLine glowingLines[16]; //these are the win lines. We annotate them with a slash in the level markup file
     int glowingLinesCount;
     
@@ -316,7 +315,6 @@ typedef struct {
     FrameBuffer mainFrameBuffer;
     Matrix4 metresToPixels;
     Matrix4 pixelsToMeters;
-    V2 screenRelativeSize;
     
     V2 *screenDim;
     V2 *resolution; 
@@ -330,6 +328,10 @@ typedef struct {
     V3 cameraPos;
     V3 overworldCamera;
     V3 camVel;
+
+    float monitorRefreshRate;
+
+    bool blackBars;
     
     unsigned int lastTime;
     ///////
@@ -2125,12 +2127,30 @@ void setBackToOverworldTransition(FrameParams *params) {
     
 }
 
+void updateSaveStateDetails(LevelData *levelDatasArray, LevelCountFromFile *saveStateDetails, int count) {
+    assert(count == 1); //this only supports _one_ save file. If you want more use the commented out function in Levels.h file, named the same name.
+    int completedLevelsCount = 0;
+    for(int i = 0; i < LEVEL_COUNT; ++i) {
+        LevelData *data = levelDatasArray + i;
+        if(data->valid) {
+            assert(data->valid);
+            if(data->state == LEVEL_STATE_COMPLETED) {
+                completedLevelsCount++;
+            }
+        }
+    }
+
+    saveStateDetails[0].valid = true;
+    saveStateDetails[0].completedCount = completedLevelsCount;
+    
+}
+
 void setToLoadScreenTransition(FrameParams *params) {
     TransitionDataStartOrEndGame *data = (TransitionDataStartOrEndGame *)calloc(sizeof(TransitionDataStartOrEndGame), 1);
     data->info = &params->menuInfo;
     data->lastMode = params->menuInfo.gameMode;
     data->newMode = SETTINGS_MODE;
-    updateSaveStateDetails(params->menuInfo.saveStateDetails, arrayCount(params->menuInfo.saveStateDetails));
+    updateSaveStateDetails(params->levelsData, params->menuInfo.saveStateDetails, arrayCount(params->menuInfo.saveStateDetails));
     data->params = params;
     setParentChannelVolume(AUDIO_FLAG_MAIN, 0, SCENE_MUSIC_TRANSITION_TIME);
     setTransition_(&params->transitionState, transitionCallbackForSettingsScreen, data);
@@ -2657,7 +2677,7 @@ void gameUpdateAndRender(void *params_) {
     
     V2 mouseP = params->keyStates->mouseP;
     
-    GameMode currentGameMode = drawMenu(&params->menuInfo, params->longTermArena, params->keyStates->gameButtons, 0, params->solidfyShapeSound, params->moveSound, params->dt, resolution, mouseP, params->levelsData, arrayCount(params->levelsData), &params->lastShownGroup);
+    GameMode currentGameMode = drawMenu(&params->menuInfo, params->longTermArena, params->keyStates->gameButtons, 0, params->solidfyShapeSound, params->moveSound, params->dt, resolution, mouseP, params->levelsData, arrayCount(params->levelsData), &params->menuInfo.lastShownGroup);
     
     bool transitioning = updateTransitions(&params->transitionState, resolution, params->dt);
     Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
@@ -2969,8 +2989,8 @@ void gameUpdateAndRender(void *params_) {
             V4 levelNameFontColor = smoothStep00V4(COLOR_NULL, nameTimeInfo.canonicalVal, COLOR_BLACK);
             float levelNameFontSize = 1.0f;
             char *title = params->levelsData[params->currentLevelType].name;
-            float xFontAt = (resolution.x/2) - (getBounds(title, menuMargin, params->font, levelNameFontSize, resolution).x / 2);
-            outputText(params->font, xFontAt, 0.5f*resolution.y, -1, resolution, title, menuMargin, levelNameFontColor, levelNameFontSize, true);
+            float xFontAt = (resolution.x/2) - (getBounds(title, menuMargin, params->font, levelNameFontSize, resolution, params->menuInfo.resolutionDiffScale).x / 2);
+            outputText(params->font, xFontAt, 0.5f*resolution.y, -1, resolution, title, menuMargin, levelNameFontColor, levelNameFontSize, true, params->menuInfo.resolutionDiffScale);
         }
         
         //outputText(params->font, 10, helpTextY, -1, resolution, "Press R to reset", menuMargin, COLOR_BLACK, 0.5f, true);
@@ -3066,15 +3086,12 @@ void gameUpdateAndRender(void *params_) {
             }
             
             V3 accel = v3(0, 0, 0);
-            #if 0
+            
             if(isDown(params->overworldKeyStates.gameButtons, BUTTON_LEFT_MOUSE)) {
                 V2 diffVec = v2_minus(overworldMouseP, params->lastMouseP);
-                diffVec = normalizeV2(diffVec);
-                accel.xy = v2_scale(1600.0f, diffVec);
-                // error_printFloat2("diff: ", accel.xy.E);
+                accel.xy = normalizeV2(diffVec);
                 accel.x *= -1; //inverse the pull direction. Since y is down for mouseP, y is already flipped 
             }
-            #else
             
             if(isDown(params->overworldKeyStates.gameButtons, BUTTON_LEFT)) {
                 accel.x = -1;
@@ -3088,8 +3105,7 @@ void gameUpdateAndRender(void *params_) {
             if(isDown(params->overworldKeyStates.gameButtons, BUTTON_DOWN)) {
                accel.y = -1;
             }
-            accel.xy = v2_scale(1600.0f, accel.xy);
-            #endif
+            accel.xy = v2_scale(3600.0f, accel.xy);
             
             #if EDITOR_MODE
             if(isDown(params->overworldKeyStates.gameButtons, BUTTON_SHIFT)) {
@@ -3129,17 +3145,23 @@ void gameUpdateAndRender(void *params_) {
         bool finished[LEVEL_COUNT] = {};
         
         float waterDim = 2.0f;
-        for(int yVal = -4; yVal < 4; ++yVal) {
-            for(int xVal = -6; xVal < 6; ++xVal) {
+        V2 resInMeters = V4MultMat4(v4(resolution.x, resolution.y, 1, 1), params->pixelsToMeters).xy;
+        int yAcross = (int)(((float)resInMeters.y / (float)waterDim)) + 1;
+        int xAcross = (int)(((float)resInMeters.x / (float)waterDim)) + 1;
+        float halfWaterDim = 0.5f*waterDim;
+        for(int yVal = 0; yVal < yAcross; yVal++) {
+            for(int xVal = 0; xVal < xAcross; xVal++) {
                 
-                RenderInfo extraRenderInfo = calculateRenderInfo(v3(waterDim*xVal, waterDim*yVal, -3), v3(waterDim, waterDim, 1), v3(0, 0, 0), params->metresToPixels);
-                renderTextureCentreDim(params->waterTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
+                RenderInfo extraRenderInfo = calculateRenderInfo(v3(xVal*waterDim + halfWaterDim, yVal*waterDim + halfWaterDim, -3), v3(waterDim, waterDim, 1), v3(0, 0, 0), params->metresToPixels);
+                renderTextureCentreDim(params->waterTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), extraRenderInfo.pvm));     
             }
             
         }
+
+        // renderTextureCentreDim(params->waterTexBig, v2ToV3(v2(0, 0), -5), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
         char lastEnvirChar = '!';
         
-        int highestGroupId = params->lastShownGroup;
+        int highestGroupId = params->menuInfo.lastShownGroup;
         at = lexEatWhiteSpace(at);
         bool parsing = true;
         while(parsing) {
@@ -3257,7 +3279,7 @@ void gameUpdateAndRender(void *params_) {
                     {
                         
                         if(levelAt->state != LEVEL_STATE_LOCKED) {   
-                            if(groupId > params->lastShownGroup) {
+                            if(groupId > params->menuInfo.lastShownGroup) {
                                 if(highestGroupId < groupId) {
                                     highestGroupId = groupId;
                                 }
@@ -3331,7 +3353,7 @@ void gameUpdateAndRender(void *params_) {
                                 levelAt->hasPlayedHoverSound = true;
                             }
                             //printf("%s\n", levelName);
-                            Rect2f outputNameDim = outputText(params->font, 0, 0, -1, resolution, levelName, menuMargin, COLOR_WHITE, fontSize, false);
+                            Rect2f outputNameDim = outputText(params->font, 0, 0, -1, resolution, levelName, menuMargin, COLOR_WHITE, fontSize, false, params->menuInfo.resolutionDiffScale);
                             V2 nameDim = getDim(outputNameDim);
 
                             
@@ -3341,7 +3363,7 @@ void gameUpdateAndRender(void *params_) {
                                 nameColor = COLOR_NULL;
                                 turnTimerOn(&nextName->displayNameTimer);
                             }
-                            outputText(params->font, 0.5f*(resolution.x - nameDim.x), nameY, -0.1f, resolution, levelName, menuMargin, nameColor, fontSize, true);
+                            outputText(params->font, 0.5f*(resolution.x - nameDim.x), nameY, -0.1f, resolution, levelName, menuMargin, nameColor, fontSize, true, params->menuInfo.resolutionDiffScale);
                             
                             levelAt->justOn = true;
 
@@ -3411,22 +3433,46 @@ void gameUpdateAndRender(void *params_) {
         //     params->lastBoundsStar = LEVEL_NULL;
         // }
         
-        params->lastShownGroup = highestGroupId;
+        params->menuInfo.lastShownGroup = highestGroupId;
     }
     
-    // outputText(params->font, 0, 400, -1, resolution, "hey˙  हिन् दी df ©˙ \n∆˚ ", rect2f(0, 0, resolution.x, resolution.y), COLOR_BLACK, 1, true);
+    // outputText(params->font, 30, 400, -1, resolution, "hey˙हिन्दीdf©˙\n∆˚", rect2f(0, 0, resolution.x, resolution.y), COLOR_BLACK, 1, true, 1);
     drawRenderGroup(globalRenderGroup);
     
-    easyOS_endFrame(resolution, screenDim, &params->dt, params->windowHandle, params->mainFrameBuffer.bufferId, params->backbufferId, params->renderbufferId, &params->lastTime, 1.0f / 60.0f);
+    easyOS_endFrame(resolution, screenDim, &params->dt, params->windowHandle, params->mainFrameBuffer.bufferId, params->backbufferId, params->renderbufferId, &params->lastTime, params->monitorRefreshRate, params->blackBars);
 }
 
 int main(int argc, char *args[]) {
     V2 screenDim = {}; //init in create app function
-    V2 resolution = v2(1280, 720); //this could be variable -> passed in by the app etc. like unity window 
-    // V2 resolution = v2(2*750, 2*1334); //this could be variable -> passed in by the app etc. like unity window 
-    screenDim = resolution;
+    V2 resolution = v2(0, 0);
+    bool blackBars = true;
+    bool fullscreen = true;
+    if(argc > 1) {
+        assert(argc == 5);
+        char *resolutionX = args[1];
+        char *resolutionY = args[2];
+        char *fullscreenStr = args[3];
+        char *blackBarsStr = args[4];
+        resolution.x = atoi(resolutionX);
+        resolution.y = atoi(resolutionY);
+        blackBars = atoi(blackBarsStr);
+        fullscreen = atoi(fullscreenStr);
+    } else {
+        resolution = v2(1280, 720);
+        // resolution = v2(1980, 1080);
+    }
+
+    // V2 resolution = v2(1280, 720);
+    // V2 resolution = v2(1980, 1080);
+    // V2 resolution = v2(750, 1334);//iphone
+    // V2 resolution = v2(640, 480);
+    // V2 resolution = v2(800, 500);
+    // V2 resolution = v2(1024, 640);
+    // V2 resolution = v2(1024, 768);
+    // V2 resolution = v2(1152, 720);
+    // V2 resolution = v2(1280, 800);
     
-    OSAppInfo appInfo = easyOS_createApp(APP_TITLE, &screenDim);
+    OSAppInfo appInfo = easyOS_createApp(APP_TITLE, &screenDim, fullscreen);
     assert(appInfo.valid);
     
     if(appInfo.valid) {
@@ -3437,6 +3483,7 @@ int main(int argc, char *args[]) {
         
         assets = (Asset **)pushSize(&longTermArena, 4096*sizeof(Asset *));
         
+
         float dt = 1.0f / min((float)setupInfo.refresh_rate, 60.0f); //use monitor refresh rate 
         float idealFrameTime = 1.0f / 60.0f;
         
@@ -3526,8 +3573,6 @@ int main(int argc, char *args[]) {
         params->showLevelsSound = findSoundAsset("showLevels.wav");
         initArray(&params->particleSystems, particle_system);
         
-        params->lastShownGroup = -1;
-        
         
         params->alienTex[0] = findTextureAsset("alienGreen.png");
         params->alienTex[1] = findTextureAsset("alienYellow.png");
@@ -3587,6 +3632,8 @@ int main(int argc, char *args[]) {
         params->tilesTexSnow[12] = findTextureAsset("tileCenterRightBottomSnow.png");
         
 
+        params->monitorRefreshRate = 1.0f / (float)setupInfo.refresh_rate;
+        params->blackBars = blackBars;
 
         params->tileLayout = easyTile_initLayouts();
         
@@ -3676,7 +3723,6 @@ int main(int argc, char *args[]) {
         
         params->font = &mainFont;
         params->numberFont = &numberFont;
-        params->screenRelativeSize = setupInfo.screenRelativeSize;
         
         params->bgTex = bgTex;
         
@@ -3719,6 +3765,7 @@ int main(int argc, char *args[]) {
         params->starTex = starTex;
         params->treeTex = treeTex;
         params->waterTex = waterTex;
+        params->waterTexBig = findTextureAsset("watertilebig.png");
         params->mushroomTex = mushroomTex;
         params->rockTex = rockTex;
         params->cactusTex = cactusTex;
@@ -3749,13 +3796,16 @@ int main(int argc, char *args[]) {
         menuInfo.totalLevelCount = totalLevelCount;
         menuInfo.backTex = findTextureAsset("back.png");
         menuInfo.splashScreenModeTimer = initTimer(5);
+        menuInfo.levelDataArray = params->levelsData;
+        menuInfo.resolutionDiffScale = setupInfo.screenRelativeSize;
+        menuInfo.lastShownGroup = -1;
         
         params->menuInfo = menuInfo;
         
         int lastActiveSaveSlot = 0; //get this from a file that is saved out to disk
         params->menuInfo.activeSaveSlot = lastActiveSaveSlot;
         
-        loadSaveFile(params->levelsData, arrayCount(params->levelsData), params->menuInfo.activeSaveSlot, &params->lastShownGroup);
+        loadSaveFile(params->levelsData, arrayCount(params->levelsData), params->menuInfo.activeSaveSlot, &params->menuInfo.lastShownGroup);
         
         loadOverworldPositions(params);
 

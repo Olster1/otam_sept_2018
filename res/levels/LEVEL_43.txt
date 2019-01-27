@@ -1,0 +1,17 @@
+LevelData: {
+	name: "Fill Me Up";
+	groupId: 9;
+	shapeSize: 3;
+	startOffset: 1;
+	lifePoints: 1;
+}
+
+Board: {
+	00000
+	0000
+	0000/
+	0000
+	0000
+	00000
+	00000
+}

@@ -54,6 +54,10 @@ typedef struct {
     V2 lastMouseP;
     
     LevelCountFromFile saveStateDetails[1];
+
+    int lastShownGroup;
+    LevelData *levelDataArray;
+    float resolutionDiffScale;  
 } MenuInfo;
 
 typedef struct {
@@ -154,12 +158,12 @@ void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info
         assert(fontSize > 0.0f);
         
         char *title = menuOptions->options[menuIndex];
-        float xAt = xAt_ - (getBounds(title, menuMargin, info->font, fontSize, resolution).x / 2);
+        float xAt = xAt_ - (getBounds(title, menuMargin, info->font, fontSize, resolution, info->resolutionDiffScale).x / 2);
         
         bool clickable = !option->notClickable;
         
         if(clickable) {
-            Rect2f outputDim = outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, COLOR_WHITE, fontSize, false);
+            Rect2f outputDim = outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, COLOR_WHITE, fontSize, false, info->resolutionDiffScale);
             //spread across screen so the mouse hit is more easily
             outputDim.min.x = 0;
             outputDim.max.x = resolution.x;
@@ -176,7 +180,7 @@ void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info
                 menuItemColor = COLOR_YELLOW;
             }
         }
-        outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, menuItemColor, fontSize, true);
+        outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, menuItemColor, fontSize, true, info->resolutionDiffScale);
         yAt += yIncrement;
     }
 }
@@ -441,18 +445,18 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                     
                     float fontY = outputDim.maxY + settingsFontSize*info->font->fontHeight;
                     Rect2f saveMargin = rect2fCenterDimV2(renderInfo.pos.xy, v2(renderInfo.dim.x, resolution.y));
-                    Rect2f textOutputDim = outputText(info->font, saveMargin.minX, saveMargin.minY, -1, resolution, saveDataName, saveMargin, COLOR_BLACK, settingsFontSize, false);                    
-                    textOutputDim = outputText(info->font, xAt - (getDim(textOutputDim).x/2), fontY, -1, resolution, saveDataName, saveMargin, COLOR_BLACK, settingsFontSize, true);                    
+                    Rect2f textOutputDim = outputText(info->font, saveMargin.minX, saveMargin.minY, -1, resolution, saveDataName, saveMargin, COLOR_BLACK, settingsFontSize, false, info->resolutionDiffScale);                    
+                    textOutputDim = outputText(info->font, xAt - (getDim(textOutputDim).x/2), fontY, -1, resolution, saveDataName, saveMargin, COLOR_BLACK, settingsFontSize, true, info->resolutionDiffScale);                    
                     
                     if(info->saveStateDetails[at].valid) {
                         
                         char *deleteFileTitle = "Delete Save File?";
-                        Rect2f deleteTextOutputDim = outputText(info->font, 0 , 0, -1, resolution, deleteFileTitle, menuMargin, COLOR_BLACK, settingsFontSize, false);                    
+                        Rect2f deleteTextOutputDim = outputText(info->font, 0 , 0, -1, resolution, deleteFileTitle, menuMargin, COLOR_BLACK, settingsFontSize, false, info->resolutionDiffScale);                    
                         
                         float xFor = xAt - (getDim(deleteTextOutputDim).x/2);
                         float yFor = textOutputDim.maxY + settingsFontSize*info->font->fontHeight;
                         
-                        Rect2f deleteBounds = outputText(info->font, xFor, yFor, -1, resolution, deleteFileTitle, menuMargin, COLOR_WHITE, settingsFontSize, false);                        
+                        Rect2f deleteBounds = outputText(info->font, xFor, yFor, -1, resolution, deleteFileTitle, menuMargin, COLOR_WHITE, settingsFontSize, false, info->resolutionDiffScale);                        
                         V4 deleteButtonColor = dLerps[at].value;
                         // error_printFloat4("dim", deleteBounds.E);
                         // error_printFloat2("mouseP", mouseP_settings.E);
@@ -472,20 +476,20 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                             }
                         } else {
                             char *confirmText = "Confirm";
-                            Rect2f confrimTextOutputDim = outputText(info->font, 0 , 0, -1, resolution, confirmText, menuMargin, COLOR_BLACK, settingsFontSize, false);                    
+                            Rect2f confrimTextOutputDim = outputText(info->font, 0 , 0, -1, resolution, confirmText, menuMargin, COLOR_BLACK, settingsFontSize, false, info->resolutionDiffScale);                    
                             
                             float yAtForConfirm = 0.2f*resolution.y;
                             float thrid = resolution.x / 3;
                             float xForCY = (2*thrid) - (getDim(confrimTextOutputDim).x/2);
                             
                             char *cancelText = "Cancel";
-                            Rect2f cancelTextOutputDim = outputText(info->font, 0 , 0, -1, resolution, cancelText, menuMargin, COLOR_BLACK, settingsFontSize, false);                    
+                            Rect2f cancelTextOutputDim = outputText(info->font, 0 , 0, -1, resolution, cancelText, menuMargin, COLOR_BLACK, settingsFontSize, false, info->resolutionDiffScale);                    
                             
                             float xForCN = (1*thrid) - (getDim(cancelTextOutputDim).x/2);
                             
                             
-                            Rect2f confirmBounds = outputText(info->font, xForCY, yAtForConfirm, -1, resolution, confirmText, menuMargin, COLOR_WHITE, settingsFontSize, false);                        
-                            Rect2f cancelBounds = outputText(info->font, xForCN, yAtForConfirm, -1, resolution, cancelText, menuMargin, COLOR_WHITE, settingsFontSize, false);                        
+                            Rect2f confirmBounds = outputText(info->font, xForCY, yAtForConfirm, -1, resolution, confirmText, menuMargin, COLOR_WHITE, settingsFontSize, false, info->resolutionDiffScale);                        
+                            Rect2f cancelBounds = outputText(info->font, xForCN, yAtForConfirm, -1, resolution, cancelText, menuMargin, COLOR_WHITE, settingsFontSize, false, info->resolutionDiffScale);                        
                             
                             static LerpV4 confirmLerp = initLerpV4(COLOR_BLACK);
                             static LerpV4 cancelLerp = initLerpV4(COLOR_BLACK);
@@ -501,7 +505,19 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                                 setLerpInfoV4_s(&confirmLerp, COLOR_YELLOW, 0.2f, &confirmLerp.value);
                                 if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
                                     startGameAgain(at);
-                                    updateSaveStateDetails(info->saveStateDetails, arrayCount(info->saveStateDetails));
+                                    info->saveStateDetails[at].completedCount = 0;
+                                    for(int lvlIndex = 0; lvlIndex < LEVEL_COUNT; ++lvlIndex) {
+                                        LevelData *lvlData = info->levelDataArray + lvlIndex;
+                                        if(lvlData->valid) {
+                                            if(lvlData->groupId == 0) {
+                                                lvlData->state = LEVEL_STATE_UNLOCKED;
+                                            } else {
+                                                lvlData->state = LEVEL_STATE_LOCKED;
+                                            }
+                                        }
+                                    }
+                                    info->lastShownGroup = -1;
+                                    // updateSaveStateDetailsWithFile(info->saveStateDetails, arrayCount(info->saveStateDetails));
                                     deleteConfirmation = false;
                                 }
                             }
@@ -521,13 +537,13 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                                 }
                             }
                             
-                            outputText(info->font, xForCY, yAtForConfirm, -1, resolution, confirmText, menuMargin, confirmColor, settingsFontSize, true);                        
-                            outputText(info->font, xForCN, yAtForConfirm, -1, resolution, cancelText, menuMargin, cancelColor, settingsFontSize, true);                        
+                            outputText(info->font, xForCY, yAtForConfirm, -1, resolution, confirmText, menuMargin, confirmColor, settingsFontSize, true, info->resolutionDiffScale);                        
+                            outputText(info->font, xForCN, yAtForConfirm, -1, resolution, cancelText, menuMargin, cancelColor, settingsFontSize, true, info->resolutionDiffScale);                        
                             
                         }
                         
                         
-                        outputText(info->font, xFor, yFor, -1, resolution, deleteFileTitle, menuMargin, deleteButtonColor, settingsFontSize, true);                        
+                        outputText(info->font, xFor, yFor, -1, resolution, deleteFileTitle, menuMargin, deleteButtonColor, settingsFontSize, true, info->resolutionDiffScale);                        
                     }
                     
                     xAt += width;
@@ -648,13 +664,13 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             char *title = APP_TITLE;
             Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
             float fontSize = 1;
-            float xAt = (resolution.x - getBounds(title, menuMargin, info->font, fontSize, resolution).x) / 2;
+            float xAt = (resolution.x - getBounds(title, menuMargin, info->font, fontSize, resolution, info->resolutionDiffScale).x) / 2;
             
-            outputText(info->font, xAt, resolution.y / 2, -1, resolution, title, menuMargin, COLOR_BLACK, fontSize, true);
+            outputText(info->font, xAt, resolution.y / 2, -1, resolution, title, menuMargin, COLOR_BLACK, fontSize, true, info->resolutionDiffScale);
             
             char *secondTitle = "Click To Start";
             fontSize = 0.5f;
-            xAt = (resolution.x - getBounds(secondTitle, menuMargin, info->font, fontSize, resolution).x) / 2;
+            xAt = (resolution.x - getBounds(secondTitle, menuMargin, info->font, fontSize, resolution, info->resolutionDiffScale).x) / 2;
             
             static float dt_val = 0;
             dt_val += dt;
@@ -662,7 +678,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             if(dt_val >= 3.0f) {
                 dt_val = 0;
             }
-            outputText(info->font, xAt, 0.7f*resolution.y, -1, resolution, secondTitle, menuMargin, color, fontSize, true);
+            outputText(info->font, xAt, 0.7f*resolution.y, -1, resolution, secondTitle, menuMargin, color, fontSize, true, info->resolutionDiffScale);
             
             if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
                 changeMenuState(info, OVERWORLD_MODE);

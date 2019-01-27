@@ -3356,9 +3356,11 @@ static int stbtt_BakeFontBitmap_internal(unsigned char *data, int offset,  // fo
    bottom_y = 1;
 
    scale = stbtt_ScaleForPixelHeight(&f, pixel_height);
-   printf("%f\n", scale);
    for (i=0; i < num_chars; ++i) {
       int advance, lsb, x0,y0,x1,y1,gw,gh;
+      if(first_char + i == 'y') {
+         int johnanmaru = 0;
+      }
       int g = stbtt_FindGlyphIndex(&f, first_char + i);
       stbtt_GetGlyphHMetrics(&f, g, &advance, &lsb);
       stbtt_GetGlyphBitmapBox(&f, g, scale,scale, &x0,&y0,&x1,&y1);
@@ -3378,6 +3380,7 @@ static int stbtt_BakeFontBitmap_internal(unsigned char *data, int offset,  // fo
       chardata[i].xadvance = scale * advance;
       chardata[i].xoff     = (float) x0;
       chardata[i].yoff     = (float) y0;
+      stbtt_bakedchar fgfg = chardata[i];
       x = x + gw + 1;
       if (y+gh+1 > bottom_y)
          bottom_y = y+gh+1;

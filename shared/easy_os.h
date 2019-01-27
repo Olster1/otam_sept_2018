@@ -9,7 +9,7 @@ typedef struct {
 	bool valid;
 } OSAppInfo;
 
-OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim) {
+OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim, bool fullscreen) {
 	OSAppInfo result = {};
 	result.valid = true;
 	if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER) != 0) {
@@ -43,12 +43,24 @@ OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim) {
 		screenDim->y = DM.h;
 	}
     
+    u32 windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
+    // if(fullscreen) {
+    // 	windowFlags |= SDL_WINDOW_FULLSCREEN;
+    // 	printf("%s\n", "fullscreen");	
+    // }
+    
     result.windowHandle = SDL_CreateWindow(
         windowName,
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
         screenDim->x,
         screenDim->y,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+        windowFlags);
+
+    if(fullscreen) {
+    	if(SDL_SetWindowFullscreen(result.windowHandle, SDL_WINDOW_FULLSCREEN) < 0) {
+    	    printf("couldn't set to full screen\n");
+    	}
+    }
     
     SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1); 
     
@@ -96,7 +108,7 @@ typedef struct {
 	float refresh_rate;
 	Matrix4 metresToPixels;
 	Matrix4 pixelsToMeters;
-	V2 screenRelativeSize;
+	float screenRelativeSize;
 	SDL_AudioSpec audioSpec;
 } AppSetupInfo;
 
@@ -142,12 +154,20 @@ AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder, Arena *memArena
     //////
     
     /////////Scale the size factor to be keep size of app constant. 
-    V2 screenRelativeSize = v2(idealResolution.x / resolution.x, idealResolution.y / resolution.y); 
-    V2 ratio = v2_scale(60.0f, screenRelativeSize);
+    // V2 screenRelativeSize = v2(idealResolution.x / resolution.x, idealResolution.y / resolution.y); 
+    V2 screenRelativeSize_ = v2(resolution.x/idealResolution.x, resolution.y/idealResolution.y); 
+    float screenRelativeSize;
+    if(resolution.x > resolution.y) {
+    	screenRelativeSize = screenRelativeSize_.y;
+    } else {
+    	screenRelativeSize = screenRelativeSize_.x;
+    }
+
+    float ratio = 64.0f*screenRelativeSize;
     // assert(ratio.x != 0);
     // assert(ratio.y != 0);
-    result.metresToPixels = Matrix4_scale(mat4(), v3(ratio.x, ratio.y, 1));
-    result.pixelsToMeters = Matrix4_scale(mat4(), v3(1.0f / ratio.x, 1.0f / ratio.y, 1));
+    result.metresToPixels = Matrix4_scale(mat4(), v3(ratio, ratio, 1));
+    result.pixelsToMeters = Matrix4_scale(mat4(), v3(1.0f / ratio, 1.0f / ratio, 1));
     result.screenRelativeSize = screenRelativeSize;
     /////
     
@@ -164,10 +184,7 @@ void easyOS_beginFrame(V2 resolution) {
 	glViewport(0, 0, resolution.x, resolution.y);
 }
 
-void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *windowHandle, unsigned int compositedFrameBufferId, unsigned int backBufferId, unsigned int renderbufferId, unsigned int *lastTime, float monitorFrameTime) {
-	float dt = *dt_;
-    
-	////////Letterbox if the ratio isn't correct//
+float easyOS_getScreenRatio(V2 screenDim, V2 resolution) {
 	float screenRatio =  screenDim.x / resolution.x;
 	float h1 = resolution.y * screenRatio;
 	if(h1 > screenDim.y) {
@@ -175,14 +192,18 @@ void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *window
 	    float w1 = resolution.x * screenRatio;
 	    // assert(w1 <= screenDim.x);
 	}
+	return screenRatio;
+}
+
+static inline void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *windowHandle, unsigned int compositedFrameBufferId, unsigned int backBufferId, unsigned int renderbufferId, unsigned int *lastTime, float monitorFrameTime, bool blackBars) {
+	float dt = *dt_;
     
-	float screenX = screenRatio*resolution.x;
-	float screenY = screenRatio*resolution.y;
-	// assert(screenX <= screenDim.x);
-	// assert(screenY <= screenDim.y);
+	////////Letterbox if the ratio isn't correct//
+	float screenRatio = easyOS_getScreenRatio(screenDim, resolution);
+	V2 screenActualSize = v2_scale(screenRatio, resolution);
     
-	float wResidue = (screenDim.x - screenX) / 2.0f;
-	float yResidue = (screenDim.y - screenY) / 2.0f;
+	float wResidue = (screenDim.x - screenActualSize.x) / 2.0f;
+	float yResidue = (screenDim.y - screenActualSize.y) / 2.0f;
     
 	////Resolve Frame
 	glViewport(0, 0, screenDim.x, screenDim.y);
@@ -190,8 +211,11 @@ void easyOS_endFrame(V2 resolution, V2 screenDim, float *dt_, SDL_Window *window
 	renderCheckError();
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, compositedFrameBufferId); 
 	renderCheckError();
-	// glBlitFramebuffer(0, 0, resolution.x, resolution.y, wResidue, yResidue, screenDim.x - wResidue, screenDim.y - yResidue, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-	glBlitFramebuffer(0, 0, resolution.x, resolution.y, 0, 0, screenDim.x, screenDim.y, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+	if(blackBars) {
+		glBlitFramebuffer(0, 0, resolution.x, resolution.y, wResidue, yResidue, screenDim.x - wResidue, screenDim.y - yResidue, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+	} else {
+		glBlitFramebuffer(0, 0, resolution.x, resolution.y, 0, 0, screenDim.x, screenDim.y, GL_COLOR_BUFFER_BIT, GL_LINEAR);	
+	}
 	renderCheckError();                    
 	///////
     glViewport(0, 0, screenDim.x, screenDim.y);
@@ -347,6 +371,9 @@ static inline void easyOS_processKeyStates(AppKeyStates *state, V2 resolution, V
 	            case SDLK_7: {
 	                buttonType = BUTTON_7;
 	            } break;
+	            case SDLK_8: {
+	                buttonType = BUTTON_8;
+	            } break;
 	            case SDLK_BACKQUOTE: {
 	                buttonType = BUTTON_TILDE;
 	            } break;
@@ -408,14 +435,22 @@ static inline void easyOS_processKeyStates(AppKeyStates *state, V2 resolution, V
 	sdlProcessGameKey(&state->gameButtons[BUTTON_UP], upArrowIsDown, upArrowWasDown == upArrowIsDown);
 	sdlProcessGameKey(&state->gameButtons[BUTTON_SHIFT], shiftIsDown, shiftWasDown == shiftIsDown);
 	sdlProcessGameKey(&state->gameButtons[BUTTON_COMMAND], commandIsDown, commandWasDown == commandIsDown);
-    
+	
+
 	int mouseX, mouseY;
-    
+	   
 	unsigned int mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-    
-	float screenDimX = screenDim->x;
-	float screenDimY = screenDim->y;
-	state->mouseP = v2(mouseX/screenDimX*resolution.x, mouseY/screenDimY*resolution.y);
+	   
+	float screenRatio = easyOS_getScreenRatio(*screenDim, resolution);
+	V2 screenActualSize = v2_scale(screenRatio, resolution);
+	   
+	float wResidue = (screenDim->x - screenActualSize.x) / 2.0f;
+	float yResidue = (screenDim->y - screenActualSize.y) / 2.0f;
+
+	float newMouseX = inverse_lerp(wResidue, mouseX, wResidue + screenActualSize.x);
+	float newMouseY = inverse_lerp(yResidue, mouseY, yResidue + screenActualSize.y);
+
+	state->mouseP = v2(newMouseX*resolution.x, newMouseY*resolution.y);
 	
 	state->mouseP_yUp = v2_minus(v2(state->mouseP.x, -1*state->mouseP.y + resolution.y), v2_scale(0.5f, resolution));
     

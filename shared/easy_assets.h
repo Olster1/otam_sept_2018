@@ -128,7 +128,7 @@ Asset *addAssetEvent(char *fileName, Event *asset) { // we have these for type c
 }
 
 Asset *loadImageAsset(char *fileName) {
-    Texture texOnStack = loadImage(fileName);
+    Texture texOnStack = loadImage(fileName, TEXTURE_FILTER_LINEAR);
     Texture *tex = (Texture *)calloc(sizeof(Texture), 1);
     memcpy(tex, &texOnStack, sizeof(Texture));
     Asset *result = addAssetTexture(fileName, tex);
