@@ -694,17 +694,18 @@ Quaternion quaternion(float r, float i, float j, float k) {
     return result;   
 }
 
-Quaternion quaternion_mult(Quaternion multiplier, Quaternion q){
+//the arguments are in order of math operation ie. q1*q2 -> have q2 rotation and rotating by q1
+Quaternion quaternion_mult(Quaternion q, Quaternion q2){
     Quaternion result = {};
     
-    result.r = q.r*multiplier.r - q.i*multiplier.i -
-        q.j*multiplier.j - q.k*multiplier.k;
-    result.i = q.r*multiplier.i + q.i*multiplier.r +
-        q.j*multiplier.k - q.k*multiplier.j;
-    result.j = q.r*multiplier.j + q.j*multiplier.r +
-        q.k*multiplier.i - q.i*multiplier.k;
-    result.k = q.r*multiplier.k + q.k*multiplier.r +
-        q.i*multiplier.j - q.j*multiplier.i;
+    result.r = q.r*q2.r - q.i*q2.i -
+        q.j*q2.j - q.k*q2.k;
+    result.i = q.r*q2.i + q.i*q2.r +
+        q.j*q2.k - q.k*q2.j;
+    result.j = q.r*q2.j + q.j*q2.r +
+        q.k*q2.i - q.i*q2.k;
+    result.k = q.r*q2.k + q.k*q2.r +
+        q.i*q2.j - q.j*q2.i;
     
     return result;
 }
@@ -717,12 +718,12 @@ Quaternion addScaledVectorToQuaternion(Quaternion q_, V3 vector, float timeScale
                               vector.z * timeScale);
     
     q = quaternion_mult(q_, q);
-    q.r += q.r * 0.5f;
-    q.i += q.i * 0.5f;
-    q.j += q.j * 0.5f;
-    q.k += q.k * 0.5f;
+    result.r += q.r * 0.5f;
+    result.i += q.i * 0.5f;
+    result.j += q.j * 0.5f;
+    result.k += q.k * 0.5f;
     
-    return q;
+    return result;
 }
 
 Quaternion eulerAnglesToQuaternion(float y, float x, float z) {

@@ -69,7 +69,29 @@ int main(int argc, char *args[]) {
 
         int gameResolutionIndex = 0;
 
-        V2 resolutions[] = {v2(1280, 720), v2(1980, 1080), v2(750, 1334), v2(640, 480), v2(800, 500), v2(1024, 640), v2(1024, 768), v2(1152, 720), v2(1280, 800)};
+        //v2(750, 1334) iphone resolution -> need work to modify the the screen so you can see everything. 
+        V2 resolutions[] = {v2(0, 0), v2(1280, 720), v2(1980, 1080), v2(640, 480), v2(800, 500), v2(1024, 640), v2(1024, 768), v2(1152, 720), v2(1280, 800)};
+
+        SDL_DisplayMode DM;
+        SDL_GetCurrentDisplayMode(0, &DM);
+        resolutions[0].x = DM.w;
+        resolutions[0].y = DM.h;
+        if(resolutions[0].x == 0 || resolutions[0].y == 0) {
+            resolutions[0].x = 400;
+            resolutions[0].y = 400;
+        }
+
+        int startingIndex = 0; //this is so we don't repeat a resolution
+        for(int i = 1; i < arrayCount(resolutions); ++i) {
+            if(resolutions[i].x == resolutions[0].x && 
+                resolutions[i].y == resolutions[0].y) {
+                startingIndex = 1;
+                gameResolutionIndex = i;
+                break;        
+            }
+        }
+        
+
         bool barOpen = false;
         LerpV4 fullLerp = initLerpV4(COLOR_WHITE);
         LerpV4 barsLerp = initLerpV4(COLOR_WHITE);     
@@ -115,7 +137,7 @@ int main(int argc, char *args[]) {
 
                 posAt.y += getDim(bounds).y + offset;
                 ////////
-                for(int i = 0; i < arrayCount(resolutions); i++) {
+                for(int i = startingIndex; i < arrayCount(resolutions); i++) {
                     if(i != gameResolutionIndex) {
                         V4 buttonColor = COLOR_BLACK;
                         sprintf(string, "%d x %d", (int)resolutions[i].x, (int)resolutions[i].y);

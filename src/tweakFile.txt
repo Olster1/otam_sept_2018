@@ -1,3 +1,3 @@
 startingLevel: "LEVEL_45";
 globalSoundOn: true;
-startMode: "MENU_MODE";
+startMode: "OVERWORLD_MODE";

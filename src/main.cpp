@@ -306,6 +306,8 @@ typedef struct {
     Texture *blueBackgroundTex;
 
     LevelType lastBoundsStar;
+    bool isHoveringButton;
+
     ////////TODO: This stuff below should be in another struct so isn't there for all projects. 
     Arena *longTermArena;
     float dt;
@@ -335,6 +337,7 @@ typedef struct {
     
     unsigned int lastTime;
     ///////
+    V2 resInMeters;
     
 } FrameParams;
 
@@ -2301,61 +2304,89 @@ static void updateBoardWinState(FrameParams *params) {
     if(allLinesAreDead && !params->isFreestyle && !params->transitionState.currentTransition) {
         int levelAsInt = (int)params->currentLevelType;
         
-        assert(params->levelsData[levelAsInt].valid);
-        int originalGroup = params->levelsData[levelAsInt].groupId;
+        LevelData *currentLevel = params->levelsData + levelAsInt;
+
+        assert(currentLevel->valid);
+        int originalGroup = currentLevel->groupId;
+        currentLevel->state = LEVEL_STATE_COMPLETED;
+
+        //Now we check to see if we can unlock levels in the next group or if we have finished the game
         
-        params->levelsData[levelAsInt].state = LEVEL_STATE_COMPLETED;
-        
-        LevelData *listAt = params->levelGroups[originalGroup];
-        assert(listAt);
-        bool completedGroup = true;
-        LevelType nextLevel;
-        while(listAt) {
-            completedGroup &= (listAt->state == LEVEL_STATE_COMPLETED);
-            if(!completedGroup) {
-                nextLevel = listAt->levelType;
-                assert(listAt->levelType < LEVEL_COUNT);
-                break;
+        LevelGroup *lvlGroup = params->groups + originalGroup;
+        int lvlsFinishedInGroup = 0;
+        LevelType nextLevel = LEVEL_NULL; 
+        for(int lvlIndex = 0; lvlIndex < lvlGroup->count; ++lvlIndex) {
+            LevelType lvlType = lvlGroup->levels[lvlIndex];
+            LevelData *lvlData = params->levelsData + (int)lvlType;
+            if(lvlData->state == LEVEL_STATE_COMPLETED) {
+                lvlsFinishedInGroup++;
+            } else {
+                assert(lvlData->state == LEVEL_STATE_UNLOCKED);
+                if(nextLevel == LEVEL_NULL) {
+                    nextLevel = lvlType;
+                } 
             }
-            listAt = listAt->next;
         }
-        if(!params->transitionState.currentTransition) {
-            bool goToNextLevel = true;
-            if(completedGroup) {
-                //This assumes groups have to be consecutive ie. have to have group 0, 1, 2, 3 can't 
-                //miss any ie. 0, 2, 4
-                int nextGroup = originalGroup + 1;
-                LevelData *nextGroupListAt = params->levelGroups[nextGroup];
-                if(!nextGroupListAt) {
-                    setStartOrEndGameTransition(params, LEVEL_0, CREDITS_MODE);
-                    goToNextLevel = false;
-                } else {
-                    nextLevel = (LevelType)nextGroupListAt->levelType;    
-                    
-                    assert(params->levelsData[nextLevel].groupId == nextGroup);
-                    assert(nextGroup > originalGroup);
-                    
-                    //NOTE: Unlock the next group
-                    listAt = params->levelGroups[nextGroup];
-                    assert(listAt == nextGroupListAt);
-                    while(listAt) {
-                        if(listAt->state == LEVEL_STATE_LOCKED) {
-                            //this is since we can go back and complete levels again. 
-                            listAt->state = LEVEL_STATE_UNLOCKED;
-                        }
-                        listAt = listAt->next;
+        bool goBackToOverworld = false;
+        bool finishedGame = false;
+        bool unlockNextGroup = false;
+        
+        if(lvlsFinishedInGroup == lvlGroup->count) {
+            unlockNextGroup = true; 
+            assert(nextLevel == LEVEL_NULL);
+            //finished the group
+            goBackToOverworld = true;
+            //finished all the levels;
+            int completedLevelsCount = 0;
+            for(int i = 0; i < LEVEL_COUNT; ++i) {
+                LevelData *data = params->levelsData + i;
+                if(data->valid) {
+                    assert(data->valid);
+                    if(data->state == LEVEL_STATE_COMPLETED) {
+                        completedLevelsCount++;
                     }
                 }
             }
-            
-            if(goToNextLevel) {
-                if(completedGroup) {
-                    setBackToOverworldTransition(params);
-                } else {
-                    setLevelTransition(params, nextLevel); 
-                }
-                
+            if(completedLevelsCount == params->menuInfo.totalLevelCount) {
+                finishedGame = true;
+                goBackToOverworld = false;
+                unlockNextGroup = false;
             }
+            
+        } else {
+            float percentage = ((float)lvlsFinishedInGroup / (float)lvlGroup->count);
+            unlockNextGroup = true;
+            if(percentage >= 0.5f) {
+                //open next group
+                int nextGroupId = originalGroup + 1;
+                LevelGroup *nextGroup = params->groups + nextGroupId;
+                if(nextGroup->count > 0 && nextGroup->activated) {
+                    unlockNextGroup = true;
+                }
+            }
+        }
+
+        if(unlockNextGroup) {
+            int nextGroupId = originalGroup + 1;
+            LevelGroup *nextGroup = params->groups + nextGroupId;
+            assert(nextGroup->activated == false);
+            for(int groupId = 0; groupId < nextGroup->count; ++groupId) {
+                int lvlId = nextGroup->levels[groupId];
+                assert(params->levelsData[lvlId].valid);
+                assert(params->levelsData[lvlId].state == LEVEL_STATE_LOCKED);
+                params->levelsData[lvlId].state = LEVEL_STATE_UNLOCKED;
+            }
+        }
+        
+        if(!finishedGame) {
+            if(goBackToOverworld) {
+                setBackToOverworldTransition(params);
+            } else {
+                assert(nextLevel != LEVEL_NULL);
+                setLevelTransition(params, nextLevel); 
+            }
+        } else {
+            setStartOrEndGameTransition(params, LEVEL_0, CREDITS_MODE);
         }
         saveFileData(params);
     }
@@ -2646,6 +2677,8 @@ void gameUpdateAndRender(void *params_) {
     V2 middleP = v2_scale(0.5f, resolution);
     //ceneter the camera
     params->cameraPos.xy = v2_scale(0.5f, v2((float)params->boardWidth - 1, (float)params->boardHeight - 1));
+
+    
     
     easyOS_processKeyStates(params->keyStates, resolution, params->screenDim, params->menuInfo.running);
     //make this platform independent
@@ -2676,6 +2709,7 @@ void gameUpdateAndRender(void *params_) {
     }
     
     V2 mouseP = params->keyStates->mouseP;
+    V2 halfResInMeters = v2_scale(0.5f, params->resInMeters);
     
     GameMode currentGameMode = drawMenu(&params->menuInfo, params->longTermArena, params->keyStates->gameButtons, 0, params->solidfyShapeSound, params->moveSound, params->dt, resolution, mouseP, params->levelsData, arrayCount(params->levelsData), &params->menuInfo.lastShownGroup);
     
@@ -2686,6 +2720,9 @@ void gameUpdateAndRender(void *params_) {
     
     float helpTextY = 40;
     float uiZAt = -0.3f;
+    float uiXPosOffset = halfResInMeters.x - 1;
+
+    params->isHoveringButton = false; //this is so we can't go to a level when we hovering over a button
     
     bool retryButtonPressed = false;    
     if(isPlayState) {
@@ -2700,7 +2737,7 @@ void gameUpdateAndRender(void *params_) {
         }
         
         { //refresh level button
-            RenderInfo renderInfo = calculateRenderInfo(v3(-9, 5, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(-halfResInMeters.x + 1, halfResInMeters.y - 1, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -2851,9 +2888,8 @@ void gameUpdateAndRender(void *params_) {
     
     if(isPlayState || currentGameMode == OVERWORLD_MODE) {
         if(currentGameMode == OVERWORLD_MODE) { //Load Button
-
             
-            RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset - 3, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -2867,6 +2903,7 @@ void gameUpdateAndRender(void *params_) {
             
             V4 uiColor = cLerp.value;
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                params->isHoveringButton = true;
                 setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
                 if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
                     
@@ -2877,7 +2914,7 @@ void gameUpdateAndRender(void *params_) {
             renderTextureCentreDim(params->loadTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
 
             { //Back to overworld button
-                RenderInfo renderInfo = calculateRenderInfo(v3(3, 5, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+                RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset - 4.5f, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
                 
                 Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
                 static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -2890,6 +2927,7 @@ void gameUpdateAndRender(void *params_) {
                 
                 V4 uiColor = cLerp.value;
                 if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                    params->isHoveringButton = true;
                     setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
                     if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning && !isOn(&params->backToOriginTimer)) {
                         params->backToOriginTimer = initTimer(1);
@@ -2903,7 +2941,7 @@ void gameUpdateAndRender(void *params_) {
         }
         
         { //Sound Button
-            RenderInfo renderInfo = calculateRenderInfo(v3(7, 5, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset - 1.5f, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -2917,6 +2955,7 @@ void gameUpdateAndRender(void *params_) {
             
             V4 uiColor = cLerp.value;
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                params->isHoveringButton = true;
                 setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
                 if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
                     globalSoundOn = !globalSoundOn;
@@ -2930,7 +2969,7 @@ void gameUpdateAndRender(void *params_) {
         }
         
         { //Exit Button
-            RenderInfo renderInfo = calculateRenderInfo(v3(9, 5, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -2944,6 +2983,7 @@ void gameUpdateAndRender(void *params_) {
             
             V4 uiColor = cLerp.value;
             if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                params->isHoveringButton = true;
                 setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
                 if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
                     changeMenuState(&params->menuInfo, QUIT_MODE);
@@ -2959,7 +2999,7 @@ void gameUpdateAndRender(void *params_) {
     if(isPlayState) {
         
         { //Back to overworld button
-            RenderInfo renderInfo = calculateRenderInfo(v3(5, 5, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset - 3, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -3078,53 +3118,6 @@ void gameUpdateAndRender(void *params_) {
         float updateTForMouse = params->dt;
         float updatePerLoop = 1 / 480.0f;
         
-        while(updateTForMouse > 0.0f) {
-            easyOS_processKeyStates(&params->overworldKeyStates, resolution, params->screenDim, params->menuInfo.running);
-            V2 overworldMouseP = params->overworldKeyStates.mouseP;
-            if(wasPressed(params->overworldKeyStates.gameButtons, BUTTON_LEFT_MOUSE)) {
-                params->lastMouseP = overworldMouseP;
-            }
-            
-            V3 accel = v3(0, 0, 0);
-            
-            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_LEFT_MOUSE)) {
-                V2 diffVec = v2_minus(overworldMouseP, params->lastMouseP);
-                accel.xy = normalizeV2(diffVec);
-                accel.x *= -1; //inverse the pull direction. Since y is down for mouseP, y is already flipped 
-            }
-            
-            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_LEFT)) {
-                accel.x = -1;
-            } 
-            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_RIGHT)) {
-                accel.x = 1;
-            }
-            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_UP)) {
-                accel.y = 1;
-            }
-            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_DOWN)) {
-               accel.y = -1;
-            }
-            accel.xy = v2_scale(3600.0f, accel.xy);
-            
-            #if EDITOR_MODE
-            if(isDown(params->overworldKeyStates.gameButtons, BUTTON_SHIFT)) {
-            #endif
-
-                params->camVel = v3_plus(v3_scale(updatePerLoop, accel), params->camVel);
-                params->camVel = v3_minus(params->camVel, v3_scale(0.3f, params->camVel));
-                params->overworldCamera = v3_plus(v3_scale(updatePerLoop, params->camVel), params->overworldCamera);
-            #if EDITOR_MODE
-            }
-            #endif
-            
-            //params->lastMouseP = overworldMouseP;
-            updateTForMouse -= updatePerLoop;
-            if(updateTForMouse < updatePerLoop) {
-                updatePerLoop = updateTForMouse;
-            }
-        }
-
         if(isOn(&params->backToOriginTimer)) {
             TimerReturnInfo timerInfo = updateTimer(&params->backToOriginTimer, params->dt);
             params->overworldCamera = smoothStep01V3(params->backToOriginStart, timerInfo.canonicalVal, params->overworldGroupPosAt);
@@ -3132,12 +3125,61 @@ void gameUpdateAndRender(void *params_) {
                 turnTimerOff(&params->backToOriginTimer);
             }
 
+        } else {
+            while(updateTForMouse > 0.0f) {
+                easyOS_processKeyStates(&params->overworldKeyStates, resolution, params->screenDim, params->menuInfo.running);
+                V2 overworldMouseP = params->overworldKeyStates.mouseP;
+                if(wasPressed(params->overworldKeyStates.gameButtons, BUTTON_LEFT_MOUSE)) {
+                    params->lastMouseP = overworldMouseP;
+                }
+                
+                V3 accel = v3(0, 0, 0);
+                
+                if(isDown(params->overworldKeyStates.gameButtons, BUTTON_LEFT_MOUSE)) {
+                    V2 diffVec = v2_minus(overworldMouseP, params->lastMouseP);
+                    accel.xy = normalizeV2(diffVec);
+                    accel.x *= -1; //inverse the pull direction. Since y is down for mouseP, y is already flipped 
+                }
+                
+                if(isDown(params->overworldKeyStates.gameButtons, BUTTON_LEFT)) {
+                    accel.x = -1;
+                } 
+                if(isDown(params->overworldKeyStates.gameButtons, BUTTON_RIGHT)) {
+                    accel.x = 1;
+                }
+                if(isDown(params->overworldKeyStates.gameButtons, BUTTON_UP)) {
+                    accel.y = 1;
+                }
+                if(isDown(params->overworldKeyStates.gameButtons, BUTTON_DOWN)) {
+                   accel.y = -1;
+                }
+                accel.xy = v2_scale(3600.0f, accel.xy);
+                
+                #if EDITOR_MODE
+                if(isDown(params->overworldKeyStates.gameButtons, BUTTON_SHIFT)) {
+                #endif
+
+                    params->camVel = v3_plus(v3_scale(updatePerLoop, accel), params->camVel);
+                    params->camVel = v3_minus(params->camVel, v3_scale(0.3f, params->camVel));
+                    params->overworldCamera = v3_plus(v3_scale(updatePerLoop, params->camVel), params->overworldCamera);
+                #if EDITOR_MODE
+                }
+                #endif
+                
+                //params->lastMouseP = overworldMouseP;
+                updateTForMouse -= updatePerLoop;
+                if(updateTForMouse < updatePerLoop) {
+                    updatePerLoop = updateTForMouse;
+                }
+            }
         }
+
+        
         
         float factor = 10.0f;
         V3 overworldCam = params->overworldCamera;
-        overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
-        overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
+        // overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
+        // overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
         
         char *at = (char *)params->overworldLayout.memory;
         
@@ -3145,9 +3187,9 @@ void gameUpdateAndRender(void *params_) {
         bool finished[LEVEL_COUNT] = {};
         
         float waterDim = 2.0f;
-        V2 resInMeters = V4MultMat4(v4(resolution.x, resolution.y, 1, 1), params->pixelsToMeters).xy;
-        int yAcross = (int)(((float)resInMeters.y / (float)waterDim)) + 1;
-        int xAcross = (int)(((float)resInMeters.x / (float)waterDim)) + 1;
+        
+        int yAcross = (int)(((float)params->resInMeters.y / (float)waterDim)) + 1;
+        int xAcross = (int)(((float)params->resInMeters.x / (float)waterDim)) + 1;
         float halfWaterDim = 0.5f*waterDim;
         for(int yVal = 0; yVal < yAcross; yVal++) {
             for(int xVal = 0; xVal < xAcross; xVal++) {
@@ -3344,7 +3386,7 @@ void gameUpdateAndRender(void *params_) {
                             }
                         } 
 
-                        if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                        if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT) && !params->isHoveringButton) {
 
                             //Output the levels name
                             char *levelName = levelAt->name;
@@ -3446,7 +3488,7 @@ int main(int argc, char *args[]) {
     V2 screenDim = {}; //init in create app function
     V2 resolution = v2(0, 0);
     bool blackBars = true;
-    bool fullscreen = true;
+    bool fullscreen = false;
     if(argc > 1) {
         assert(argc == 5);
         char *resolutionX = args[1];
@@ -3804,6 +3846,8 @@ int main(int argc, char *args[]) {
         
         int lastActiveSaveSlot = 0; //get this from a file that is saved out to disk
         params->menuInfo.activeSaveSlot = lastActiveSaveSlot;
+
+         params->resInMeters = V4MultMat4(v4(resolution.x, resolution.y, 1, 1), params->pixelsToMeters).xy;
         
         loadSaveFile(params->levelsData, arrayCount(params->levelsData), params->menuInfo.activeSaveSlot, &params->menuInfo.lastShownGroup);
         

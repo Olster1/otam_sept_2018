@@ -112,6 +112,7 @@ typedef struct LevelData {
 typedef struct  {
     LevelType levels[22];
     int count;    
+    bool activated;
 } LevelGroup;
 
 /*
@@ -128,6 +129,7 @@ static inline V2 getPos(OverworldLevelState *state, LevelGroup *group) {
 static inline void addLevelToGroup(LevelGroup *group, LevelType type) {
     assert(group->count < arrayCount(group->levels));
     group->levels[group->count++] = type;
+    assert(group->activated == false);
 }
 
 static inline LevelCountFromFile findLevelCount(char *readName) {
