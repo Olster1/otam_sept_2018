@@ -103,8 +103,9 @@ typedef struct {
     bool active; //this is for the lag period. 
     
     Timer timer;
-    Timer lagTimer;
+    // Timer lagTimer;
     float lagPeriod;
+    float movePeriod;
     
     bool justFlipped;
     
@@ -762,6 +763,8 @@ static inline int loadLevelData(FrameParams *params) {
             }
             LevelGroup *group = params->groups + levelData->groupId;
             addLevelToGroup(group, levelData->levelType);
+
+            
             ///
             
             
@@ -1050,17 +1053,18 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                     if(stringsMatchNullN("growTimerPeriod", token.at, token.size)) {
                         float period = getFloatFromDataObjects(&data, &tokenizer);
                         shape->timer = initTimer(period);
+                        shape->movePeriod = period;
                     }
                     if(stringsMatchNullN("lagTimerPeriod", token.at, token.size)) {
-                        float period = getFloatFromDataObjects(&data, &tokenizer);
-                        shape->lagPeriod = period;
+                        assert(false);//doens't exist anymore
                     }
                     if(stringsMatchNullN("timeAffected", token.at, token.size)) {
                         shape->timeAffected = getBoolFromDataObjects(&data, &tokenizer);
                     }
                     if(stringsMatchNullN("beginTimerPeriod", token.at, token.size)) {
                         float period = getFloatFromDataObjects(&data, &tokenizer);
-                        shape->lagTimer = initTimer(period);
+                        // shape->lagTimer = initTimer(period);
+                        shape->lagPeriod = period;
                         if(period != 0.0f) {
                             shape->active = false;
                         }
@@ -1228,48 +1232,6 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
         assert(params->maxExperiencePoints != 0);
     }
     
-}
-
-void createLevel_DEPRECTATED(FrameParams *params, int blockCount, LevelType levelType) {
-    if(levelType == LEVEL_4) {
-        ExtraShape *shape = addExtraShape(params);
-        
-        shape->pos = v2(2, 2);
-        shape->growDir = v2(1, 0);
-        
-        // setBoardState(params, shape->pos, BOARD_STATIC, BOARD_VAL_ALWAYS);    
-        shape->timer = initTimer(0.5f);
-        shape->lagTimer = initTimer(0.5f);
-        shape->max = 3;
-    }
-    
-    for(int i = 0; i < blockCount && levelType != LEVEL_0 && levelType != LEVEL_4; ++i) {
-        V2 pos = {};
-        float rand1 = getRandNum01_include();
-        float rand2 = getRandNum01_include();
-        pos.x = lerp(0, rand1, (float)(params->boardWidth - 1));
-        pos.y = lerp(0, rand2, (float)(params->boardHeight - 5)); // so we don't block the shape creation
-        
-        BoardState state = BOARD_NULL;
-        switch(levelType) {
-            case LEVEL_1: {
-                state = BOARD_STATIC;
-            } break;
-            case LEVEL_2: {
-                int type = (int)lerp(0, getRandNum01(), 2);
-                if(type == 0) { state = BOARD_STATIC; }
-                if(type == 1) { state = BOARD_EXPLOSIVE; }
-            } break;
-            case LEVEL_3: {
-                state = BOARD_EXPLOSIVE;
-            } break;
-            default: {
-                assert(!"case not handled");
-            }
-        }
-        
-        setBoardState(params, v2((int)pos.x, (int)pos.y), state, BOARD_VAL_ALWAYS);    
-    }
 }
 
 V2 getMoveVec(MoveType moveType) {
@@ -1744,6 +1706,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
     
     TimerReturnInfo timerInfo = updateTimer(&params->moveTimer, params->moveTime);
     if(timerInfo.finished) {
+        printf("%s\n", "moved");
         turnTimerOn(&params->moveTimer);
         params->moveTimer.value = timerInfo.residue;
         if(!moveShape(shape, params, MOVE_DOWN)) {
@@ -2021,28 +1984,26 @@ void initBoard(FrameParams *params, LevelType levelType) {
 static inline V2 findAveragePos(FrameParams *params) {
     bool foundHighestGroup = false;
     V2 result = v2(0, 0);
+    LevelGroup *highestGroup = 0;
     for(int i = 0; i <= params->maxGroupId && !foundHighestGroup; ++i) {
         LevelGroup *group = params->groups + i;
+        group->averagePos = v2(0, 0);
         if(group->count > 0) {
-            V2 averagePos = v2(0, 0);
             for(int j = 0; j < group->count; ++j) {
                 LevelType type = group->levels[j];
                 LevelData *data = &params->levelsData[(int)type];
-
-                averagePos = v2_plus(averagePos, data->pos);
-                if(data->state == LEVEL_STATE_COMPLETED) {
-
-                } else if(data->state == LEVEL_STATE_UNLOCKED) {
-                    foundHighestGroup = true;
+                group->averagePos = v2_plus(group->averagePos, data->pos);
+                if(data->state == LEVEL_STATE_COMPLETED || data->state == LEVEL_STATE_UNLOCKED) {
+                    highestGroup = group;
                 } else {
-                    //shouldn't hit any locked groups!!
-                    assert(false);
+                    foundHighestGroup = true;
                 }
             }
-            result = v2_scale(1.0f / (float)group->count, averagePos);
         }
     }
-
+    assert(highestGroup);
+    assert(highestGroup->count > 0);
+    result = v2_scale(1.0f / (float)highestGroup->count, highestGroup->averagePos);
     assert(!(result.x == 0 && result.y == 0));
     return result;
 }
@@ -2355,12 +2316,16 @@ static void updateBoardWinState(FrameParams *params) {
             
         } else {
             float percentage = ((float)lvlsFinishedInGroup / (float)lvlGroup->count);
-            unlockNextGroup = true;
+            printf("levelsFinsihedInGroup: %d\n", lvlsFinishedInGroup);
+            printf("LevelCount: %d\n", lvlGroup->count);
+            printf("percent:%f\n", percentage);
+            
+            unlockNextGroup = false;
             if(percentage >= 0.5f) {
                 //open next group
                 int nextGroupId = originalGroup + 1;
                 LevelGroup *nextGroup = params->groups + nextGroupId;
-                if(nextGroup->count > 0 && nextGroup->activated) {
+                if(nextGroup->count > 0 && !nextGroup->activated) {
                     unlockNextGroup = true;
                 }
             }
@@ -2369,12 +2334,15 @@ static void updateBoardWinState(FrameParams *params) {
         if(unlockNextGroup) {
             int nextGroupId = originalGroup + 1;
             LevelGroup *nextGroup = params->groups + nextGroupId;
-            assert(nextGroup->activated == false);
-            for(int groupId = 0; groupId < nextGroup->count; ++groupId) {
-                int lvlId = nextGroup->levels[groupId];
-                assert(params->levelsData[lvlId].valid);
-                assert(params->levelsData[lvlId].state == LEVEL_STATE_LOCKED);
-                params->levelsData[lvlId].state = LEVEL_STATE_UNLOCKED;
+            if(!nextGroup->activated) {
+                assert(nextGroup->activated == false);
+                nextGroup->activated = true;
+                for(int groupId = 0; groupId < nextGroup->count; ++groupId) {
+                    int lvlId = nextGroup->levels[groupId];
+                    assert(params->levelsData[lvlId].valid);
+                    assert(params->levelsData[lvlId].state == LEVEL_STATE_LOCKED);
+                    params->levelsData[lvlId].state = LEVEL_STATE_UNLOCKED;
+                }
             }
         }
         
@@ -2480,8 +2448,8 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
             for(int i = 0; i < shape->perpSize; ++i) {
                 shape->growDir = perp(shape->growDir);
             }
-            shape->lagTimer.period = shape->lagPeriod; //we change from the begin period to the lag period
-            if(shape->lagTimer.period != 0.0f) {
+            if(shape->lagPeriod != 0.0f) {
+                shape->timer.period = shape->lagPeriod; //we change from the begin period to the lag period
                 shape->active = false; //we lag for a bit. 
             }
         }
@@ -2844,12 +2812,16 @@ void gameUpdateAndRender(void *params_) {
                     }
                     
                     float shapeDt = dt;
-                    if(!extraShape->active && extraShape->lagTimer.period > 0.0f) { 
-                        TimerReturnInfo lagInfo = updateTimer(&extraShape->lagTimer, dt);
-                        if(lagInfo.finished) {
-                            turnTimerOn(&extraShape->lagTimer);
-                            shapeDt = lagInfo.residue;
-                            extraShape->active = true; 
+                    if(!extraShape->active) { 
+                        assert(extraShape->lagPeriod > 0.0f);
+                        if(extraShape->lagPeriod > 0.0f) {
+                            TimerReturnInfo lagInfo = updateTimer(&extraShape->timer, dt);
+                            if(lagInfo.finished) {
+                                turnTimerOn(&extraShape->timer);
+                                shapeDt = lagInfo.residue;
+                                extraShape->active = true; 
+                                extraShape->timer.period = extraShape->movePeriod;
+                            }
                         }
                     } 
                     
@@ -2858,6 +2830,7 @@ void gameUpdateAndRender(void *params_) {
                         if(info.finished) {
                             turnTimerOn(&extraShape->timer);
                             updateWindmillSide(params, extraShape);
+                            printf("%s\n", "shapeMoveing");
                             extraShape->timer.value = info.residue;
                         }
                     }
@@ -2882,6 +2855,7 @@ void gameUpdateAndRender(void *params_) {
             }
             dtLeft -= params->dt;
             assert(dtLeft >= 0.0f);
+            printf("%s\n", "//////////");
         }
         params->dt = oldDt;
     }
@@ -3485,6 +3459,20 @@ void gameUpdateAndRender(void *params_) {
 }
 
 int main(int argc, char *args[]) {
+    #if 0 //3d perspective stuff
+    Matrix4 pro = projectionMatrixToScreen(400, 400);//projectionMatrixFOV(PI32/4, 1);
+    V4 p = v4(1, 1 , -1000, 1);
+
+    V4 p1 = V4MultMat4(p, pro);
+
+    error_printFloat4("valud is", p1.E);
+
+    pro = mat4_transpose(pro);
+    V4 p2 = V4MultMat4(p1, pro);
+    error_printFloat4("valud is", p2.E);
+    exit(0);
+    #endif
+
     V2 screenDim = {}; //init in create app function
     V2 resolution = v2(0, 0);
     bool blackBars = true;
@@ -3841,7 +3829,10 @@ int main(int argc, char *args[]) {
         menuInfo.levelDataArray = params->levelsData;
         menuInfo.resolutionDiffScale = setupInfo.screenRelativeSize;
         menuInfo.lastShownGroup = -1;
+        menuInfo.overworldCam = &params->overworldCamera;
         
+        menuInfo.levelGroups = params->groups;
+        menuInfo.maxGroupId = params->maxGroupId;
         params->menuInfo = menuInfo;
         
         int lastActiveSaveSlot = 0; //get this from a file that is saved out to disk
@@ -3851,6 +3842,16 @@ int main(int argc, char *args[]) {
         
         loadSaveFile(params->levelsData, arrayCount(params->levelsData), params->menuInfo.activeSaveSlot, &params->menuInfo.lastShownGroup);
         
+        for(int groupIndex = 0; groupIndex < params->maxGroupId; ++groupIndex) {
+            LevelGroup *group = params->groups + groupIndex;
+            for(int lvlIndex = 0; lvlIndex < group->count; ++lvlIndex) {
+                LevelData *levelData = &params->levelsData[(int)group->levels[lvlIndex]];
+                if(levelData->state == LEVEL_STATE_UNLOCKED || levelData->state == LEVEL_STATE_COMPLETED) {
+                    group->activated = true;    
+                }
+            }
+        }
+
         loadOverworldPositions(params);
 
         params->overworldCamera = v2ToV3(findAveragePos(params), 0);

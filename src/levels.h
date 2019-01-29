@@ -113,6 +113,7 @@ typedef struct  {
     LevelType levels[22];
     int count;    
     bool activated;
+    V2 averagePos; 
 } LevelGroup;
 
 /*

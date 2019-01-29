@@ -12,11 +12,11 @@ pos: 6.551475 8.527674;
 }
 {
 levelType: "LEVEL_3";
-pos: 11.546267 3.623550;
+pos: 11.414856 7.479039;
 }
 {
 levelType: "LEVEL_4";
-pos: 10.983767 4.045425;
+pos: 11.211731 8.572789;
 }
 {
 levelType: "LEVEL_5";
@@ -24,11 +24,11 @@ pos: 10.444030 11.865919;
 }
 {
 levelType: "LEVEL_6";
-pos: 11.702517 2.795425;
+pos: 11.461731 2.760289;
 }
 {
 levelType: "LEVEL_7";
-pos: 12.194030 8.209669;
+pos: 12.492981 8.260289;
 }
 {
 levelType: "LEVEL_8";
@@ -36,7 +36,7 @@ pos: 9.272155 12.459669;
 }
 {
 levelType: "LEVEL_9";
-pos: 12.405642 3.795425;
+pos: 12.055481 3.744664;
 }
 {
 levelType: "LEVEL_10";
@@ -52,7 +52,7 @@ pos: 8.003691 2.778849;
 }
 {
 levelType: "LEVEL_13";
-pos: 10.928405 8.444044;
+pos: 10.883606 3.979039;
 }
 {
 levelType: "LEVEL_14";
@@ -157,6 +157,30 @@ pos: 21.331001 9.586315;
 {
 levelType: "LEVEL_39";
 pos: 22.956001 9.258190;
+}
+{
+levelType: "LEVEL_40";
+pos: 0.814757 1.615908;
+}
+{
+levelType: "LEVEL_41";
+pos: 2.557483 3.618221;
+}
+{
+levelType: "LEVEL_42";
+pos: 3.443785 3.692372;
+}
+{
+levelType: "LEVEL_43";
+pos: 1.693382 0.662750;
+}
+{
+levelType: "LEVEL_44";
+pos: 2.841136 2.968879;
+}
+{
+levelType: "LEVEL_45";
+pos: 1.944419 3.851593;
 }
 {
 entityType: "ENTITY_TYPE_ROCK";

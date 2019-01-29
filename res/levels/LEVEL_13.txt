@@ -2,7 +2,7 @@
 LevelData: {
 	backgroundImage: "blue_shroom.png";
 	name: "Hanging by a Limb";
-	groupId: 4;
+	groupId: 5;
 	shapeSize: 5;
 	lifePoints: 1;
 	startOffset: 1;

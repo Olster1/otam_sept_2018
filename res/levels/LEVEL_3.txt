@@ -2,7 +2,7 @@
 LevelData: {
 	backgroundImage: "blue_shroom.png";
 	name: "Closing In";
-	groupId: 5;
+	groupId: 4;
 }
 Windmill: {
 	id: 1;

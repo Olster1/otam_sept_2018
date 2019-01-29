@@ -58,6 +58,11 @@ typedef struct {
     int lastShownGroup;
     LevelData *levelDataArray;
     float resolutionDiffScale;  
+
+    int maxGroupId;
+    LevelGroup *levelGroups; 
+
+    V3 *overworldCam;
 } MenuInfo;
 
 typedef struct {
@@ -504,6 +509,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                             if(inBounds(mouseP_settings, confirmBounds, BOUNDS_RECT)) {
                                 setLerpInfoV4_s(&confirmLerp, COLOR_YELLOW, 0.2f, &confirmLerp.value);
                                 if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                                    info->overworldCam->xy = info->levelDataArray[LEVEL_0].pos;
                                     startGameAgain(at);
                                     info->saveStateDetails[at].completedCount = 0;
                                     for(int lvlIndex = 0; lvlIndex < LEVEL_COUNT; ++lvlIndex) {
@@ -516,6 +522,10 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                                             }
                                         }
                                     }
+                                    for(int groupIndex = 0; groupIndex < info->maxGroupId; ++groupIndex) {
+                                        info->levelGroups[groupIndex].activated = false;
+                                    }
+
                                     info->lastShownGroup = -1;
                                     // updateSaveStateDetailsWithFile(info->saveStateDetails, arrayCount(info->saveStateDetails));
                                     deleteConfirmation = false;
@@ -570,6 +580,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                         if(inBounds(mouseP_settings, outputDim2, BOUNDS_RECT)) {
                             setLerpInfoV4_s(&eLerp, UI_BUTTON_COLOR, 0.2f, &eLerp.value);
                             if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+
                                 changeMenuState(info, OVERWORLD_MODE);
                                 deleteConfirmation = false;
                             }

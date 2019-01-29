@@ -20,6 +20,71 @@ using multiple shapes to plug holes etc. -> 25, 27, 28, 29, 30, 31, 32, 33, 34  
 
 mirrorred levels -> 26 // group 10 // count 1
 
+JUST BLOCKS - 1
+BLOCKS WITH BOMBS - 2
+TIMED BLOCKS - 3
+TIMED BLOCKS WITH BOMBS - 4
+RED LINES - 5
+INCOMING TO LEVEL - 6
+LEDGES - 7
+MIRROR LEVELS - 8
+//Notes
+Hanging by limb is a bit different -> not just about moving sahpes but ledges as well. -> move to later groups
+Bootstrap is similar to hanging by a limb
+The ledge 
+///
+FUNC(LEVEL_0) \  
+FUNC(LEVEL_1) \
+FUNC(LEVEL_2) \
+FUNC(LEVEL_3) \
+FUNC(LEVEL_4) \
+FUNC(LEVEL_5) \
+FUNC(LEVEL_6) \
+FUNC(LEVEL_7) \
+FUNC(LEVEL_8) \
+FUNC(LEVEL_9) \
+FUNC(LEVEL_10) \
+FUNC(LEVEL_11) \
+FUNC(LEVEL_12) \
+FUNC(LEVEL_13) \
+FUNC(LEVEL_14) \
+FUNC(LEVEL_15) \
+FUNC(LEVEL_16) \
+FUNC(LEVEL_17) \
+FUNC(LEVEL_18) \
+FUNC(LEVEL_19) \
+FUNC(LEVEL_20) \
+FUNC(LEVEL_21) \
+FUNC(LEVEL_22) \
+FUNC(LEVEL_23) \
+FUNC(LEVEL_24) \
+FUNC(LEVEL_25) \
+FUNC(LEVEL_26) \
+FUNC(LEVEL_27) \
+FUNC(LEVEL_28) \
+FUNC(LEVEL_29) \
+FUNC(LEVEL_30) \
+FUNC(LEVEL_31) \
+FUNC(LEVEL_32) \
+FUNC(LEVEL_33) \
+FUNC(LEVEL_34) \
+FUNC(LEVEL_35) \
+FUNC(LEVEL_36) \
+FUNC(LEVEL_37) \
+FUNC(LEVEL_38) \
+FUNC(LEVEL_39) \
+FUNC(LEVEL_40) \
+FUNC(LEVEL_41) \
+FUNC(LEVEL_42) \
+FUNC(LEVEL_43) \
+FUNC(LEVEL_44) \
+FUNC(LEVEL_45) \
+FUNC(LEVEL_46) \
+FUNC(LEVEL_47) \
+FUNC(LEVEL_48) \
+FUNC(LEVEL_49) \
+FUNC(LEVEL_50) \
+
 
 Manevouring the shape 
 	- just blocks
@@ -42,12 +107,6 @@ Linking shapes together
 	- bomb blows whole in shape, have to link it to complete the level
 	- the level can start with more than one shape, so have to use them together 
 
-Colors
-	- only certain blocks can pass through colors or the shape will blow up 
 
-Camera moving 
-	- really big levels involving manuvering the camera to finish lines -> more of a pushing things to the limit 
-
-Mirrored levels
 
 
