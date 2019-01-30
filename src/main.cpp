@@ -950,7 +950,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
     params->shapesCount = 1;
     params->startOffsets[0] = 0; //default to zero
     params->isMirrorLevel = false;
-    
+    bool setLagPeriod = false;
     while(parsing) {
         EasyToken token = lexGetNextToken(&tokenizer);
         InfiniteAlloc data = {};
@@ -1065,8 +1065,9 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                         float period = getFloatFromDataObjects(&data, &tokenizer);
                         // shape->lagTimer = initTimer(period);
                         shape->lagPeriod = period;
-                        if(period != 0.0f) {
+                        if(period > 0.0f) {
                             shape->active = false;
+                            setLagPeriod = true;
                         }
                     }
                     if(stringsMatchNullN("perpSize", token.at, token.size)) {
@@ -1083,6 +1084,9 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
         }
     }
     
+    if(setLagPeriod) {
+        shape->timer.period = shape->lagPeriod;
+    }
     //default values if not specified in the level file. 
     if(!hasBgImage) {
         params->bgTex = findTextureAsset("blue_grass.png");
@@ -1695,7 +1699,7 @@ static inline TwoColors getAlienHoverColor(FitrisShape *shape, int indexAt) {
     return result;
 }
 
-void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 screenDim, Matrix4 metresToPixels, FrameParams *params) {
+void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 screenDim, Matrix4 metresToPixels, FrameParams *params, float moveTime) {
     assert(!params->wasHitByExplosive);
     assert(!params->createShape);
     
@@ -1704,9 +1708,10 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
     
     bool turnSolid = false;
     
-    TimerReturnInfo timerInfo = updateTimer(&params->moveTimer, params->moveTime);
+    TimerReturnInfo timerInfo = updateTimer(&params->moveTimer, moveTime);
+    // printf("fitris shape: %f\n", params->moveTimer.value);
     if(timerInfo.finished) {
-        printf("%s\n", "moved");
+        // printf("%s\n", "moved");
         turnTimerOn(&params->moveTimer);
         params->moveTimer.value = timerInfo.residue;
         if(!moveShape(shape, params, MOVE_DOWN)) {
@@ -2802,22 +2807,21 @@ void gameUpdateAndRender(void *params_) {
                 ExtraShape *extraShape = params->extraShapes + extraIndex;
                 
                 float tUpdate = (extraShape->timeAffected) ? params->moveTime : params->dt;
-                
+                // printf("%f\n", tUpdate);
                 while(tUpdate > 0.0f) {
                     assert(params->dt >= 0);
                     
-                    float dt = min(increment, tUpdate);
-                    if(dt > params->dt) {
-                        printf("Error: dt: %f paramsDt: %f\n", dt, params->dt);
-                    }
-                    
+                    float dt = min(params->dt, tUpdate);
+
                     float shapeDt = dt;
                     if(!extraShape->active) { 
                         assert(extraShape->lagPeriod > 0.0f);
                         if(extraShape->lagPeriod > 0.0f) {
                             TimerReturnInfo lagInfo = updateTimer(&extraShape->timer, dt);
+                            // printf("lag extraShape: %f\n", extraShape->timer.value);
                             if(lagInfo.finished) {
                                 turnTimerOn(&extraShape->timer);
+                                printf("time Is: %f\n", extraShape->timer.value);
                                 shapeDt = lagInfo.residue;
                                 extraShape->active = true; 
                                 extraShape->timer.period = extraShape->movePeriod;
@@ -2827,10 +2831,11 @@ void gameUpdateAndRender(void *params_) {
                     
                     if(extraShape->active) {
                         TimerReturnInfo info = updateTimer(&extraShape->timer, shapeDt);
+                        // printf("extraShape: %f\n", extraShape->timer.value);
                         if(info.finished) {
                             turnTimerOn(&extraShape->timer);
                             updateWindmillSide(params, extraShape);
-                            printf("%s\n", "shapeMoveing");
+                            // printf("%s\n", "shapeMoveing");
                             extraShape->timer.value = info.residue;
                         }
                     }
@@ -2838,7 +2843,7 @@ void gameUpdateAndRender(void *params_) {
                     assert(tUpdate >= 0.0f);
                 }
             }
-            updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params);
+            updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params, params->moveTime);
             
             for(int extraIndex = 0; extraIndex < params->extraShapeCount; ++extraIndex) {
                 ExtraShape *extraShape = params->extraShapes + extraIndex;
@@ -2855,7 +2860,7 @@ void gameUpdateAndRender(void *params_) {
             }
             dtLeft -= params->dt;
             assert(dtLeft >= 0.0f);
-            printf("%s\n", "//////////");
+            // printf("%s\n", "//////////");
         }
         params->dt = oldDt;
     }

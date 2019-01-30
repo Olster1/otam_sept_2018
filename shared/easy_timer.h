@@ -1,6 +1,6 @@
 typedef struct {
-    float value;
-    float period;
+    double value;
+    double period;
 } Timer;
 
 Timer initTimer(float period) {
@@ -16,7 +16,7 @@ bool isOn(Timer *timer) {
 }
 
 void turnTimerOn(Timer *timer) {
-    timer->value = 0;
+    timer->value = 0.0f;
 }
 
 void turnTimerOff(Timer *timer) {
@@ -42,13 +42,18 @@ TimerReturnInfo updateTimer(Timer *timer, float dt) {
             timer->period = defaultPeriod;
         }
         if((timer->value / timer->period) >= 1.0f) {
-            //TODO: Can a % mod sign do this with floats
             float minusVal = (timer->value - timer->period);
-            float lots = minusVal / timer->period;
+            assert(timer->period > 0);
+            assert(minusVal >= 0.0f);
+            int lots = (int)(minusVal / timer->period);
             returnInfo.residue = minusVal - (lots*timer->period);
 
             if(!(returnInfo.residue >= 0.0f && returnInfo.residue <= timer->period)) {
-                printf("%f\n", (returnInfo.residue/timer->period));
+                printf("period: %f\n", timer->period);
+                printf("residue: %f\n", returnInfo.residue);
+                printf("minus val: %f\n", minusVal);
+                printf("lots: %d\n", lots);
+                assert(false);
             }
             timer->value = -1; //turn timer off
             returnInfo.canonicalVal = 1; //anyone using this value afterwards wants to know that it finished
