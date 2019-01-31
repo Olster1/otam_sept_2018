@@ -2,7 +2,7 @@
 //this is about the top being blocked when you come in. so You have to time your landing to coincide. 
 LevelData: {
 	name: "Putty will Help";
-	groupId: 10;
+	groupId: 14;
 	shapeSize: 5;
 	startOffset: 1;
 	lifePoints: 4;

@@ -31,7 +31,7 @@ SceneTransition *setTransition_(TransitionState *state, transition_callback *cal
     }
     playSound(state->soundArena, state->transitionSound, 0, AUDIO_FOREGROUND);
 
-    trans->timer = initTimer(SCENE_TRANSITION_TIME);
+    trans->timer = initTimer(SCENE_TRANSITION_TIME, false);
     trans->data = data;
     trans->callback = callback;
     trans->direction = true;

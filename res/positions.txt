@@ -20,7 +20,7 @@ pos: 11.211731 8.572789;
 }
 {
 levelType: "LEVEL_5";
-pos: 10.444030 11.865919;
+pos: 10.262282 11.984193;
 }
 {
 levelType: "LEVEL_6";
@@ -32,7 +32,7 @@ pos: 12.492981 8.260289;
 }
 {
 levelType: "LEVEL_8";
-pos: 9.272155 12.459669;
+pos: 9.215407 12.515443;
 }
 {
 levelType: "LEVEL_9";
@@ -52,139 +52,139 @@ pos: 8.003691 2.778849;
 }
 {
 levelType: "LEVEL_13";
-pos: 10.883606 3.979039;
+pos: 10.788378 3.899227;
 }
 {
 levelType: "LEVEL_14";
-pos: 17.209656 9.194044;
+pos: 13.674304 13.248025;
 }
 {
 levelType: "LEVEL_15";
-pos: 15.740905 4.687553;
+pos: 14.361804 12.272715;
 }
 {
 levelType: "LEVEL_16";
-pos: 16.365906 5.531303;
+pos: 14.846179 13.960215;
 }
 {
 levelType: "LEVEL_17";
-pos: 16.880913 8.468591;
+pos: 17.799305 8.098604;
 }
 {
 levelType: "LEVEL_18";
-pos: 17.944031 2.578178;
+pos: 17.752430 9.723604;
 }
 {
 levelType: "LEVEL_19";
-pos: 19.440376 12.463483;
+pos: 14.953449 5.967647;
 }
 {
 levelType: "LEVEL_20";
-pos: 14.783146 6.037142;
+pos: 14.033679 15.022715;
 }
 {
 levelType: "LEVEL_21";
-pos: 20.815376 12.900983;
+pos: 15.836179 5.277360;
 }
 {
 levelType: "LEVEL_22";
-pos: 20.299751 12.338483;
+pos: 15.367429 4.464860;
 }
 {
 levelType: "LEVEL_23";
-pos: 19.553406 1.078179;
+pos: 16.736805 9.004854;
 }
 {
 levelType: "LEVEL_24";
-pos: 19.299751 13.932233;
+pos: 21.966970 10.367905;
 }
 {
 levelType: "LEVEL_25";
-pos: 22.940376 6.208060;
+pos: 22.795095 8.102280;
 }
 {
 levelType: "LEVEL_26";
-pos: 22.815376 8.195690;
+pos: 19.465906 12.323053;
 }
 {
 levelType: "LEVEL_27";
-pos: 22.159126 6.192435;
+pos: 27.214630 8.884879;
 }
 {
 levelType: "LEVEL_28";
-pos: 22.440376 5.442435;
+pos: 21.232595 9.367905;
 }
 {
 levelType: "LEVEL_29";
-pos: 22.846626 3.067435;
+pos: 21.951345 4.117904;
 }
 {
 levelType: "LEVEL_30";
-pos: 22.822203 4.013533;
+pos: 21.420095 5.430404;
 }
 {
 levelType: "LEVEL_31";
-pos: 22.049751 3.989310;
+pos: 22.841970 3.336654;
 }
 {
 levelType: "LEVEL_32";
-pos: 21.252876 4.926810;
+pos: 23.951345 8.883530;
 }
 {
 levelType: "LEVEL_33";
-pos: 22.112251 4.770560;
+pos: 21.623220 8.242905;
 }
 {
 levelType: "LEVEL_34";
-pos: 21.174751 4.067435;
+pos: 22.451345 6.055404;
 }
 {
 levelType: "LEVEL_35";
-pos: 21.424751 8.289440;
+pos: 19.457527 13.656130;
 }
 {
 levelType: "LEVEL_36";
-pos: 23.940376 8.867565;
+pos: 20.910652 12.843630;
 }
 {
 levelType: "LEVEL_37";
-pos: 20.315376 13.744733;
+pos: 20.109699 1.142126;
 }
 {
 levelType: "LEVEL_38";
-pos: 21.331001 9.586315;
+pos: 25.701345 5.211654;
 }
 {
 levelType: "LEVEL_39";
-pos: 22.956001 9.258190;
+pos: 28.324005 10.119254;
 }
 {
 levelType: "LEVEL_40";
-pos: 0.814757 1.615908;
+pos: 31.179909 7.457796;
 }
 {
 levelType: "LEVEL_41";
-pos: 2.557483 3.618221;
+pos: 26.935720 4.492904;
 }
 {
 levelType: "LEVEL_42";
-pos: 3.443785 3.692372;
+pos: 19.182642 1.179973;
 }
 {
 levelType: "LEVEL_43";
-pos: 1.693382 0.662750;
+pos: 26.844839 10.002067;
 }
 {
 levelType: "LEVEL_44";
-pos: 2.841136 2.968879;
+pos: 17.703449 2.499809;
 }
 {
 levelType: "LEVEL_45";
-pos: 1.944419 3.851593;
+pos: 18.585253 1.953914;
 }
 {
 entityType: "ENTITY_TYPE_ROCK";
-pos: 18.696600 2.308029;
+pos: 18.502430 2.661104;
 }
 {
 entityType: "ENTITY_TYPE_TREE";
@@ -224,7 +224,7 @@ pos: 7.285850 2.050634;
 }
 {
 entityType: "ENTITY_TYPE_MUSHROOM";
-pos: 10.068414 10.952966;
+pos: 9.559157 10.999818;
 }
 {
 entityType: "ENTITY_TYPE_MUSHROOM";
@@ -236,7 +236,7 @@ pos: 16.695415 4.706314;
 }
 {
 entityType: "ENTITY_TYPE_ROCK";
-pos: 17.902992 8.224603;
+pos: 16.346180 8.161104;
 }
 {
 entityType: "ENTITY_TYPE_ROCK";
@@ -260,7 +260,7 @@ pos: 18.337225 1.167404;
 }
 {
 entityType: "ENTITY_TYPE_CACTUS";
-pos: 15.043617 14.646478;
+pos: 15.158679 14.803965;
 }
 {
 entityType: "ENTITY_TYPE_IGLOO";
@@ -268,7 +268,7 @@ pos: 18.840492 13.099603;
 }
 {
 entityType: "ENTITY_TYPE_IGLOO";
-pos: 21.424751 5.661185;
+pos: 22.404470 9.461655;
 }
 {
 entityType: "ENTITY_TYPE_SNOWMAN";
@@ -280,11 +280,11 @@ pos: 20.112251 12.976940;
 }
 {
 entityType: "ENTITY_TYPE_SNOWMAN";
-pos: 22.159126 9.697857;
+pos: 21.138845 4.508529;
 }
 {
 entityType: "ENTITY_TYPE_SNOW_PARTICLES";
-pos: 22.127876 6.586315;
+pos: 22.345287 6.649268;
 }
 {
 entityType: "ENTITY_TYPE_SNOW_PARTICLES";
@@ -329,4 +329,28 @@ pos: 16.289165 9.862564;
 {
 entityType: "ENTITY_TYPE_ROCK";
 pos: 13.806908 13.952323;
+}
+{
+entityType: "ENTITY_TYPE_SNOW_PARTICLES";
+pos: 26.706936 6.985427;
+}
+{
+entityType: "ENTITY_TYPE_SNOWMAN";
+pos: 26.066311 4.016677;
+}
+{
+entityType: "ENTITY_TYPE_IGLOO";
+pos: 27.628811 9.704178;
+}
+{
+entityType: "ENTITY_TYPE_SNOWMAN";
+pos: 26.722561 8.313553;
+}
+{
+entityType: "ENTITY_TYPE_IGLOO";
+pos: 26.972561 5.954177;
+}
+{
+entityType: "ENTITY_TYPE_SNOW_PARTICLES";
+pos: 27.615334 11.221844;
 }

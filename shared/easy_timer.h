@@ -1,31 +1,39 @@
 typedef struct {
-    double value;
-    double period;
+    double value_;
+    float period;
+    float intVal;
+    float fractionVal;
+    bool isSensitive; //numerical sensitive 
 } Timer;
 
-Timer initTimer(float period) {
+Timer initTimer(float period, bool isSensitive) {
     Timer result = {};
+    result.isSensitive = isSensitive;
     result.period = period;
-    assert(result.value == 0.0f);
+    assert(result.value_ == 0.0f);
     return result;
 }
 
 bool isOn(Timer *timer) {
-    bool result = timer->value >= 0;
+    bool result = timer->value_ >= 0;
     return result;
 }
 
 void turnTimerOn(Timer *timer) {
-    timer->value = 0.0f;
+    timer->value_ = 0.0f;
+    timer->intVal = 0.0f;
+    timer->fractionVal = 0.0f;
 }
 
 void turnTimerOff(Timer *timer) {
-    timer->value = -1;
+    timer->value_ = -1;
+    timer->intVal = 0.0f;
+    timer->fractionVal = 0.0f;
 }
 
 float getTimerValue01(Timer *timer) {
-    float value = timer->value / timer->period;
-    return value;
+    float value_ = timer->value_ / timer->period;
+    return value_;
 }
 typedef struct {
     bool finished; 
@@ -35,14 +43,32 @@ typedef struct {
 
 TimerReturnInfo updateTimer(Timer *timer, float dt) {
     TimerReturnInfo returnInfo = {};
-    if(timer->value >= 0.0f) {
-        timer->value += dt;
+    if(timer->value_ >= 0.0f) { //the timer is on
+        
         if(timer->period == 0) {
             float defaultPeriod = 1; 
             timer->period = defaultPeriod;
         }
-        if((timer->value / timer->period) >= 1.0f) {
-            float minusVal = (timer->value - timer->period);
+        if(timer->isSensitive) {
+            float intToAdd = (int)dt;
+            float fractionToAdd = dt - (float)intToAdd;
+            assert(fractionToAdd < 1.0f);
+
+            timer->intVal += intToAdd;
+            assert(timer->fractionVal < 1.0f);
+            if((timer->fractionVal + fractionToAdd) >= 1.0f) {
+                timer->intVal += 1.0f;
+                timer->fractionVal = fractionToAdd - (1.0f - timer->fractionVal);
+            } else {
+                timer->fractionVal += fractionToAdd;
+            }
+            timer->value_ = (double)timer->intVal + (double)timer->fractionVal;
+        } else {
+            timer->value_ += dt;
+        }
+
+        if(timer->value_ >= timer->period) {
+            float minusVal = (timer->value_ - timer->period);
             assert(timer->period > 0);
             assert(minusVal >= 0.0f);
             int lots = (int)(minusVal / timer->period);
@@ -55,14 +81,27 @@ TimerReturnInfo updateTimer(Timer *timer, float dt) {
                 printf("lots: %d\n", lots);
                 assert(false);
             }
-            timer->value = -1; //turn timer off
+            timer->intVal = 0;
+            timer->fractionVal = 0;
+            timer->value_ = -1; //turn timer off
             returnInfo.canonicalVal = 1; //anyone using this value afterwards wants to know that it finished
             returnInfo.finished = true;
         } else {
             returnInfo.canonicalVal = getTimerValue01(timer);
         }
+
     }
+
     return returnInfo; 
+}
+
+void timerSetResidue(Timer *timer, float residue) {
+    
+    int iVal = (int)residue;
+    float fVal = residue - iVal;
+
+    timer->intVal += iVal;
+    timer->fractionVal += fVal;
 }
 
 #define LERP_TYPE(FUNC) \
@@ -142,7 +181,7 @@ float updateLerpf_(float tAt, Lerpf *f, LerpType lerpType, TimerReturnInfo timeI
     
     if(timeInfo.finished) {
         lerpValue = finishingValue;
-        f->timer.value = -1;
+        f->timer.value_ = -1;
     }
     return lerpValue;
 }
@@ -173,7 +212,7 @@ V4 updateLerpV4_(float tAt, LerpV4 *f, LerpType lerpType, TimerReturnInfo timeIn
     
     if(timeInfo.finished) {
         lerpValue = finishingValue;
-        f->timer.value = -1;
+        f->timer.value_ = -1;
     }
     return lerpValue;
 }
@@ -200,13 +239,13 @@ V3 updateLerpV3_(float tAt, LerpV3 *f, LerpType lerpType, TimerReturnInfo timeIn
     
     if(timeInfo.finished) {
         lerpValue = finishingValue;
-        f->timer.value = -1;
+        f->timer.value_ = -1;
     }
     return lerpValue;
 }
 
 void updateLerpGeneral_(void *lerpStruct, Timer *timer, float dt, void *valPrt, LerpType lerpType, TimerVarType varType) {
-    if(timer->value >= 0 && valPrt) { 
+    if(timer->value_ >= 0 && valPrt) { 
         TimerReturnInfo timeInfo = updateTimer(timer, dt);
         
         switch(varType) {
@@ -251,23 +290,23 @@ void updateLerpV3(LerpV3 *f, float dt, LerpType lerpType) {
 }
 
 void setLerpInfof_(Lerpf *f, float a, float b, float period, float *val, int lineNumber) {
-    if(lineNumber != f->lineNumber || f->timer.value < 0) {
+    if(lineNumber != f->lineNumber || f->timer.value_ < 0) {
         f->a = a;
         f->b = b;
         f->lineNumber = lineNumber;
 
-        f->timer = initTimer(period);
+        f->timer = initTimer(period, false);
         f->val = val;
     }
 }
 
 
 void setLerpInfof_s_(Lerpf *f, float b, float period, float *val, int lineNumber) {
-    if(lineNumber != f->lineNumber || f->timer.value < 0) {
+    if(lineNumber != f->lineNumber || f->timer.value_ < 0) {
         f->a = *val;
         f->b = b;
         f->lineNumber = lineNumber;
-        f->timer = initTimer(period);
+        f->timer = initTimer(period, false);
         f->val = val;
     }
 }
@@ -278,11 +317,11 @@ void setLerpInfof_s_(Lerpf *f, float b, float period, float *val, int lineNumber
 
 
 void setLerpInfoV4_s_(LerpV4 *f, V4 b, float period, V4 *val, int lineNumber) {
-    if(lineNumber != f->lineNumber || f->timer.value < 0) {
+    if(lineNumber != f->lineNumber || f->timer.value_ < 0) {
         f->a = *val;
         f->b = b;
         f->lineNumber = lineNumber;
-        f->timer = initTimer(period);
+        f->timer = initTimer(period, false);
         f->val = val;
     }
 }
@@ -295,11 +334,11 @@ void setLerpV4(LerpV4 *ler, V4 a, V4 b, float period) {
 }
 
 void setLerpInfoV3_s_(LerpV3 *f, V3 b, float period, V3 *val, int lineNumber) {
-    if(lineNumber != f->lineNumber || f->timer.value < 0) {
+    if(lineNumber != f->lineNumber || f->timer.value_ < 0) {
         f->a = *val;
         f->b = b;
         f->lineNumber = lineNumber;
-        f->timer = initTimer(period);
+        f->timer = initTimer(period, false);
         f->val = val;
     }
 }
@@ -309,7 +348,7 @@ void setLerpInfoV3_s_(LerpV3 *f, V3 b, float period, V3 *val, int lineNumber) {
 
 LerpV4 initLerpV4(V4 color) {
     LerpV4 a = {};
-    a.timer.value = -1; //turn off timer;
+    a.timer.value_ = -1; //turn off timer;
     a.value = color;
     a.val = &a.value;
     a.defaultVal = color;
@@ -323,13 +362,13 @@ bool easyLerp_isAtDefault(LerpV4 *l) {
 
 LerpV3 initLerpV3() {
     LerpV3 a = {};
-    a.timer.value = -1; //turn off timer;
+    turnTimerOff(&a.timer);
     return a;
 }
 
 Lerpf initLerpf() {
     Lerpf a = {};
-    a.timer.value = -1; //turn off timer;
+    turnTimerOff(&a.timer);
     return a;
 }
 

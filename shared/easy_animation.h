@@ -79,7 +79,7 @@ static void AddAnimationToList(animation_list_item **AnimationItemFreeListPtr, A
     
     assert(Item);
     
-    Item->timer = initTimer(ANIMATION_PERIOD);
+    Item->timer = initTimer(ANIMATION_PERIOD, false);
     
     Item->FrameIndex = 0;
     

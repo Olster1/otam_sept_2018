@@ -3,6 +3,7 @@ LevelData: {
 	name: "It just keeps on going";
 	groupId: 6;
 	shapeSize: 2;
+	updateFullRow: false;
 	//lifePoints: 1;
 }
 Windmill: {

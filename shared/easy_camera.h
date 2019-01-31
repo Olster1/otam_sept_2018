@@ -3,24 +3,24 @@ typedef struct {
 	Quaternion orientation;
 } EasyCamera;
 
-static inline void initEasyCamera(EasyCamera *cam, V3 pos) {
+static inline void easy3d_initCamera(EasyCamera *cam, V3 pos) {
 	cam->orientation = identityQuaternion();
 	cam->pos = pos;
 }
 
-static inline Matrix4 getWorldToView(EasyCamera *camera) {
+static inline Matrix4 easy3d_getViewToWorld(EasyCamera *camera) {
 	Matrix4 result = mat4();
 	result = quaternionToMatrix(camera->orientation);
-	//transpose since it's going to world -> view space
+	Matrix4 cameraTrans = Matrix4_translate(mat4(), v3_negate(camera->pos));
+	return result;
+}
+
+static inline Matrix4 easy3d_getWorldToView(EasyCamera *camera) {
+	Matrix4 result = mat4();
+	result = quaternionToMatrix(camera->orientation);
 	result = mat4_transpose(result);
-	// printf("%f %f %f\n", camera->pos.x, camera->pos.y, camera->pos.z);
 	Matrix4 cameraTrans = Matrix4_translate(mat4(), v3_negate(camera->pos));
 	result = Mat4Mult(result, cameraTrans);
-	// printf("%f %f %f \n", result.a.x, result.a.y, result.a.z);
-	// printf("%f %f %f \n", result.b.x, result.b.y, result.b.z);
-	// printf("%f %f %f \n", result.c.x, result.c.y, result.c.z);
-	// printf("%f %f %f \n", result.d.x, result.d.y, result.d.z);
-	// printf("%s\n", "----------------");
 
 	return result;
 }

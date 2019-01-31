@@ -249,7 +249,7 @@ typedef struct {
     LevelType currentLevelType;
     LevelData levelsData[LEVEL_COUNT];
     LevelData *levelGroups[LEVEL_COUNT]; //this is for the overworld. 
-    FileContents overworldLayout;
+    // FileContents overworldLayout;
     
     int maxGroupId;
     LevelGroup groups[LEVEL_COUNT];
@@ -309,6 +309,9 @@ typedef struct {
     LevelType lastBoundsStar;
     bool isHoveringButton;
 
+    bool updateRows; //update the rows like tetris. Somem levels can't have this because the size of the shape is as big as the board. 
+
+    LevelType lastLevelType;
     ////////TODO: This stuff below should be in another struct so isn't there for all projects. 
     Arena *longTermArena;
     float dt;
@@ -534,7 +537,7 @@ void setBoardState(FrameParams *params, V2 pos, BoardState state, BoardValType t
         val->prevType = val->type;
         val->state = state;
         val->type = type;
-        val->fadeTimer = initTimer(FADE_TIMER_INTERVAL);
+        val->fadeTimer = initTimer(FADE_TIMER_INTERVAL, false);
     } else {
         assert(!"invalid code path");
     }
@@ -572,7 +575,7 @@ void allocateBoard(FrameParams *params, int boardWidth, int boardHeight) {
             boardVal->state = BOARD_NULL;
             boardVal->prevState = BOARD_NULL;
             
-            boardVal->fadeTimer.value = -1;
+            turnTimerOff(&boardVal->fadeTimer);
             boardVal->color = COLOR_WHITE;
         }
     }
@@ -655,6 +658,7 @@ static inline void parseOverworldBoard(char *at, int *values, V2 dim) {
 //init level
 static inline int loadLevelData(FrameParams *params) {
     //INITING ALL THE LEVELS
+    #if 0 //load overworld from file
     char *b_ = concat("levels/", "level_overworld.txt");
     char *c_ = concat(globalExeBasePath, b_);
     FileContents overworldContents = getFileContentsNullTerminate(c_);
@@ -662,6 +666,8 @@ static inline int loadLevelData(FrameParams *params) {
     params->overworldLayout = overworldContents;
     free(b_);
     free(c_);
+
+    #endif
     
     int totalLevelCount = 0;
     
@@ -684,15 +690,15 @@ static inline int loadLevelData(FrameParams *params) {
             levelData->name = "Name Not Set!";
             
             levelData->state = LEVEL_STATE_LOCKED;
-            levelData->showTimer.value = -1;
+            turnTimerOff(&levelData->showTimer);
             levelData->glyphCount = 0;
             levelData->levelType = (LevelType)i;
             levelData->pos = v2(4*getRandNum01_include(), 4*getRandNum01_include()); 
             particle_system_settings particleSet = InitParticlesSettings(PARTICLE_SYS_DEFAULT);
             pushParticleBitmap(&particleSet, findTextureAsset("starGold.png"), "star");
                 
-            levelData->displayNameTimer = initTimer(0.4f);
-            levelData->displayNameTimer.value = -1; //turn off
+            levelData->displayNameTimer = initTimer(0.4f, false);
+            turnTimerOff(&levelData->displayNameTimer); //turn off
             particleSet.Loop = false;
             //particleSet.offsetP = v3(0.000000, 0.000000, 0.200000);
             particleSet.bitmapScale = 0.3f;
@@ -950,6 +956,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
     params->shapesCount = 1;
     params->startOffsets[0] = 0; //default to zero
     params->isMirrorLevel = false;
+    params->updateRows = true;
     bool setLagPeriod = false;
     while(parsing) {
         EasyToken token = lexGetNextToken(&tokenizer);
@@ -995,6 +1002,9 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                     if(stringsMatchNullN("shapeSize2", token.at, token.size)) {
                         params->shapeSizes[1] = getIntFromDataObjects(&data, &tokenizer);
                         params->shapesCount = max(2, params->shapesCount);
+                    }
+                    if(stringsMatchNullN("updateFullRow", token.at, token.size)) {
+                        params->updateRows = getBoolFromDataObjects(&data, &tokenizer);
                     }
                     if(stringsMatchNullN("isMirror", token.at, token.size)) {
                         params->isMirrorLevel = true;
@@ -1052,7 +1062,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                     }
                     if(stringsMatchNullN("growTimerPeriod", token.at, token.size)) {
                         float period = getFloatFromDataObjects(&data, &tokenizer);
-                        shape->timer = initTimer(period);
+                        shape->timer = initTimer(period, true);
                         shape->movePeriod = period;
                     }
                     if(stringsMatchNullN("lagTimerPeriod", token.at, token.size)) {
@@ -1110,7 +1120,10 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
         } break;
         case 8:
         case 9:
-        case 10: {
+        case 10: 
+        case 11:
+        case 12:
+        case 13: {
             params->bgTex = findTextureAsset("yellow_desert.png");
         } break;
         default: {
@@ -1418,6 +1431,7 @@ void solidfyShape(FitrisShape *shape, FrameParams *params) {
         val->color = COLOR_WHITE;
         
     }
+
     playGameSound(params->soundArena, params->solidfyShapeSound, 0, AUDIO_FOREGROUND);
 }
 
@@ -1591,7 +1605,7 @@ static inline void updateShapeMoveTime(FitrisShape *shape, FrameParams *params) 
     
     if(isHoldingShape) { 
         if(!params->wasHoldingShape) {
-            params->accumHoldTime = params->moveTimer.period - params->moveTimer.value;
+            params->accumHoldTime = params->moveTimer.period - params->moveTimer.value_;
             assert(params->accumHoldTime >= 0);
         }
         params->moveTime = 0.0f;
@@ -1709,11 +1723,10 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
     bool turnSolid = false;
     
     TimerReturnInfo timerInfo = updateTimer(&params->moveTimer, moveTime);
-    // printf("fitris shape: %f\n", params->moveTimer.value);
     if(timerInfo.finished) {
         // printf("%s\n", "moved");
         turnTimerOn(&params->moveTimer);
-        params->moveTimer.value = timerInfo.residue;
+        timerSetResidue(&params->moveTimer, timerInfo.residue);
         if(!moveShape(shape, params, MOVE_DOWN)) {
             turnSolid = true;
         }
@@ -1967,6 +1980,7 @@ void loadOverworldPositions(FrameParams *params) {
 }
 
 void initBoard(FrameParams *params, LevelType levelType) {
+    params->lastLevelType = levelType; //used to see the position in findaveragepos when we are out of groups to show!!
     params->extraShapeCount = 0;
     params->experiencePoints = 0;
     params->currentHotIndex = -1;
@@ -1976,9 +1990,10 @@ void initBoard(FrameParams *params, LevelType levelType) {
     params->letGo = false;  
     
     params->createShape = true;   
-    params->moveTimer.value = 0;
+    float tempPeriod = params->moveTimer.period;
+    params->moveTimer = initTimer(tempPeriod, true);
     if(params->currentLevelType != levelType) { //not retrying the level
-        params->levelNameTimer = initTimer(1.0f);
+        params->levelNameTimer = initTimer(1.0f, false);
     }
     params->currentLevelType = levelType;
     createLevelFromFile(params, levelType);
@@ -1986,8 +2001,9 @@ void initBoard(FrameParams *params, LevelType levelType) {
     
 }
 
-static inline V2 findAveragePos(FrameParams *params) {
+static inline V2 findAveragePos(FrameParams *params, LevelType lastLevel) {
     bool foundHighestGroup = false;
+    int highestGroupId = 0;
     V2 result = v2(0, 0);
     LevelGroup *highestGroup = 0;
     for(int i = 0; i <= params->maxGroupId && !foundHighestGroup; ++i) {
@@ -2000,15 +2016,26 @@ static inline V2 findAveragePos(FrameParams *params) {
                 group->averagePos = v2_plus(group->averagePos, data->pos);
                 if(data->state == LEVEL_STATE_COMPLETED || data->state == LEVEL_STATE_UNLOCKED) {
                     highestGroup = group;
+                    if(highestGroupId < i) {
+                        highestGroupId = i;
+                    }
+                    
                 } else {
                     foundHighestGroup = true;
                 }
             }
         }
     }
-    assert(highestGroup);
-    assert(highestGroup->count > 0);
-    result = v2_scale(1.0f / (float)highestGroup->count, highestGroup->averagePos);
+    bool groupsToShow = highestGroupId > params->menuInfo.lastShownGroup;
+    if(!groupsToShow && lastLevel != LEVEL_NULL) { //when we aren't unlocking anymore groups
+        printf("lastLevel: %d\n", (int)lastLevel);
+
+        result = params->levelsData[(int)lastLevel].pos;
+    } else {
+        assert(highestGroup);
+        assert(highestGroup->count > 0);
+        result = v2_scale(1.0f / (float)highestGroup->count, highestGroup->averagePos);
+    }
     assert(!(result.x == 0 && result.y == 0));
     return result;
 }
@@ -2056,7 +2083,7 @@ void transitionCallbackForBackToOverworld(void *data_) {
         params->levelsData[i].dA = 0;
     }
 
-    V3 newPos = v2ToV3(findAveragePos(params), params->overworldCamera.z);
+    V3 newPos = v2ToV3(findAveragePos(params, params->lastLevelType), params->overworldCamera.z);
     params->overworldGroupPosAt = newPos;
     params->overworldCamera = newPos;
     params->bgTex = findTextureAsset("blue_grass.png");
@@ -2185,20 +2212,22 @@ void saveFileData(FrameParams *params) {
 }
 
 static void updateBoardRows(FrameParams *params) {
-    for(int boardY = 0; boardY < params->boardHeight; ++boardY) {
-        bool isFull = true;
-        for(int boardX = 0; boardX < params->boardWidth && isFull; ++boardX) {
-            BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
-            
-            if(!(boardVal->state == BOARD_STATIC && (boardVal->type == BOARD_VAL_OLD || boardVal->type == BOARD_VAL_ALWAYS))) {
-                isFull = false;
-            }
-        }
-        if(isFull) {
-            for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
+    if(params->updateRows) {
+        for(int boardY = 0; boardY < params->boardHeight; ++boardY) {
+            bool isFull = true;
+            for(int boardX = 0; boardX < params->boardWidth && isFull; ++boardX) {
                 BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
-                if(boardVal->state == BOARD_STATIC && boardVal->type == BOARD_VAL_OLD) {
-                    setBoardState(params, v2(boardX, boardY), BOARD_NULL, BOARD_VAL_OLD);
+                
+                if(!(boardVal->state == BOARD_STATIC && (boardVal->type == BOARD_VAL_OLD || boardVal->type == BOARD_VAL_ALWAYS))) {
+                    isFull = false;
+                }
+            }
+            if(isFull) {
+                for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
+                    BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
+                    if(boardVal->state == BOARD_STATIC && boardVal->type == BOARD_VAL_OLD) {
+                        setBoardState(params, v2(boardX, boardY), BOARD_NULL, BOARD_VAL_OLD);
+                    }
                 }
             }
         }
@@ -2254,7 +2283,7 @@ static void updateBoardWinState(FrameParams *params) {
                 }
                 // playGameSound(params->soundArena, params->successSound, 0, AUDIO_FOREGROUND);
                 line->isDead = true;
-                line->timer = initTimer(0.5f);
+                line->timer = initTimer(0.5f, false);
             }
             
         }
@@ -2321,9 +2350,9 @@ static void updateBoardWinState(FrameParams *params) {
             
         } else {
             float percentage = ((float)lvlsFinishedInGroup / (float)lvlGroup->count);
-            printf("levelsFinsihedInGroup: %d\n", lvlsFinishedInGroup);
-            printf("LevelCount: %d\n", lvlGroup->count);
-            printf("percent:%f\n", percentage);
+            // printf("levelsFinsihedInGroup: %d\n", lvlsFinishedInGroup);
+            // printf("LevelCount: %d\n", lvlGroup->count);
+            // printf("percent:%f\n", percentage);
             
             unlockNextGroup = false;
             if(percentage >= 0.5f) {
@@ -2389,7 +2418,7 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
         } else {
             shape->justFlipped = false;
         }
-        
+        // printf("%d\n", shape->count);
         if(shape->count != 0) {
             BoardState toBoardState = BOARD_INVALID;
             assert(shape->count >= 0 && shape->count <= shape->max);
@@ -2401,7 +2430,7 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
             bool settingBlock = (toBoardState == BOARD_NULL && stateToSet == staticState);
             bool isInBounds = inBoardBounds(params, newPos);
             bool blocked = (toBoardState != BOARD_NULL && stateToSet == staticState);
-            if((blocked || !isInBounds) && shape->isOut) {
+            if((blocked || !isInBounds)) {
                 assert(shape->isOut);
                 if(shape->count == 1) {
                     assert(stateToSet != BOARD_NULL);
@@ -2453,10 +2482,11 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
             for(int i = 0; i < shape->perpSize; ++i) {
                 shape->growDir = perp(shape->growDir);
             }
-            if(shape->lagPeriod != 0.0f) {
-                shape->timer.period = shape->lagPeriod; //we change from the begin period to the lag period
-                shape->active = false; //we lag for a bit. 
-            }
+            // if(shape->lagPeriod != 0.0f) {
+            //     repeatedYet = true; //don't repeat for lagging shapes
+            //     shape->timer.period = shape->lagPeriod; //we change from the begin period to the lag period
+            //     shape->active = false; //we lag for a bit. 
+            // }
         }
         
         if(shape->count == 0 && !repeatedYet) {
@@ -2756,6 +2786,7 @@ void gameUpdateAndRender(void *params_) {
                     params->currentShape.count = 0;
                 }
                 int totalShapeCountSoFar = 0;
+                printf("boardState: %d\n", getBoardState(params, v2(0, 8)));
                 for(int shpIndex = 0; shpIndex < params->shapesCount && !retryLevel; shpIndex++) {
                     int shpSizeAt = params->shapeSizes[shpIndex];
                     int shpOffset = params->startOffsets[shpIndex];
@@ -2795,7 +2826,8 @@ void gameUpdateAndRender(void *params_) {
                     }
                 }
                 
-                params->moveTimer.value = 0;
+                float tempPeriod = params->moveTimer.period;
+                params->moveTimer = initTimer(tempPeriod, true);
                 params->createShape = false;
                 // assert(params->currentShape.count > 0);
                 
@@ -2811,7 +2843,12 @@ void gameUpdateAndRender(void *params_) {
                 while(tUpdate > 0.0f) {
                     assert(params->dt >= 0);
                     
-                    float dt = min(params->dt, tUpdate);
+                    float dt;
+                    if(extraShape->timeAffected) {
+                        dt = min(increment, tUpdate);
+                    } else {
+                        dt = min(params->dt, tUpdate);
+                    }
 
                     float shapeDt = dt;
                     if(!extraShape->active) { 
@@ -2821,7 +2858,7 @@ void gameUpdateAndRender(void *params_) {
                             // printf("lag extraShape: %f\n", extraShape->timer.value);
                             if(lagInfo.finished) {
                                 turnTimerOn(&extraShape->timer);
-                                printf("time Is: %f\n", extraShape->timer.value);
+                                // printf("time Is: %f\n", extraShape->timer.value);
                                 shapeDt = lagInfo.residue;
                                 extraShape->active = true; 
                                 extraShape->timer.period = extraShape->movePeriod;
@@ -2835,8 +2872,8 @@ void gameUpdateAndRender(void *params_) {
                         if(info.finished) {
                             turnTimerOn(&extraShape->timer);
                             updateWindmillSide(params, extraShape);
-                            // printf("%s\n", "shapeMoveing");
-                            extraShape->timer.value = info.residue;
+                            timerSetResidue(&extraShape->timer, info.residue);
+                            
                         }
                     }
                     tUpdate -= dt;
@@ -2844,7 +2881,6 @@ void gameUpdateAndRender(void *params_) {
                 }
             }
             updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params, params->moveTime);
-            
             for(int extraIndex = 0; extraIndex < params->extraShapeCount; ++extraIndex) {
                 ExtraShape *extraShape = params->extraShapes + extraIndex;
                 if(extraShape->tryingToBegin) {
@@ -2909,9 +2945,8 @@ void gameUpdateAndRender(void *params_) {
                     params->isHoveringButton = true;
                     setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
                     if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning && !isOn(&params->backToOriginTimer)) {
-                        params->backToOriginTimer = initTimer(1);
+                        params->backToOriginTimer = initTimer(1, false);
                         params->backToOriginStart = params->overworldCamera;
-                        params->overworldGroupPosAt = v2ToV3(findAveragePos(params), params->overworldCamera.z);
                     }
                 }
                 
@@ -3160,7 +3195,7 @@ void gameUpdateAndRender(void *params_) {
         // overworldCam.x = ((int)((params->overworldCamera.x + 0.5f)*factor)) / factor;
         // overworldCam.y = ((int)((params->overworldCamera.y + 0.5f)*factor)) / factor;
         
-        char *at = (char *)params->overworldLayout.memory;
+        char *at = (char *)global_level_overworld;//params->overworldLayout.memory;
         
         LevelData *levelsAtStore[LEVEL_COUNT] = {};
         bool finished[LEVEL_COUNT] = {};
@@ -3277,6 +3312,7 @@ void gameUpdateAndRender(void *params_) {
         #endif
         
         bool playedSound = false;
+        bool hoveringOtherStar = false;
         LevelData *nextName = 0;
         for(int levelIndex = 0; levelIndex < LEVEL_COUNT; ++levelIndex) {
             LevelData *levelData = params->levelsData + levelIndex;
@@ -3310,7 +3346,7 @@ void gameUpdateAndRender(void *params_) {
                                         playMenuSound(params->soundArena, params->showLevelsSound, 0, AUDIO_FOREGROUND);
                                         playedSound = true;
                                     }
-                                    levelAt->showTimer = initTimer(2.0f);
+                                    levelAt->showTimer = initTimer(2.0f, false);
                                     Reactivate(&levelAt->particleSystem);
                                     levelAt->dA = 10;
                                 }
@@ -3365,8 +3401,8 @@ void gameUpdateAndRender(void *params_) {
                             }
                         } 
 
-                        if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT) && !params->isHoveringButton) {
-
+                        if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT) && !params->isHoveringButton && !hoveringOtherStar) {
+                            hoveringOtherStar = true;
                             //Output the levels name
                             char *levelName = levelAt->name;
                             if(!levelAt->hasPlayedHoverSound) {
@@ -3464,19 +3500,17 @@ void gameUpdateAndRender(void *params_) {
 }
 
 int main(int argc, char *args[]) {
-    #if 0 //3d perspective stuff
-    Matrix4 pro = projectionMatrixToScreen(400, 400);//projectionMatrixFOV(PI32/4, 1);
-    V4 p = v4(1, 1 , -1000, 1);
 
-    V4 p1 = V4MultMat4(p, pro);
+#if 0// 3d stuff
+    V2 res = v2(1980, 1080);
+    Matrix4 perspectiveMat = projectionMatrixFOV(60.0f, res.x/res.y);
 
-    error_printFloat4("valud is", p1.E);
-
-    pro = mat4_transpose(pro);
-    V4 p2 = V4MultMat4(p1, pro);
-    error_printFloat4("valud is", p2.E);
+    EasyCamera camera;
+    easy3d_initCamera(&camera, v3(0, 0, 0));
+    V3 pos = screenSpaceToWorldSpace(perspectiveMat, v2(100, 100), res, 10, easy3d_getViewToWorld(&camera));
+    error_printFloat3("world Pos: ", pos.E);
     exit(0);
-    #endif
+#endif  
 
     V2 screenDim = {}; //init in create app function
     V2 resolution = v2(0, 0);
@@ -3535,7 +3569,7 @@ int main(int argc, char *args[]) {
         exit(0);
 #endif
         // loadAndAddImagesToAssets("img/");
-        easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/textureAtlas_1"), TEXTURE_FILTER_LINEAR);
+        easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/textureAtlas_1"), TEXTURE_FILTER_NEAREST);
         easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/tileAtlas_1"), TEXTURE_FILTER_NEAREST);
         loadAndAddSoundsToAssets("sounds/", &setupInfo.audioSpec);
         
@@ -3780,8 +3814,9 @@ int main(int argc, char *args[]) {
         
         int totalLevelCount = loadLevelData(params);
         initBoard(params, startLevel);
+
         
-        char *at = (char *)params->overworldLayout.memory;
+        char *at = (char *)global_level_overworld;//params->overworldLayout.memory;
         assert(at);
         params->overworldDim = parseGetBoardDim(at);
         int boardCellSize = params->overworldDim.x*params->overworldDim.y;
@@ -3789,7 +3824,7 @@ int main(int argc, char *args[]) {
         
         parseOverworldBoard(at, params->overworldValues, params->overworldDim);
         
-        params->moveTimer = initTimer(MOVE_INTERVAL);
+        params->moveTimer = initTimer(MOVE_INTERVAL, true);
         params->woodTex = woodTex;
         params->stoneTex = stoneTex;
         params->metalTex = metalTex;
@@ -3830,7 +3865,7 @@ int main(int argc, char *args[]) {
         menuInfo.callBackData = params;
         menuInfo.totalLevelCount = totalLevelCount;
         menuInfo.backTex = findTextureAsset("back.png");
-        menuInfo.splashScreenModeTimer = initTimer(5);
+        menuInfo.splashScreenModeTimer = initTimer(5, false);
         menuInfo.levelDataArray = params->levelsData;
         menuInfo.resolutionDiffScale = setupInfo.screenRelativeSize;
         menuInfo.lastShownGroup = -1;
@@ -3859,7 +3894,8 @@ int main(int argc, char *args[]) {
 
         loadOverworldPositions(params);
 
-        params->overworldCamera = v2ToV3(findAveragePos(params), 0);
+        params->overworldCamera = v2ToV3(findAveragePos(params, LEVEL_0), 0);
+        params->overworldGroupPosAt = params->overworldCamera;
         turnTimerOff(&params->backToOriginTimer);
         //
         

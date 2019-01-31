@@ -1,4 +1,5 @@
-in mat4 PVM;
+in mat4 VM;
+in mat4 P;
 in vec4 color;
 in vec4 uvAtlas;
 

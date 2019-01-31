@@ -120,12 +120,14 @@ typedef struct {
     };
 } Vertex;
 
+
 #define getOffsetForVertex(attrib) (void *)(&(((Vertex *)(0))->attrib))
 
 typedef enum {
     SHAPE_RECTANGLE,
     SHAPE_RECTANGLE_GRAD,
     SHAPE_TEXTURE,
+    SHAPE_MODEL,
     SHAPE_SHADOW,
     SHAPE_CIRCLE,
     SHAPE_LINE,
@@ -141,9 +143,7 @@ typedef struct {
     GLuint vaoHandle;
     int indexCount; // this is to keep around so opnegl knows how many triangles to draw after the initialization frame
     bool valid;
-    bool refresh;// this could be a flag with valid
     GLuint vboHandle; //this is for instancing data
-    GLuint vboForRects; //this is for instancing data
 } VaoHandle;
 
 //just has a dim of 1 by 1 and you can rotate, scale etc. by a model matrix
@@ -167,6 +167,12 @@ typedef struct {
 } Texture;
 
 typedef struct {
+    Texture *diffuseMap;
+    Texture *specularMap;
+    float shininess;
+} Material;
+
+typedef struct {
     InfiniteAlloc triangleData;
     int triCount; 
     
@@ -179,7 +185,9 @@ typedef struct {
     u32 textureHandle;
     Rect2f textureUVs;    
     
-    Matrix4 PVM; 
+    Matrix4 vmMat;  //TODOL change to just VM
+    Matrix4 pMat; //P of PVM
+
     float zAt;
     
     int id;
@@ -244,7 +252,26 @@ void renderSetViewPort(float x0, float y0, float x1, float y1) {
     glViewport(x0, y0, x1, y1);
 }
 
-void pushRenderItem(VaoHandle *handles, RenderGroup *group, Vertex *triangleData, int triCount, unsigned int *indicesData, int indexCount, RenderProgram *program, ShapeType type, Texture *texture, Matrix4 PVM, V4 color, float zAt) {
+void pushRenderItemForModel(VaoHandle *handles, RenderGroup *group, RenderProgram *program, Material *material, Matrix4 P, Matrix4 VM, V4 color) {
+    if(!isInfinteAllocActive(&group->items)) {
+        initRenderGroup(group);
+    }
+    
+    RenderItem *info = (RenderItem *)addElementInifinteAlloc_(&group->items, 0);
+    assert(info);
+    info->bufferId = group->currentBufferId;
+    info->depthTest = group->currentDepthTest;
+    info->blendFuncType = group->blendFuncType;
+    info->bufferHandles = handles;
+    info->color = color;
+    
+    info->id = group->idAt++;
+    
+    info->program = program;
+    info->type = SHAPE_MODEL;
+}
+
+void pushRenderItem(VaoHandle *handles, RenderGroup *group, Vertex *triangleData, int triCount, unsigned int *indicesData, int indexCount, RenderProgram *program, ShapeType type, Texture *texture, Matrix4 vmMat, Matrix4 pMat, V4 color, float zAt) {
     if(!isInfinteAllocActive(&group->items)) {
         initRenderGroup(group);
         // group->items = initInfinteAlloc(RenderItem);
@@ -293,7 +320,8 @@ void pushRenderItem(VaoHandle *handles, RenderGroup *group, Vertex *triangleData
         assert(info->textureHandle);
         info->textureUVs = texture->uvCoords;
     } 
-    info->PVM = PVM;
+    info->pMat = pMat;
+    info->vmMat = vmMat;
 }
 
 RenderProgram createRenderProgram(char *vShaderSource, char *fShaderSource) {
@@ -488,11 +516,12 @@ RenderProgram createProgramFromFile(char *vertexShaderFilename, char *fragmentSh
     return result;
 }
 
-Matrix4 projectionMatrixFOV(float FOV, float aspectRatio) { //where aspect ratio = width/height of frame buffer resolution
+Matrix4 projectionMatrixFOV(float FOV_degrees, float aspectRatio) { //where aspect ratio = width/height of frame buffer resolution
     float nearClip = NEAR_CLIP_PLANE;
     float farClip = FAR_CLIP_PLANE;
     
-    float t = tan(FOV/2)*nearClip;
+    float FOV_radians = (FOV_degrees*PI32) / 180.0f;
+    float t = tan(FOV_radians/2)*nearClip;
     float b = -t;
     float r = t*aspectRatio;
     float l = -r;
@@ -555,6 +584,29 @@ Matrix4 OrthoMatrixToScreen(int width, int height) {
 
 Matrix4 OrthoMatrixToScreen_BottomLeft(int width, int height) {
     return OrthoMatrixToScreen_(width, height, -1, -1);
+}
+
+static inline V3 screenSpaceToWorldSpace(Matrix4 perspectiveMat, V2 screenP, V2 resolution, float zAt, Matrix4 cameraToWorld) {
+    
+    V2 screenP_01 = v2(screenP.x / resolution.x, screenP.y / resolution.y);
+    V2 ndcSpace = v2(inverse_lerp(-1, screenP_01.x, 1), inverse_lerp(-1, screenP_01.y, 1));
+
+    V4 probePos = v4(0, 0, zAt, 1); //transform a position in the world to see what the clip space z would be
+    
+    V4 clipSpaceP_ = V4MultMat4(probePos, perspectiveMat);
+
+    V4 clipSpaceP = v4(ndcSpace.x*clipSpaceP_.w, ndcSpace.y*clipSpaceP_.w, clipSpaceP_.z, clipSpaceP_.w);
+
+    Matrix4 inverseMat = mat4();
+    bool valid = mat4_inverse(perspectiveMat.E_, inverseMat.E_);
+    assert(valid);
+        
+    V3 cameraSpaceP = V4MultMat4(clipSpaceP, inverseMat).xyz;
+
+    V3 worldP = V4MultMat4(v3ToV4Homogenous(cameraSpaceP), cameraToWorld).xyz;
+
+    return worldP;
+
 }
 
 V2 transformWorldPToScreenP(V2 inputA, float zPos, V2 resolution, V2 screenDim, ProjectionType type) {
@@ -930,6 +982,13 @@ static inline void addInstancingAttrib (GLuint attribLoc, int numOfFloats, size_
     }
 }
 
+static inline void renderModel(VaoHandle *bufferHandles, 
+    Matrix4 modelViewMatrix, 
+    Matrix4 perspectiveMatrix, 
+    RenderProgram *program) {
+
+}
+
 static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int triCount, unsigned int *indicesData, int indexCount, RenderProgram *program) {
     if(!bufferHandles->valid) {
         glGenVertexArrays(1, &bufferHandles->vaoHandle);
@@ -962,7 +1021,6 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
         
         assert(!bufferHandles->valid);
         bufferHandles->valid = true;
-        assert(!bufferHandles->refresh);
         
         //these can also be retrieved before hand to speed up the process!!!
         GLint vertexAttrib = getAttribFromProgram(program, "vertex").handle;
@@ -991,25 +1049,28 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
         glBindBuffer(GL_ARRAY_BUFFER, bufferHandles->vboHandle);
         renderCheckError();
 
-        GLint pvmAttrib = getAttribFromProgram(program, "PVM").handle;
+        GLint vmAttrib = getAttribFromProgram(program, "VM").handle;
+        renderCheckError();
+        GLint pAttrib = getAttribFromProgram(program, "P").handle;
         renderCheckError();
         GLint colorAttrib = getAttribFromProgram(program, "color").handle;
         renderCheckError();
         
-        size_t offsetForStruct = sizeof(float)*(16+4+4); 
+        size_t offsetForStruct = sizeof(float)*(16+16+4+4); 
         
         //matrix plus vector4 plus vector4
-        addInstancingAttrib (pvmAttrib, 16, offsetForStruct, 0, 1);
-        addInstancingAttrib (colorAttrib, 4, offsetForStruct, sizeof(float)*16, 1);
+        addInstancingAttrib (vmAttrib, 16, offsetForStruct, 0, 1);
+        addInstancingAttrib (pAttrib, 16, offsetForStruct, sizeof(float)*16, 1);
+        addInstancingAttrib (colorAttrib, 4, offsetForStruct, sizeof(float)*32, 1);
         // if(hasUvs) 
         {
             GLint UVattrib = getAttribFromProgram(program, "uvAtlas").handle;
             // printf("uv attrib: %d\n", UVattrib);
             renderCheckError();
-            addInstancingAttrib (UVattrib, 4, offsetForStruct, sizeof(float)*20, 1);
+            addInstancingAttrib (UVattrib, 4, offsetForStruct, sizeof(float)*36, 1);
         }
         
-        assert(offsetForStruct == sizeof(float)*24);
+        assert(offsetForStruct == sizeof(float)*40);
         
         glBindVertexArray(0);
         
@@ -1024,7 +1085,6 @@ void drawVao(VaoHandle *bufferHandles, RenderProgram *program, ShapeType type, u
     
     assert(bufferHandles);
     assert(bufferHandles->valid);
-    assert(!bufferHandles->refresh);
     
     glUseProgram(program->glProgram);
     renderCheckError();
@@ -1209,7 +1269,7 @@ void renderDrawRectOutlineCenterDim_(V3 center, V2 dim, V4 color, float rot, Mat
                 0,  0,  1,  0,
                 offset.x, offset.y, 0,  1
             }};
-        pushRenderItem(&globalQuadVaoHandle, globalRenderGroup, triangleData, arrayCount(triangleData), globalQuadIndicesData, arrayCount(globalQuadIndicesData), &rectangleProgram, SHAPE_RECTANGLE, 0, Mat4Mult(projectionMatrix, Mat4Mult(rotationMat, rotationMat1)), color, center.z);
+        pushRenderItem(&globalQuadVaoHandle, globalRenderGroup, triangleData, arrayCount(triangleData), globalQuadIndicesData, arrayCount(globalQuadIndicesData), &rectangleProgram, SHAPE_RECTANGLE, 0, Mat4Mult(rotationMat, rotationMat1), projectionMatrix,  color, center.z);
     }
 }
 
@@ -1243,7 +1303,7 @@ void renderDrawRectCenterDim_(V3 center, V2 dim, V4 *colors, float rot, Matrix4 
         int indicesCount = arrayCount(globalQuadIndicesData);
         pushRenderItem(&globalQuadVaoHandle, globalRenderGroup, triangleData, triCount, 
                        globalQuadIndicesData, indicesCount, program, type, texture, 
-                       Mat4Mult(projectionMatrix, Mat4Mult(viewMatrix, rotationMat)), colors[0], center.z);
+                       Mat4Mult(viewMatrix, rotationMat), projectionMatrix, colors[0], center.z);
     }    
 }
 
@@ -1289,7 +1349,6 @@ void renderDeleteVaoHandle(VaoHandle *handles) {
     handles->vaoHandle = 0;
     handles->indexCount = 0;
     handles->valid = false;
-    handles->refresh = false;
 }
 
 RenderItem *getRenderItem(RenderGroup *group, int index) {
@@ -1424,22 +1483,19 @@ void beginRenderGroupForFrame(RenderGroup *group) {
 }
 
 void drawRenderGroup(RenderGroup *group) {
-    
-    
-    
     sortItems(group);
     
-    for(int i = 0; i < group->items.count; ++i) {
-        RenderItem *info = (RenderItem *)getElementFromAlloc_(&group->items, i);
-        VaoHandle *handle = info->bufferHandles;
-        if(handle) {
-            if(handle->refresh) {
-                renderDeleteVaoHandle(handle);
-                assert(!handle->refresh);
-                assert(!handle->valid);
-            }
-        }
-    }
+    // for(int i = 0; i < group->items.count; ++i) {
+    //     RenderItem *info = (RenderItem *)getElementFromAlloc_(&group->items, i);
+    //     VaoHandle *handle = info->bufferHandles;
+    //     if(handle) {
+    //         if(handle->refresh) {
+    //             renderDeleteVaoHandle(handle);
+    //             assert(!handle->refresh);
+    //             assert(!handle->valid);
+    //         }
+    //     }
+    // }
     
     int drawCallCount = 0;
     
@@ -1466,20 +1522,14 @@ void drawRenderGroup(RenderGroup *group) {
                 assert(!"case not handled");
             }
         }
-        InfiniteAlloc pvms = initInfinteAlloc(float);
-        InfiniteAlloc colors = initInfinteAlloc(float);
-        InfiniteAlloc uvs = initInfinteAlloc(float);
-        
         InfiniteAlloc allInstanceData = initInfinteAlloc(float);        
         
-        addElementInifinteAllocWithCount_(&pvms, info->PVM.val, 16);
-        addElementInifinteAllocWithCount_(&allInstanceData, info->PVM.val, 16);
+        addElementInifinteAllocWithCount_(&allInstanceData, info->vmMat.val, 16);
+
+        addElementInifinteAllocWithCount_(&allInstanceData, info->pMat.val, 16);
         
-        
-        addElementInifinteAllocWithCount_(&colors, info->color.E, 4);
         addElementInifinteAllocWithCount_(&allInstanceData, info->color.E, 4);
         if(info->textureHandle != 0) {
-            addElementInifinteAllocWithCount_(&uvs, info->textureUVs.E, 4);
             addElementInifinteAllocWithCount_(&allInstanceData, info->textureUVs.E, 4);
         } else {
             //We do this to keep the spacing correct for the struct.
@@ -1500,21 +1550,19 @@ void drawRenderGroup(RenderGroup *group) {
                     assert(info->blendFuncType == nextItem->blendFuncType);
                     assert(info->depthTest == nextItem->depthTest);
                     //collect data
-                    addElementInifinteAllocWithCount_(&pvms, nextItem->PVM.val, 16);
-                    addElementInifinteAllocWithCount_(&allInstanceData, nextItem->PVM.val, 16);
+                    addElementInifinteAllocWithCount_(&allInstanceData, nextItem->vmMat.val, 16);
+
+                    addElementInifinteAllocWithCount_(&allInstanceData, nextItem->pMat.val, 16);
                     
-                    addElementInifinteAllocWithCount_(&colors, nextItem->color.E, 4);
                     addElementInifinteAllocWithCount_(&allInstanceData, nextItem->color.E, 4);
                     
                     
                     if(nextItem->textureHandle) {
-                        addElementInifinteAllocWithCount_(&uvs, nextItem->textureUVs.E, 4);
                         addElementInifinteAllocWithCount_(&allInstanceData, nextItem->textureUVs.E, 4);
                     } else {
                         //We do this to keep the spacing correct for the struct.
                         float nullData[4] = {};
                         addElementInifinteAllocWithCount_(&allInstanceData, nullData, 4);
-                        assert(uvs.count == 0);
                     }
                     
                     instanceCount++;
@@ -1571,9 +1619,6 @@ void drawRenderGroup(RenderGroup *group) {
         releaseInfiniteAlloc(&info->indicesData);
         
         releaseInfiniteAlloc(&allInstanceData);
-        releaseInfiniteAlloc(&pvms);
-        releaseInfiniteAlloc(&colors);
-        releaseInfiniteAlloc(&uvs);
     }
     releaseInfiniteAlloc(&group->items);
 #if PRINT_NUMBER_DRAW_CALLS

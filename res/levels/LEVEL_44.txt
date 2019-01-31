@@ -1,7 +1,7 @@
 //just moving blocks with bombs (shuffling)
 LevelData: {
 	name: "Booby Trap";
-	groupId: 8;
+	groupId: 9;
 	shapeSize: 3;
 	lifePoints: 1;
 }

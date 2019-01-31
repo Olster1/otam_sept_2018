@@ -1,9 +1,8 @@
 LevelData: {
 	name: "Fill Me Up";
-	groupId: 9;
+	groupId: 14;
 	shapeSize: 3;
 	startOffset: 1;
-	lifePoints: 1;
 }
 
 Board: {

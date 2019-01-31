@@ -122,7 +122,7 @@ internal inline void InitParticleSystem(particle_system *System, particle_system
     //System->Active = true;
     //System->Set.Loop = true;
     //This is saying we create two particles per frame 
-    System->creationTimer = initTimer(1.0f / 120.0f); //default to creating particle every 1 / 120 th of a second. 
+    System->creationTimer = initTimer(1.0f / 120.0f, false); //default to creating particle every 1 / 120 th of a second. 
     System->viewType = PERSPECTIVE_MATRIX;
 }
 
@@ -160,11 +160,11 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
             if(System->Set.type == PARTICLE_SYS_DEFAULT || System->Set.type == PARTICLE_SYS_SCALER) {        
                 particleLifeSpan = System->creationTimer.period*System->MaxParticleCount;
                 Timer *timer = &System->creationTimer;
-                timer->value += dt;        
-                if(timer->value >= timer->period) {
-                    particlesToCreate = (int)(timer->value / timer->period);
+                timer->value_ += dt;        
+                if(timer->value_ >= timer->period) {
+                    particlesToCreate = (int)(timer->value_ / timer->period);
                     assert(particlesToCreate > 0);
-                    timer->value = 0;
+                    timer->value_ = 0;
 
                 }
                 if(System->particleCount == 0) {
