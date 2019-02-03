@@ -1,5 +1,3 @@
-//just moving blocks with bombs (shuffling)
-//this is about the top being blocked when you come in. so You have to time your landing to coincide. 
 LevelData: {
 	name: "Two Pillars";
 	groupId: 11;
@@ -10,6 +8,7 @@ LevelData: {
 	//shapeSize: 5;
 	//startOffset: 1;
 	lifePoints: 4;
+	isMirror: true;
 }
 Windmill: {
 	id: 1;
@@ -47,6 +46,6 @@ Board: {
 	0000000/
 	!0!0!0!
 	!0!0!0!
-	!0!!!0!
+	!0!!!!!
 	
 }

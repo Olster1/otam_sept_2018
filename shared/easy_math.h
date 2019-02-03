@@ -11,25 +11,6 @@ float roundToHalf(float value) {
     result /= 2;
     return result;
 }
-
-#ifdef max
-#undef max
-#endif
-
-#ifdef min
-#undef min
-#endif
-
-float max(float a, float b) {
-    float result = (a < b) ? b : a;
-    return result;
-}
-
-float min(float a, float b) {
-    float result = (a > b) ? b : a;
-    return result;
-}
-
 float safeRatio0(float a, float b) {
     float result = 0;
     if(b != 0) {

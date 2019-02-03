@@ -8,6 +8,24 @@
 
 #define calloc(size, item) malloc(size)
 
+#ifdef max
+#undef max
+#endif
+
+#ifdef min
+#undef min
+#endif
+
+float max(float a, float b) {
+    float result = (a < b) ? b : a;
+    return result;
+}
+
+float min(float a, float b) {
+    float result = (a > b) ? b : a;
+    return result;
+}
+
 
 #ifdef _WIN32
 //printf doens't print to the console annoyingly!!
@@ -69,60 +87,139 @@ void zeroSize(void *memory, size_t bytes) {
     }
 }
 
-typedef struct {
+typedef struct MemoryPiece MemoryPiece;
+typedef struct MemoryPiece {
     void *memory;
-    unsigned int currentSize;
-    unsigned int totalSize;
-    int markCount;
-} Arena;
+    size_t totalSize; //size of just this memory block
+    // size_t totalSizeOfArena; //size of total arena to roll back with
+    size_t currentSize;
 
-Arena createArena(size_t size) {
-    Arena result = {};
-    result.memory = SDL_malloc(size);
-    result.currentSize = 0;
-    result.totalSize = size;
-    return result;
-}
+    MemoryPiece *next;
+
+} MemoryPiece; //this is for the memory to remember 
+
+typedef struct {
+    //NOTE: everything is in pieces now
+    // void *memory;
+    // unsigned int totalSize; //include all memory blocks
+    // unsigned int totalCurrentSize;//total current size of all memory blocks
+    int markCount;
+
+    MemoryPiece *pieces; //actual details in the memory block
+    MemoryPiece *piecesFreeList;
+
+} Arena;
 
 #define pushStruct(arena, type) (type *)pushSize(arena, sizeof(type))
 
 #define pushArray(arena, size, type) (type *)pushSize(arena, sizeof(type)*size)
 
 void *pushSize(Arena *arena, size_t size) {
-    if(arena->currentSize + size > arena->totalSize){
-        //TODO: handle temp memory. 
-        // size_t extension = Kilobytes(1028);
-        // arena->totalSize += extension;
-        // arena->memory = calloc(extension, 1);
+    if(!arena->pieces || ((arena->pieces->currentSize + size) > arena->pieces->totalSize)){ //doesn't fit in arena
+        MemoryPiece *piece = arena->piecesFreeList; //get one of the free list
+
+        size_t extension = max(Kilobytes(1028), size);
+        if(piece)  {
+            MemoryPiece **piecePtr = &arena->piecesFreeList;
+            assert(piece->totalSize > 0);
+            while(piece && piece->totalSize < extension) {//find the right size piece. 
+                piecePtr = &piece->next; 
+                piece = piece->next;
+            }
+            if(piece) {
+                //take off list
+                *piecePtr = piece->next;             
+                piece->currentSize = 0;
+            }
+            
+        } 
+
+        if(!piece) {//need to allocate a new piece
+            piece = (MemoryPiece *)calloc(sizeof(MemoryPiece), 1);
+            piece->memory = calloc(extension, 1);
+            piece->totalSize = extension;
+            piece->currentSize = 0;
+        }
+        assert(piece);
+        assert(piece->memory);
+        assert(piece->totalSize > 0);
+        assert(piece->currentSize == 0);
+
+        //stick on list
+        piece->next = arena->pieces;
+        arena->pieces = piece;
+
+        // piece->totalSizeOfArena = arena->totalSize;
+        // assert((arena->currentSize_ + size) <= arena->totalSize); 
     }
-    assertStr(arena->currentSize + size <= arena->totalSize, "ERROR: ran out of memory");
+
+    MemoryPiece *piece = arena->pieces;
+
+    assert(piece);
+    assert((piece->currentSize + size) <= piece->totalSize); 
     
-    void *result = ((char *)arena->memory) + arena->currentSize;
-    arena->currentSize += size;
+    void *result = ((u8 *)piece->memory) + piece->currentSize;
+    piece->currentSize += size;
     
     zeroSize(result, size);
+    return result;
+}
+
+Arena createArena(size_t size) {
+    Arena result = {};
+    pushSize(&result, size);
+    assert(result.pieces);
+    assert(result.pieces->memory);
     return result;
 }
 
 typedef struct { 
     int id;
     Arena *arena;
-    size_t memAt;
+    size_t memAt; //the actuall value we roll back, don't need to do anything else
+    MemoryPiece *piece;
 } MemoryArenaMark;
 
 MemoryArenaMark takeMemoryMark(Arena *arena) {
     MemoryArenaMark result = {};
     result.arena = arena;
-    result.memAt = arena->currentSize;
+    result.memAt = arena->pieces->currentSize;
     result.id = arena->markCount++;
+    result.piece = arena->pieces;
     return result;
 }
 
 void releaseMemoryMark(MemoryArenaMark *mark) {
     mark->arena->markCount--;
-    assert(mark->id == mark->arena->markCount);
-    assert(mark->arena->markCount >= 0);
-    mark->arena->currentSize = mark->memAt;
+    Arena *arena = mark->arena;
+    assert(mark->id == arena->markCount);
+    assert(arena->markCount >= 0);
+    assert(arena->pieces);
+    //all ways the top piece is the current memory block for the arena. 
+    MemoryPiece *piece = arena->pieces;
+    if(mark->piece != piece) {
+        //not on the same memory block
+        bool found = false;
+        while(!found) {
+            piece = arena->pieces;
+            if(piece == mark->piece) {
+                //found the right one
+                found = true;
+                break;
+            } else {
+                arena->pieces = piece->next;
+                assert(arena->pieces);
+                //put on free list
+                piece->next = arena->piecesFreeList;
+                arena->piecesFreeList = piece;
+            }
+        }
+        assert(found);
+    } 
+    assert(arena->pieces == mark->piece);
+    //roll back size
+    piece->currentSize = mark->memAt;
+    assert(piece->currentSize <= piece->totalSize);
 }
 
 

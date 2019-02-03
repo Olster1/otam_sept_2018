@@ -1,6 +1,13 @@
-uniform mat4 perspective;
-uniform mat4 view;
-uniform mat4 model;
+in mat4 VM;
+in mat4 P;
+in vec4 color;
+in vec4 uvAtlas;	
+
+in vec3 vertex;
+in vec2 texUV;	
+
+out vec4 colorOut; //out going
+out vec2 texUV_out;
 
 // uniform vec4 color;
 

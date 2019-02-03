@@ -55,6 +55,7 @@ typedef enum {
 typedef struct {
     int id;
     
+    bool valid;
     V2 pos;
     BoardValType type; //this is used to keep the images consistent;
 } FitrisBlock;
@@ -63,7 +64,6 @@ typedef struct {
 typedef struct {
     FitrisBlock blocks[MAX_SHAPE_COUNT];
     int count;
-    bool valid;
     
     Timer moveTimer;
 } FitrisShape;
@@ -124,6 +124,7 @@ typedef struct {
 } ExtraShape;
 
 typedef struct {
+    bool valid;
     BoardValType type;
     BoardValType prevType;
     BoardState state;
@@ -181,6 +182,7 @@ typedef struct {
     int boardWidth;
     int boardHeight;
     BoardValue *board;
+    BoardValue *copyBoard;
     
     FitrisShape currentShape;
     Texture *stoneTex;
@@ -512,10 +514,31 @@ BoardState getBoardState(FrameParams *params, V2 pos) {
     return result;
 }
 
+BoardState getBoardStateWithConection(FrameParams *params, V2 pos) {
+    BoardState result = BOARD_INVALID;
+    if(pos.x >= 0 && pos.x < params->boardWidth && pos.y >= 0 && pos.y < params->boardHeight) {
+        BoardValue *val = &params->copyBoard[params->boardWidth*(int)pos.y + (int)pos.x];
+        result = val->state;
+        assert(result != BOARD_INVALID);
+    }
+    
+    return result;
+}
+
 BoardValue *getBoardValue(FrameParams *params, V2 pos) {
     BoardValue *result = 0;
     if(pos.x >= 0 && pos.x < params->boardWidth && pos.y >= 0 && pos.y < params->boardHeight) {
         BoardValue *val = &params->board[params->boardWidth*(int)pos.y + (int)pos.x];
+        result = val;
+    }
+    
+    return result;
+}
+
+BoardValue *getCopyBoardValue(FrameParams *params, V2 pos) {
+    BoardValue *result = 0;
+    if(pos.x >= 0 && pos.x < params->boardWidth && pos.y >= 0 && pos.y < params->boardHeight) {
+        BoardValue *val = &params->copyBoard[params->boardWidth*(int)pos.y + (int)pos.x];
         result = val;
     }
     
@@ -565,7 +588,9 @@ void allocateBoard(FrameParams *params, int boardWidth, int boardHeight) {
     params->boardHeight = boardHeight;
     
     if(params->board) { free(params->board); }
+    if(params->copyBoard) { free(params->copyBoard); }
     params->board = (BoardValue *)calloc(params->boardWidth*params->boardHeight*sizeof(BoardValue), 1);
+    params->copyBoard = (BoardValue *)calloc(params->boardWidth*params->boardHeight*sizeof(BoardValue), 1);
     
     for(int boardY = 0; boardY < params->boardHeight; ++boardY) {
         for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
@@ -823,7 +848,7 @@ static inline int loadLevelData(FrameParams *params) {
             
             levelIndexAt = groupNum + 1;
             #if EDITOR_MODE
-            levelIndexAt = levelData->groupId;
+            // levelIndexAt = levelData->groupId;
             #endif
             if(levelIndexAt < 10) {
                 assert(levelData->glyphCount < arrayCount(levelData->glyphs));
@@ -1123,7 +1148,8 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
         case 10: 
         case 11:
         case 12:
-        case 13: {
+        case 13: 
+        case 14: {
             params->bgTex = findTextureAsset("yellow_desert.png");
         } break;
         default: {
@@ -1273,20 +1299,22 @@ bool canShapeMove(FitrisShape *shape, FrameParams *params, MoveType moveType) {
     int bottomMostPos = params->boardHeight;;
     V2 moveVec = getMoveVec(moveType);
     for(int i = 0; i < shape->count; ++i) {
-        V2 pos = shape->blocks[i].pos;
-        BoardState state = getBoardState(params, v2_plus(pos, moveVec));
-        if(!(state == BOARD_NULL || state == BOARD_SHAPE || state == BOARD_EXPLOSIVE)) {
-            valid = false;
-            break;
-        }
-        if(shape->blocks[i].pos.x < leftMostPos) {
-            leftMostPos = shape->blocks[i].pos.x;
-        }
-        if(shape->blocks[i].pos.x > rightMostPos) {
-            rightMostPos = shape->blocks[i].pos.x;
-        }
-        if(shape->blocks[i].pos.y < bottomMostPos) {
-            bottomMostPos = shape->blocks[i].pos.y;
+        if(shape->blocks[i].valid) {
+            V2 pos = shape->blocks[i].pos;
+            BoardState state = getBoardState(params, v2_plus(pos, moveVec));
+            if(!(state == BOARD_NULL || state == BOARD_SHAPE || state == BOARD_EXPLOSIVE)) {
+                valid = false;
+                break;
+            }
+            if(shape->blocks[i].pos.x < leftMostPos) {
+                leftMostPos = shape->blocks[i].pos.x;
+            }
+            if(shape->blocks[i].pos.x > rightMostPos) {
+                rightMostPos = shape->blocks[i].pos.x;
+            }
+            if(shape->blocks[i].pos.y < bottomMostPos) {
+                bottomMostPos = shape->blocks[i].pos.y;
+            }
         }
     }
     if(shape->count) 
@@ -1313,10 +1341,12 @@ bool canShapeMove(FitrisShape *shape, FrameParams *params, MoveType moveType) {
 bool isInShape(FitrisShape *shape, V2 pos) {
     bool result = false;
     for(int i = 0; i < shape->count; ++i) {
-        V2 shapePos = shape->blocks[i].pos;
-        if(pos.x == shapePos.x && pos.y == shapePos.y) {
-            result = true;
-            break;
+        if(shape->blocks[i].valid) {
+            V2 shapePos = shape->blocks[i].pos;
+            if(pos.x == shapePos.x && pos.y == shapePos.y) {
+                result = true;
+                break;
+            }
         }
     }
     return result;
@@ -1330,15 +1360,28 @@ typedef struct {
 QueryShapeInfo isRepeatedInShape(FitrisShape *shape, V2 pos, int index) {
     QueryShapeInfo result = {};
     for(int i = 0; i < shape->count; ++i) {
-        V2 shapePos = shape->blocks[i].pos;
-        if(i != index && pos.x == shapePos.x && pos.y == shapePos.y) {
-            result.result = true;
-            result.index = i;
-            assert(i != index);
-            break;
+        if(shape->blocks[i].valid) {
+            V2 shapePos = shape->blocks[i].pos;
+            if(i != index && pos.x == shapePos.x && pos.y == shapePos.y) {
+                result.result = true;
+                result.index = i;
+                assert(i != index);
+                break;
+            }
         }
     }
     return result;
+}
+
+void resetMouseUI(FrameParams *params) {
+    if(params->currentHotIndex >= 0) {
+        params->letGo = true;
+        V2 pos = params->currentShape.blocks[params->currentHotIndex].pos;
+        BoardValue *val = getBoardValue(params, pos);
+        val->color = COLOR_WHITE;
+    }
+    
+    params->currentHotIndex = -1; //reset hot ui   
 }
 
 static BoardValType BOARD_VAL_SHAPES[5] = { BOARD_VAL_SHAPE0, BOARD_VAL_SHAPE1, BOARD_VAL_SHAPE2, BOARD_VAL_SHAPE3, BOARD_VAL_SHAPE4 };
@@ -1346,9 +1389,11 @@ static BoardValType BOARD_VAL_SHAPES[5] = { BOARD_VAL_SHAPE0, BOARD_VAL_SHAPE1, 
 FitrisBlock *findBlockById(FitrisShape *shape, int id) {
     FitrisBlock *result = 0;
     for(int i = 0; i < shape->count; ++i) {
-        if(shape->blocks[i].id == id) {
-            result = shape->blocks + i;
-            break;
+        if(shape->blocks[i].valid) {
+            if(shape->blocks[i].id == id) {
+                result = shape->blocks + i;
+                break;
+            }
         }
     }
     assert(result);
@@ -1366,55 +1411,66 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
         int idsHit[MAX_SHAPE_COUNT] = {};
         
         for(int i = 0; i < shape->count; ++i) {
-            V2 oldPos = shape->blocks[i].pos;
-            V2 newPos = v2_plus(oldPos, moveVec);
-            
-            BoardValue *val = getBoardValue(params, oldPos);
-            val->color = COLOR_WHITE;
-            
-            BoardValue *newVal = getBoardValue(params, newPos);
-            newVal->color = COLOR_WHITE;
-            
-            BoardState state = getBoardState(params, newPos);
-            if(state == BOARD_EXPLOSIVE) {
-                assert(params->lifePointsMax > 0);
-                params->lifePoints--;
-                params->wasHitByExplosive = true;
-                playGameSound(params->soundArena, params->explosiveSound, 0, AUDIO_FOREGROUND);
-                //remove from shapea
-                assert(idsHitCount < arrayCount(idsHit));
-                idsHit[idsHitCount++] = shape->blocks[i].id;
-                setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    //this is the shape
-                setBoardState(params, newPos, BOARD_NULL, BOARD_VAL_TRANSIENT);//this is the bomb position
-            } 
+            if(shape->blocks[i].valid) {
+                V2 oldPos = shape->blocks[i].pos;
+                V2 newPos = v2_plus(oldPos, moveVec);
+                
+                BoardValue *val = getBoardValue(params, oldPos);
+                val->color = COLOR_WHITE;
+                
+                BoardValue *newVal = getBoardValue(params, newPos);
+                newVal->color = COLOR_WHITE;
+                
+                BoardState state = getBoardState(params, newPos);
+                if(state == BOARD_EXPLOSIVE) {
+                    assert(params->lifePointsMax > 0);
+                    params->lifePoints--;
+                    params->wasHitByExplosive = true;
+                    playGameSound(params->soundArena, params->explosiveSound, 0, AUDIO_FOREGROUND);
+                    
+                    //this is so you can't still be holding a block if there is a change you grab it before 
+                    //it explodes. 
+                    if(params->currentHotIndex == i) {
+                        resetMouseUI(params);
+                    }
+                    assert(idsHitCount < arrayCount(idsHit));
+                    idsHit[idsHitCount++] = shape->blocks[i].id;
+                    setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    //this is the shape
+                    setBoardState(params, newPos, BOARD_NULL, BOARD_VAL_TRANSIENT);//this is the bomb position
+                } 
+            }
         }
         
         //NOTE: we have this since our findBlockById wants to search the original shape with the 
         //full count so we can't change it in the loop
-        int newShapeCount = shape->count; 
+        // int newShapeCount = shape->count; 
         for(int hitIndex = 0; hitIndex < idsHitCount; ++hitIndex) {
             int id = idsHit[hitIndex];
             FitrisBlock *block = findBlockById(shape, id);
-            *block = shape->blocks[--newShapeCount];
+            block->valid = false;
+            //instead of moving block we set it to not valid
+            // *block = shape->blocks[--newShapeCount];
         }
-        shape->count = newShapeCount;
+        // shape->count = newShapeCount;
         
         for(int i = 0; i < shape->count; ++i) {
-            V2 oldPos = shape->blocks[i].pos;
-            V2 newPos = v2_plus(oldPos, moveVec);
-            
-            // printf("boardState: %d, index: %d\n", getBoardState(params, oldPos), i);
-            assert(getBoardState(params, oldPos) == BOARD_SHAPE);
-            
-            BoardState newPosState = getBoardState(params, newPos);
-            assert(newPosState == BOARD_SHAPE || newPosState == BOARD_NULL);
-            
-            QueryShapeInfo info = isRepeatedInShape(shape, oldPos, i);
-            if(!info.result) { //dind't just get set by the block in shape before. 
-                setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    
+            if(shape->blocks[i].valid) {
+                V2 oldPos = shape->blocks[i].pos;
+                V2 newPos = v2_plus(oldPos, moveVec);
+                
+                // printf("boardState: %d, index: %d\n", getBoardState(params, oldPos), i);
+                assert(getBoardState(params, oldPos) == BOARD_SHAPE);
+                
+                BoardState newPosState = getBoardState(params, newPos);
+                assert(newPosState == BOARD_SHAPE || newPosState == BOARD_NULL);
+                
+                QueryShapeInfo info = isRepeatedInShape(shape, oldPos, i);
+                if(!info.result) { //dind't just get set by the block in shape before. 
+                    setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    
+                }
+                setBoardState(params, newPos, BOARD_SHAPE, shape->blocks[i].type);    
+                shape->blocks[i].pos = newPos;
             }
-            setBoardState(params, newPos, BOARD_SHAPE, shape->blocks[i].type);    
-            shape->blocks[i].pos = newPos;
         }
         playGameSound(params->soundArena, params->moveSound, 0, AUDIO_FOREGROUND);
     }
@@ -1423,12 +1479,14 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
 
 void solidfyShape(FitrisShape *shape, FrameParams *params) {
     for(int i = 0; i < shape->count; ++i) {
-        V2 pos = shape->blocks[i].pos;
-        BoardValue *val = getBoardValue(params, pos);
-        if(val->state == BOARD_SHAPE) {
-            setBoardState(params, pos, BOARD_STATIC, BOARD_VAL_OLD);
+        if(shape->blocks[i].valid) {
+            V2 pos = shape->blocks[i].pos;
+            BoardValue *val = getBoardValue(params, pos);
+            if(val->state == BOARD_SHAPE) {
+                setBoardState(params, pos, BOARD_STATIC, BOARD_VAL_OLD);
+            }
+            val->color = COLOR_WHITE;
         }
-        val->color = COLOR_WHITE;
         
     }
 
@@ -1445,24 +1503,37 @@ typedef struct VisitedQueue {
     VisitedQueue *prev;
 } VisitedQueue;
 
-void addToQueryList(FrameParams *params, VisitedQueue *sentinel, V2 pos, Arena *arena, bool *boardArray, int boardWidth) {
-    bool *visitedPtr = &boardArray[(((int)pos.y)*boardWidth) + (int)pos.x];
-    bool visited = *visitedPtr;
-    
-    if(!visited && getBoardState(params, pos) == BOARD_SHAPE) {
-        *visitedPtr = true;
-        VisitedQueue *queue = pushStruct(arena, VisitedQueue); 
-        queue->pos = pos;
+void addToQueryList(FrameParams *params, VisitedQueue *sentinel, V2 pos, Arena *arena, bool *boardArray, int boardWidth, int boardHeight) {
+    if(pos.x >= 0 && pos.x < boardWidth && pos.y >= 0 && pos.y < boardHeight) {
+        bool *visitedPtr = &boardArray[(((int)pos.y)*boardWidth) + (int)pos.x];
+        bool visited = *visitedPtr;
         
-        //add to the search queue
-        assert(sentinel->prev->next == sentinel);
-        queue->prev = sentinel->prev;
-        queue->next = sentinel;
-        sentinel->prev->next = queue;
-        sentinel->prev = queue;
+        if(!visited && getBoardState(params, pos) == BOARD_SHAPE) {
+            *visitedPtr = true;
+            VisitedQueue *queue = pushStruct(arena, VisitedQueue); 
+            queue->pos = pos;
+            
+            //add to the search queue
+            assert(sentinel->prev->next == sentinel);
+            queue->prev = sentinel->prev;
+            queue->next = sentinel;
+            sentinel->prev->next = queue;
+            sentinel->prev = queue;
+        }
     }
 } 
 /* end the queue stuff for the flood fill.*/
+
+static inline int getShapeCount(FitrisShape *shape) {
+    int result = 0;
+    for(int i = 0; i < shape->count; ++i) {
+        if(shape->blocks[i].valid) {
+            result++;
+        }
+    }
+    return result;
+
+}
 
 typedef struct {
     int count;
@@ -1477,11 +1548,11 @@ IslandInfo getShapeIslandCount(FitrisShape *shape, V2 startPos, FrameParams *par
     
     MemoryArenaMark memMark = takeMemoryMark(params->longTermArena);
     bool *boardArray = pushArray(params->longTermArena, params->boardWidth*params->boardHeight, bool);
-    
+        
     VisitedQueue sentinel = {};
     sentinel.next = sentinel.prev = &sentinel;
     
-#define ADD_TO_QUERY_LIST(toMoveVec, thePos) addToQueryList(params, &sentinel, v2_plus(thePos, toMoveVec), params->longTermArena, boardArray, params->boardWidth);
+#define ADD_TO_QUERY_LIST(toMoveVec, thePos) addToQueryList(params, &sentinel, v2_plus(thePos, toMoveVec), params->longTermArena, boardArray, params->boardWidth, params->boardHeight);
     ADD_TO_QUERY_LIST(v2(0, 0), startPos);
     
     VisitedQueue *queryAt = sentinel.next;
@@ -1505,12 +1576,22 @@ IslandInfo getShapeIslandCount(FitrisShape *shape, V2 startPos, FrameParams *par
         queryAt = queryAt->next;
     }
     releaseMemoryMark(&memMark);
-    if(info.count > shape->count) {
-        // printf("Count At; %d\n", info.count);    
-        // printf("Shape Count: %d\n", shape->count);    
-    }
-    assert(info.count <= shape->count);
     
+    assert(info.count <= getShapeCount(shape));
+
+    //   assert(params->currentHotIndex >= 0);
+    // V2 holdingPos = params->currentShape.blocks[params->currentHotIndex].pos;
+    // BoardValue *shapeNow = getCopyBoardValue(params, holdingPos);
+    // printf("baordState: %d\n", shapeNow->state);
+    // assert(shapeNow->state == BOARD_NULL);
+    // BoardValue tempBlock = *shapeNow;
+    // BoardValue *actualBoardVal = getBoardValue(params, holdingPos);
+    // shapeNow->state = actualBoardVal->state;
+    // printf("baordState:2 %d\n", shapeNow->state);
+    // assert(shapeNow->state == BOARD_SHAPE);
+
+    // *shapeNow = tempBlock;
+
     return info;
 }
 
@@ -1518,23 +1599,31 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
     bool result = true;
     
     for(int i = 0; i < shape->count; ++i) {
-        V2 pos = shape->blocks[i].pos;
-        if(boardPosAt.x == pos.x && boardPosAt.y == pos.y) {
-            result = false;
-            break;
-        }
-        
-        BoardState state = getBoardState(params, boardPosAt);
-        if(state != BOARD_NULL) {
-            result = false;
-            break;
+        if(shape->blocks[i].valid) {
+            V2 pos = shape->blocks[i].pos;
+            //not trying to move it onto a shape
+            if(boardPosAt.x == pos.x && boardPosAt.y == pos.y) {
+                result = false;
+                break;
+            }
+            
+            //has to be an empty space to move it to 
+            BoardState state = getBoardState(params, boardPosAt);
+            if(state != BOARD_NULL) {
+                result = false;
+                break;
+            }
         }
     }
     if(result) {
+        #if 1
         V2 oldPos = shape->blocks[currentHotIndex].pos;
+        assert(shape->blocks[currentHotIndex].valid);
         
         BoardValue *oldVal = getBoardValue(params, oldPos);
+        //
         assert(oldVal->state == BOARD_SHAPE);
+        //BUG!!!!
         
         IslandInfo mainIslandInfo = getShapeIslandCount(shape, oldPos, params);
         assert(mainIslandInfo.count >= 1);
@@ -1575,20 +1664,32 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
             newVal->state = BOARD_NULL;
             oldVal->state = BOARD_SHAPE;
         }
+        #else 
+
+            BoardValue *val1 = getCopyBoardValue(params, v2_plus(boardPosAt, v2(1, 0)));
+            BoardValue *val2 = getCopyBoardValue(params, v2_plus(boardPosAt, v2(-1, 0)));
+            BoardValue *val3 = getCopyBoardValue(params, v2_plus(boardPosAt, v2(0, 1)));
+            BoardValue *val4 = getCopyBoardValue(params, v2_plus(boardPosAt, v2(0, -1)));
+            bool isNextToShape = false;
+            if(val1 && val1->state == BOARD_SHAPE) {
+                isNextToShape = true;
+            }
+            if(val2 && val2->state == BOARD_SHAPE) {
+                isNextToShape = true;
+            }
+            if(val3 && val3->state == BOARD_SHAPE) {
+                isNextToShape = true;
+            }
+            if(val4 && val4->state == BOARD_SHAPE) {
+                isNextToShape = true;
+            }
+
+            if(!isNextToShape) { result = false; }
+
+        #endif
     }
     
     return result;
-}
-
-void resetMouseUI(FrameParams *params) {
-    if(params->currentHotIndex >= 0) {
-        params->letGo = true;
-        V2 pos = params->currentShape.blocks[params->currentHotIndex].pos;
-        BoardValue *val = getBoardValue(params, pos);
-        val->color = COLOR_WHITE;
-    }
-    
-    params->currentHotIndex = -1; //reset hot ui   
 }
 
 void changeMenuStateCallback(void *data) {
@@ -1633,11 +1734,18 @@ static inline int getTotalNumberOfShapeBlocks(FrameParams *params) {
 
 bool hasMirrorPartner(FrameParams *params, int hotBlockIndex, int mirrorIndexAt) {
     bool result = false;
-    if(hotBlockIndex < mirrorIndexAt) {
-        result = mirrorIndexAt < getTotalNumberOfShapeBlocks(params);
+    assert(params->isMirrorLevel);
+    assert(params->currentShape.blocks[hotBlockIndex].valid);
+    assert(mirrorIndexAt >= 0);
+    if(mirrorIndexAt < arrayCount(params->currentShape.blocks) && params->currentShape.blocks[mirrorIndexAt].valid) {
+        if(hotBlockIndex < mirrorIndexAt) {
+            result = mirrorIndexAt < getTotalNumberOfShapeBlocks(params);
+        } else {
+            assert(hotBlockIndex != mirrorIndexAt);
+            result = mirrorIndexAt < params->shapeSizes[0];
+        }
     } else {
-        assert(hotBlockIndex != mirrorIndexAt);
-        result = mirrorIndexAt < params->shapeSizes[0];
+        // printf("%s: %d\n", "not valid", mirrorIndexAt);
     }
     return result;
 }
@@ -1676,6 +1784,100 @@ typedef struct {
     V4 color1;
     V4 color2;
 } TwoColors;
+
+typedef struct {
+    bool *boardArray;
+    int width;
+    int height;
+} BoardBoolInfo;
+
+
+bool copyBoardValToCopyBoard(FrameParams *params, V2 pos_, V2 addend, BoardBoolInfo *boardBoolInfo, bool addValue) {
+    V2 newPos = v2(pos_.x + addend.x, pos_.y + addend.y);
+    bool result = false;
+    if(newPos.x >= 0 && newPos.x < boardBoolInfo->width && newPos.y >= 0 && newPos.y < boardBoolInfo->height) {
+        bool *alreadyVisited = &boardBoolInfo->boardArray[(((int)newPos.y)*boardBoolInfo->width) + (int)newPos.x];
+        if(!(*alreadyVisited)) {
+            BoardValue *val1 = getBoardValue(params, newPos);        
+            *alreadyVisited = true;
+            if(val1->state == BOARD_SHAPE && addValue) {
+                BoardValue *copyval = getCopyBoardValue(params, newPos);        
+                *copyval = *val1;
+                result = true;
+            }
+            
+        }
+    }
+    return result;
+}
+
+void addToQueueForCopyBoard(MemoryArenaMark *memMark, V2 newPos, VisitedQueue *sentinel) {
+    VisitedQueue *que = pushStruct(memMark->arena, VisitedQueue);
+    que->pos = newPos;
+    que->next = sentinel;
+    que->prev = sentinel->prev;
+    sentinel->prev->next = que;
+    sentinel->prev = que;
+}
+
+void takeBoardCopy(FrameParams *params) {
+    assert(params->currentHotIndex >= 0);
+    V2 pos_ = params->currentShape.blocks[params->currentHotIndex].pos;
+    assert(params->currentShape.blocks[params->currentHotIndex].valid);
+    VisitedQueue sentinel = {};
+    sentinel.prev = sentinel.next = &sentinel;
+    
+    MemoryArenaMark memMark = takeMemoryMark(params->longTermArena);
+    bool *boardArray = pushArray(memMark.arena, params->boardWidth*params->boardHeight, bool);
+    BoardBoolInfo boardBoolInfo = {};
+    boardBoolInfo.width = params->boardWidth;
+    boardBoolInfo.height = params->boardHeight;
+    boardBoolInfo.boardArray = boardArray;
+        
+    sentinel.prev = sentinel.next = pushStruct(memMark.arena, VisitedQueue);
+    sentinel.next->prev = sentinel.next->next = &sentinel;
+    assert(sentinel.next != &sentinel);
+    sentinel.next->pos = pos_;
+
+    bool didCopy = copyBoardValToCopyBoard(params, sentinel.next->pos, v2(0, 0), &boardBoolInfo, false);
+    assert(!didCopy);
+
+    VisitedQueue *queryAt = sentinel.next;
+    assert(queryAt != &sentinel);
+
+    while(queryAt != &sentinel) {
+        V2 pos = queryAt->pos;
+        if(copyBoardValToCopyBoard(params, pos, v2(1, 0), &boardBoolInfo, true)) {
+            V2 newPos = v2_plus(pos, v2(1, 0));
+            addToQueueForCopyBoard(&memMark, newPos, &sentinel);
+        }
+        if(copyBoardValToCopyBoard(params, pos, v2(-1, 0), &boardBoolInfo, true)) {
+            V2 newPos = v2_plus(pos, v2(-1, 0));
+            addToQueueForCopyBoard(&memMark, newPos, &sentinel); 
+        }
+        if(copyBoardValToCopyBoard(params, pos, v2(0, 1), &boardBoolInfo, true)) {
+            V2 newPos = v2_plus(pos, v2(0, 1));
+            addToQueueForCopyBoard(&memMark, newPos, &sentinel);
+        }
+        if(copyBoardValToCopyBoard(params, pos, v2(0, -1), &boardBoolInfo, true)) {
+            V2 newPos = v2_plus(pos, v2(0, -1));
+            addToQueueForCopyBoard(&memMark, newPos, &sentinel);
+        }
+        queryAt = queryAt->next;
+    }
+
+    for(int y = 0; y < params->boardHeight; y++) {
+        for(int x = 0; x < params->boardWidth; x++) {
+            BoardValue *val = getBoardValue(params, v2(x, y));        
+            assert(val);
+            BoardValue *copyval = getCopyBoardValue(params, v2(x, y));        
+            if(val->state != BOARD_SHAPE) {
+                *copyval = *val;
+            } 
+        }
+    }
+    releaseMemoryMark(&memMark);
+}
 
 /*
 NOTE: This is since alien blocks are different colors and so when the hover & 
@@ -1741,41 +1943,44 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
         
         int hotBlockIndex = -1;
         for(int i = 0; i < shape->count; ++i) {
-            //NOTE: Render the hover indications & check for hot player block 
-            V2 pos = shape->blocks[i].pos;
-            TwoColors alienColors = getAlienHoverColor(shape, i);
-            
-            RenderInfo renderInfo = calculateRenderInfo(v3(pos.x, pos.y, -1), v3(1, 1, 1), cameraPos, metresToPixels);
-            
-            Rect2f blockBounds = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
-            
-            V4 color = COLOR_WHITE;
-            
-            if(inBounds(params->keyStates->mouseP_yUp, blockBounds, BOUNDS_RECT)) {
-                hotBlockIndex = i;
-                if(params->currentHotIndex < 0) {
-                    color = alienColors.color1;
+            if(shape->blocks[i].valid) {
+                //NOTE: Render the hover indications & check for hot player block 
+                V2 pos = shape->blocks[i].pos;
+                TwoColors alienColors = getAlienHoverColor(shape, i);
+                
+                RenderInfo renderInfo = calculateRenderInfo(v3(pos.x, pos.y, -1), v3(1, 1, 1), cameraPos, metresToPixels);
+                
+                Rect2f blockBounds = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+                
+                V4 color = COLOR_WHITE;
+                
+                if(inBounds(params->keyStates->mouseP_yUp, blockBounds, BOUNDS_RECT)) {
+                    assert(shape->blocks[i].valid);
+                    hotBlockIndex = i;
+                    if(params->currentHotIndex < 0) {
+                        color = alienColors.color1;
+                    }
                 }
-            }
-            
-            if(hotBlockIndex >= 0 && params->currentHotIndex < 0) {
-                if(isMirrorPartnerIndex(params, hotBlockIndex, i, false)) {
-                    color = alienColors.color1;
+                
+                if(hotBlockIndex >= 0 && params->currentHotIndex < 0) {
+                    if(isMirrorPartnerIndex(params, hotBlockIndex, i, false)) {
+                        color = alienColors.color1;
+                    }
                 }
+                
+                if(params->currentHotIndex == i) {
+                    assert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
+                    color = alienColors.color2;
+                }
+                
+                if(isMirrorPartnerIndex(params, params->currentHotIndex, i, true)) {
+                    color = alienColors.color2;
+                }
+                
+                BoardValue *val = getBoardValue(params, pos);
+                assert(val);
+                val->color = color;
             }
-            
-            if(params->currentHotIndex == i) {
-                assert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
-                color = alienColors.color2;
-            }
-            
-            if(isMirrorPartnerIndex(params, params->currentHotIndex, i, true)) {
-                color = alienColors.color2;
-            }
-            
-            BoardValue *val = getBoardValue(params, pos);
-            assert(val);
-            val->color = color;
         }
         
         //NOTE: Have to do this afterwards since we the block can be before for the mirrorHotIndex
@@ -1792,13 +1997,13 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                 val->color = getAlienHoverColor(shape, hotBlockIndex).color1;
             } else {
                 // printf("%s\n", "no mirror partner");
-                assert(params->shapeSizes[0] != params->shapeSizes[1]);
+                // assert(params->shapeSizes[0] != params->shapeSizes[1]);
             }
         }
         
         if(wasPressed(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE) && hotBlockIndex >= 0) {
             params->currentHotIndex = hotBlockIndex;
-            
+            takeBoardCopy(params);
         }
         
         if(params->currentHotIndex >= 0) {
@@ -1826,7 +2031,8 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                     
                     okToMove &= shapeStillConnected(shape, mirrorIndex, boardPosAtMirror, params);
                 } else {
-                    assert(params->shapeSizes[0] != params->shapeSizes[1]);
+                    // assert(params->shapeSizes[0] != params->shapeSizes[1]);
+                    //just move one block
                     isEvenSize = false;
                 }
             }
@@ -2786,7 +2992,7 @@ void gameUpdateAndRender(void *params_) {
                     params->currentShape.count = 0;
                 }
                 int totalShapeCountSoFar = 0;
-                printf("boardState: %d\n", getBoardState(params, v2(0, 8)));
+                
                 for(int shpIndex = 0; shpIndex < params->shapesCount && !retryLevel; shpIndex++) {
                     int shpSizeAt = params->shapeSizes[shpIndex];
                     int shpOffset = params->startOffsets[shpIndex];
@@ -2804,6 +3010,7 @@ void gameUpdateAndRender(void *params_) {
                         block->pos = v2(xAt, yAt);
                         block->type = BOARD_VAL_SHAPES[i];
                         block->id = totalShapeCountSoFar;
+                        block->valid = true;
                         
                         V2 pos = v2(xAt, yAt);
                         if(getBoardState(params, pos) != BOARD_NULL) {
@@ -3569,7 +3776,7 @@ int main(int argc, char *args[]) {
         exit(0);
 #endif
         // loadAndAddImagesToAssets("img/");
-        easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/textureAtlas_1"), TEXTURE_FILTER_NEAREST);
+        easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/textureAtlas_1"), TEXTURE_FILTER_LINEAR);
         easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/tileAtlas_1"), TEXTURE_FILTER_NEAREST);
         loadAndAddSoundsToAssets("sounds/", &setupInfo.audioSpec);
         

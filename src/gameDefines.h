@@ -1,5 +1,5 @@
 #define DEVELOPER_MODE 1
-#define EDITOR_MODE 1
+#define EDITOR_MODE 0
 #define DEMO_MODE 0
 #define APP_TITLE "Feoh the Fitter"
 #define MOVE_INTERVAL 1.0f

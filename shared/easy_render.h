@@ -65,17 +65,8 @@ typedef struct {
     bool valid;
 } RenderProgram;
 
-RenderProgram lineProgram;
 RenderProgram phongProgram;
-RenderProgram rectangleProgram;
-RenderProgram rectangleNoGradProgram;
 RenderProgram textureProgram;
-RenderProgram circleProgram;
-RenderProgram filterProgram;
-RenderProgram lightProgram;
-RenderProgram ringProgram;
-RenderProgram shadowProgram;
-RenderProgram blurProgram;
 
 typedef struct {
     V3 pos;
@@ -308,7 +299,8 @@ void pushRenderItem(VaoHandle *handles, RenderGroup *group, Vertex *triangleData
     //We are now overriding rectangles with texture calls & using a white dummy texture.
     //Could make this cleaner by original making it a SHAPE_TEXTURE. Might prevent possible bugs that 
     //might occur??!! - Oliver 22/1/19
-    if(program == &rectangleProgram) {
+    if(info->type == SHAPE_RECTANGLE) {
+        assert(program == &textureProgram);
         info->program = &textureProgram;
         info->type = SHAPE_TEXTURE; 
         //set the texture so the render item gets assigned the uv data.
@@ -708,25 +700,14 @@ void enableRenderer(int width, int height, Arena *arena) {
     // lineProgram = createProgramFromFile(vertShaderLine, fragShaderLine);
     // renderCheckError();
     
-#if USING_ATTRIBS_FOR_INSTANCING
-    rectangleProgram = createProgramFromFile(vertex_shader_rectangle_attrib_shader, fragment_shader_rectangle_shader, false);
-    renderCheckError();
-#else
-    rectangleProgram = createProgramFromFile(vertex_shader_rectangle_shader, fragment_shader_rectangle_shader, false);
-    renderCheckError();
-    
-#endif
+    // rectangleProgram = createProgramFromFile(vertex_shader_rectangle_attrib_shader, fragment_shader_rectangle_shader, false);
+    // renderCheckError();
+
     // phongProgram = createProgramFromFile(vertex_model_shader, frag_model_shader, false);
     // renderCheckError();
     
-#if USING_ATTRIBS_FOR_INSTANCING
     textureProgram = createProgramFromFile(vertex_shader_tex_attrib_shader, fragment_shader_texture_shader, false);
     renderCheckError();
-    
-#else
-    textureProgram = createProgramFromFile(vertex_shader_texture_shader, fragment_shader_texture_shader, false);
-    renderCheckError();
-#endif
     
     // filterProgram = createProgramFromFile(vertShaderTex, fragShaderFilter);
     // renderCheckError();
@@ -1269,7 +1250,7 @@ void renderDrawRectOutlineCenterDim_(V3 center, V2 dim, V4 color, float rot, Mat
                 0,  0,  1,  0,
                 offset.x, offset.y, 0,  1
             }};
-        pushRenderItem(&globalQuadVaoHandle, globalRenderGroup, triangleData, arrayCount(triangleData), globalQuadIndicesData, arrayCount(globalQuadIndicesData), &rectangleProgram, SHAPE_RECTANGLE, 0, Mat4Mult(rotationMat, rotationMat1), projectionMatrix,  color, center.z);
+        pushRenderItem(&globalQuadVaoHandle, globalRenderGroup, triangleData, arrayCount(triangleData), globalQuadIndicesData, arrayCount(globalQuadIndicesData), &textureProgram, SHAPE_RECTANGLE, 0, Mat4Mult(rotationMat, rotationMat1), projectionMatrix,  color, center.z);
     }
 }
 
@@ -1309,38 +1290,18 @@ void renderDrawRectCenterDim_(V3 center, V2 dim, V4 *colors, float rot, Matrix4 
 
 void renderDrawRectCenterDim(V3 center, V2 dim, V4 color, float rot, Matrix4 offsetTransform, Matrix4 projectionMatrix) {
     V4 colors[4] = {color, color, color, color}; 
-    renderDrawRectCenterDim_(center, dim, colors, rot, offsetTransform, 0, SHAPE_RECTANGLE, &rectangleProgram, mat4(), projectionMatrix);
-}
-
-void renderDrawRectCenterDim_NoGrad(V3 center, V2 dim, V4 color, float rot, Matrix4 offsetTransform, Matrix4 projectionMatrix) {
-    V4 colors[4] = {color, color, color, color}; 
-    renderDrawRectCenterDim_(center, dim, colors, rot, offsetTransform, 0, SHAPE_RECTANGLE, &rectangleNoGradProgram, mat4(), projectionMatrix);
+    renderDrawRectCenterDim_(center, dim, colors, rot, offsetTransform, 0, SHAPE_RECTANGLE, &textureProgram, mat4(), projectionMatrix);
 }
 
 void renderDrawRect(Rect2f rect, float zValue, V4 color, float rot, Matrix4 offsetTransform, Matrix4 projectionMatrix) {
     V4 colors[4] = {color, color, color, color}; 
     renderDrawRectCenterDim_(v2ToV3(getCenter(rect), zValue), getDim(rect), colors, rot, 
-                             offsetTransform, 0, SHAPE_RECTANGLE, &rectangleProgram, mat4(), projectionMatrix);
+                             offsetTransform, 0, SHAPE_RECTANGLE, &textureProgram, mat4(), projectionMatrix);
 }
-
-//must be an array of four. Specified clock wise.
-void renderDrawRectCenterDim_gradient(V3 center, V2 dim, V4 *colors, float rot, Matrix4 offsetTransform, Matrix4 projectionMatrix) {
-    renderDrawRectCenterDim_(center, dim, colors, rot, offsetTransform, 0, SHAPE_RECTANGLE_GRAD, &rectangleProgram, mat4(), projectionMatrix);
-}
-
 
 void renderTextureCentreDim(Texture *texture, V3 center, V2 dim, V4 color, float rot, Matrix4 offsetTransform, Matrix4 viewMatrix, Matrix4 projectionMatrix) {
     V4 colors[4] = {color, color, color, color}; 
     renderDrawRectCenterDim_(center, dim, colors, rot, offsetTransform, texture, SHAPE_TEXTURE, &textureProgram, viewMatrix, projectionMatrix);
-}
-
-#define renderDrawCircle(center, dim, color, offsetTransform, viewMatrix, projectionMatrix) renderDrawCircle_(center, dim, color, offsetTransform, viewMatrix, projectionMatrix, circleProgram)
-#define renderDrawLight(center, dim, color, offsetTransform, viewMatrix, projectionMatrix) renderDrawCircle_(center, dim, color, offsetTransform, viewMatrix, projectionMatrix, lightProgram)
-#define renderDrawRing(center, dim, color, offsetTransform, viewMatrix, projectionMatrix) renderDrawCircle_(center, dim, color, offsetTransform, viewMatrix, projectionMatrix, ringProgram)
-
-void renderDrawCircle_(V3 center, V2 dim, V4 color, Matrix4 offsetTransform, Matrix4 viewMatrix, Matrix4 projectionMatrix, RenderProgram program) {
-    V4 colors[4] = {color, color, color, color};
-    renderDrawRectCenterDim_(center, dim, colors, 0, offsetTransform, 0, SHAPE_CIRCLE, &program, viewMatrix, projectionMatrix);
 }
 
 void renderDeleteVaoHandle(VaoHandle *handles) {
@@ -1582,9 +1543,7 @@ void drawRenderGroup(RenderGroup *group) {
         initVao(info->bufferHandles, (Vertex *)info->triangleData.memory, info->triCount, (unsigned int *)info->indicesData.memory, info->indexCount, info->program);
         
 #if USING_ATTRIBS_FOR_INSTANCING
-        if(info->program == &rectangleProgram) {
-            // printf("%s\n", "isQuad");
-        }
+    
         createBufferStorage2(info->bufferHandles, &allInstanceData, info->program, info->textureHandle);
         BufferStorage pvmStore = {};
         BufferStorage colorStore = {};

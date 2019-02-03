@@ -1,5 +1,5 @@
 #define PRINT_FRAME_RATE 0
-#define WRITE_SHADERS 0
+#define WRITE_SHADERS 1
 
 typedef struct {
 	unsigned int frameBackBufferId;

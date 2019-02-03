@@ -2,12 +2,13 @@
 //this is about the top being blocked when you come in. so You have to time your landing to coincide. 
 LevelData: {
 	name: "Partner's In Crime";
-	groupId: 11;
+	groupId: 10;
 	shapeSize: 3;
 	shapeSize2: 3;
 	startOffset: 1;
-	startOffset2: 7;
+	startOffset2: 6;
 	//lifePoints: 1;
+	isMirror: true;
 }
 Windmill: {
 	id: 1;
@@ -24,9 +25,9 @@ Windmill: {
 }
 
 Board: {
-	0100000010
+	0100000100
 	0000000000
-	0100000010
+	0100000100
 	0000000000
 	0000000000
 	0000000000/

@@ -12,11 +12,11 @@ pos: 6.551475 8.527674;
 }
 {
 levelType: "LEVEL_3";
-pos: 11.414856 7.479039;
+pos: 11.099524 8.658514;
 }
 {
 levelType: "LEVEL_4";
-pos: 11.211731 8.572789;
+pos: 11.380774 7.486639;
 }
 {
 levelType: "LEVEL_5";
@@ -24,11 +24,11 @@ pos: 10.262282 11.984193;
 }
 {
 levelType: "LEVEL_6";
-pos: 11.461731 2.760289;
+pos: 10.912024 4.100852;
 }
 {
 levelType: "LEVEL_7";
-pos: 12.492981 8.260289;
+pos: 12.458899 8.189764;
 }
 {
 levelType: "LEVEL_8";
@@ -44,35 +44,35 @@ pos: 7.410850 3.425634;
 }
 {
 levelType: "LEVEL_11";
-pos: 6.801475 2.581884;
+pos: 7.054548 2.490559;
 }
 {
 levelType: "LEVEL_12";
-pos: 8.003691 2.778849;
+pos: 8.195173 2.131184;
 }
 {
 levelType: "LEVEL_13";
-pos: 10.788378 3.899227;
+pos: 11.490149 2.725851;
 }
 {
 levelType: "LEVEL_14";
-pos: 13.674304 13.248025;
+pos: 14.467721 15.361700;
 }
 {
 levelType: "LEVEL_15";
-pos: 14.361804 12.272715;
+pos: 13.483346 14.689825;
 }
 {
 levelType: "LEVEL_16";
-pos: 14.846179 13.960215;
+pos: 14.873971 14.049200;
 }
 {
 levelType: "LEVEL_17";
-pos: 17.799305 8.098604;
+pos: 17.530220 9.611599;
 }
 {
 levelType: "LEVEL_18";
-pos: 17.752430 9.723604;
+pos: 16.623970 9.049099;
 }
 {
 levelType: "LEVEL_19";
@@ -80,75 +80,75 @@ pos: 14.953449 5.967647;
 }
 {
 levelType: "LEVEL_20";
-pos: 14.033679 15.022715;
+pos: 13.873971 13.017950;
 }
 {
 levelType: "LEVEL_21";
-pos: 15.836179 5.277360;
+pos: 16.111286 5.411347;
 }
 {
 levelType: "LEVEL_22";
-pos: 15.367429 4.464860;
+pos: 15.298787 4.630097;
 }
 {
 levelType: "LEVEL_23";
-pos: 16.736805 9.004854;
+pos: 17.545845 8.299099;
 }
 {
 levelType: "LEVEL_24";
-pos: 21.966970 10.367905;
+pos: 19.254923 13.852836;
 }
 {
 levelType: "LEVEL_25";
-pos: 22.795095 8.102280;
+pos: 21.348673 9.402588;
 }
 {
 levelType: "LEVEL_26";
-pos: 19.465906 12.323053;
+pos: 20.583048 13.868461;
 }
 {
 levelType: "LEVEL_27";
-pos: 27.214630 8.884879;
+pos: 27.485451 8.526671;
 }
 {
 levelType: "LEVEL_28";
-pos: 21.232595 9.367905;
+pos: 23.989298 8.872318;
 }
 {
 levelType: "LEVEL_29";
-pos: 21.951345 4.117904;
+pos: 21.395548 8.278568;
 }
 {
 levelType: "LEVEL_30";
-pos: 21.420095 5.430404;
+pos: 22.723673 8.262943;
 }
 {
 levelType: "LEVEL_31";
-pos: 22.841970 3.336654;
+pos: 22.708048 6.044193;
 }
 {
 levelType: "LEVEL_32";
-pos: 23.951345 8.883530;
+pos: 21.770548 5.434818;
 }
 {
 levelType: "LEVEL_33";
-pos: 21.623220 8.242905;
+pos: 21.989298 4.262943;
 }
 {
 levelType: "LEVEL_34";
-pos: 22.451345 6.055404;
+pos: 22.739298 3.325443;
 }
 {
 levelType: "LEVEL_35";
-pos: 19.457527 13.656130;
+pos: 20.786173 12.352836;
 }
 {
 levelType: "LEVEL_36";
-pos: 20.910652 12.843630;
+pos: 19.364298 12.337211;
 }
 {
 levelType: "LEVEL_37";
-pos: 20.109699 1.142126;
+pos: 17.720661 2.608588;
 }
 {
 levelType: "LEVEL_38";
@@ -156,31 +156,31 @@ pos: 25.701345 5.211654;
 }
 {
 levelType: "LEVEL_39";
-pos: 28.324005 10.119254;
+pos: 26.876076 10.229796;
 }
 {
 levelType: "LEVEL_40";
-pos: 31.179909 7.457796;
+pos: 27.123220 5.162817;
 }
 {
 levelType: "LEVEL_41";
-pos: 26.935720 4.492904;
+pos: 27.029470 4.115942;
 }
 {
 levelType: "LEVEL_42";
-pos: 19.182642 1.179973;
+pos: 18.642536 1.936713;
 }
 {
 levelType: "LEVEL_43";
-pos: 26.844839 10.002067;
+pos: 28.438576 10.261046;
 }
 {
 levelType: "LEVEL_44";
-pos: 17.703449 2.499809;
+pos: 19.205036 1.217963;
 }
 {
 levelType: "LEVEL_45";
-pos: 18.585253 1.953914;
+pos: 20.158161 1.202338;
 }
 {
 entityType: "ENTITY_TYPE_ROCK";
@@ -208,7 +208,7 @@ pos: 8.395225 3.738134;
 }
 {
 entityType: "ENTITY_TYPE_MUSHROOM";
-pos: 10.740350 7.434150;
+pos: 10.708899 7.502264;
 }
 {
 entityType: "ENTITY_TYPE_MUSHROOM";
@@ -220,7 +220,7 @@ pos: 7.895225 7.949717;
 }
 {
 entityType: "ENTITY_TYPE_MUSHROOM";
-pos: 7.285850 2.050634;
+pos: 6.492048 1.974934;
 }
 {
 entityType: "ENTITY_TYPE_MUSHROOM";
@@ -300,7 +300,7 @@ pos: 14.476665 5.253189;
 }
 {
 entityType: "ENTITY_TYPE_TREE";
-pos: 11.763180 4.750677;
+pos: 11.849524 4.928976;
 }
 {
 entityType: "ENTITY_TYPE_TREE";
@@ -320,7 +320,7 @@ pos: 18.195415 8.987564;
 }
 {
 entityType: "ENTITY_TYPE_CACTUS";
-pos: 13.492352 15.452328;
+pos: 13.639596 15.408575;
 }
 {
 entityType: "ENTITY_TYPE_CACTUS";
