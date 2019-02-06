@@ -1,5 +1,5 @@
 #define PRINT_FRAME_RATE 0
-#define WRITE_SHADERS 1
+#define WRITE_SHADERS 0
 
 typedef struct {
 	unsigned int frameBackBufferId;
@@ -373,6 +373,9 @@ static inline void easyOS_processKeyStates(AppKeyStates *state, V2 resolution, V
 	            } break;
 	            case SDLK_8: {
 	                buttonType = BUTTON_8;
+	            } break;
+	            case SDLK_9: {
+	                buttonType = BUTTON_9;
 	            } break;
 	            case SDLK_BACKQUOTE: {
 	                buttonType = BUTTON_TILDE;

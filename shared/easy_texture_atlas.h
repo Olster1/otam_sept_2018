@@ -79,13 +79,15 @@ typedef struct {
 
 #include "float.h"
 
+#define EASY_ATLAS_PADDING 10
+
 static inline EasyAtlas_BinPartition *easyAtlas_findBestFitBin(EasyAtlas_BinState *state, Texture *tex) {
 	EasyAtlas_BinPartition *sentinel = &state->sentinel;
 	EasyAtlas_BinPartition *binAt = sentinel->next;
 	EasyAtlas_BinPartition *bestFit = 0;
 	V2 bestDimDiff = v2(FLT_MAX, FLT_MAX);
 	while (binAt != sentinel) {
-		V2 dimDiff = v2_minus(getDim(binAt->rect), v2(tex->width, tex->height));
+		V2 dimDiff = v2_minus(getDim(binAt->rect), v2(tex->width + EASY_ATLAS_PADDING, tex->height + EASY_ATLAS_PADDING));
 		if(dimDiff.x >= 0 && dimDiff.x < bestDimDiff.x && dimDiff.y >= 0 && dimDiff.y < bestDimDiff.y) {	
 			bestDimDiff = dimDiff;
 			bestFit = binAt;
@@ -131,21 +133,21 @@ static inline void easyAtlas_removeBin(EasyAtlas_BinPartition *bin, EasyAtlas_Bi
 }
 
 static inline void easyAtlas_partitionBin(EasyAtlas_BinState *state, EasyAtlas_BinPartition *bin, Texture *tex) {
-	V2 texDim = v2(tex->width, tex->height);
+	V2 texDim = v2(tex->width + EASY_ATLAS_PADDING, tex->height + EASY_ATLAS_PADDING);
 	Rect2f br = bin->rect;
 	Rect2f a = br;
 	Rect2f b = br;
 	
 	if(texDim.x > texDim.y) {
-		a.minX = br.minX + tex->width;
-		a.maxY = br.minY + tex->height;
+		a.minX = br.minX + tex->width + EASY_ATLAS_PADDING;
+		a.maxY = br.minY + tex->height + EASY_ATLAS_PADDING;
         
-		b.minY = br.minY + tex->height;
+		b.minY = br.minY + tex->height + EASY_ATLAS_PADDING;
 	} else {
-		a.minY = br.minY + tex->height;
-		a.maxX = br.minX + tex->width;
+		a.minY = br.minY + tex->height + EASY_ATLAS_PADDING;
+		a.maxX = br.minX + tex->width + EASY_ATLAS_PADDING;
         
-		b.minX = br.minX + tex->width;
+		b.minX = br.minX + tex->width + EASY_ATLAS_PADDING;
 	}
     
 	easyAtlas_removeBin(bin, state);	
@@ -209,8 +211,8 @@ static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, Inf
 					EasyAtlas_BinPartition *bin = easyAtlas_findBestFitBin(&state, &texOnStack);
 					if(bin) {
 						atlasElm->added = true;
-                        
-						Rect2f texAsRect = rect2f(bin->rect.minX, bin->rect.minY, bin->rect.minX + texOnStack.width, bin->rect.minY + texOnStack.height);
+                        	
+						Rect2f texAsRect = rect2f(bin->rect.minX + 0.5f*EASY_ATLAS_PADDING, bin->rect.minY + 0.5f*EASY_ATLAS_PADDING, bin->rect.minX + texOnStack.width, bin->rect.minY + texOnStack.height);
 						renderTextureCentreDim(&texOnStack, v2ToV3(getCenter(texAsRect), -1), getDim(texAsRect), COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen_BottomLeft(bufferDim.x, bufferDim.y));
 						// renderDrawRectOutlineCenterDim_(v2ToV3(getCenter(bin->rect), -0.5f), getDim(bin->rect), COLOR_RED, 0, mat4(), OrthoMatrixToScreen_BottomLeft(bufferDim.x, bufferDim.y), 4); 
                         
@@ -238,7 +240,7 @@ static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, Inf
 					    easyAtlas_partitionBin(&state, bin, &texOnStack);
 					} else {
 						//make sure the texture can at least fit on a big size. 
-						assert(texOnStack.width < size && texOnStack.height < size);
+						assert(texOnStack.width + EASY_ATLAS_PADDING < size && texOnStack.height + EASY_ATLAS_PADDING < size);
 					}
 				} else {
 					printf("%s\n", "no more bins");

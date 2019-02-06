@@ -6,6 +6,7 @@ FUNC(PLAY_MODE) \
 FUNC(LOAD_MODE) \
 FUNC(SAVE_MODE) \
 FUNC(SPLASH_SCREEN_MODE) \
+FUNC(MEDIA_SETTINGS_MODE) \
 FUNC(QUIT_MODE) \
 FUNC(DIED_MODE) \
 FUNC(CREDITS_MODE) \
@@ -15,6 +16,7 @@ typedef enum {
     GAME_MODE_TYPE(ENUM)
 } GameMode;
 
+#define MENU_GLOW_PERIOD 3.0f
 static char *GameModeTypeStrings[] = { GAME_MODE_TYPE(STRING) };
 
 typedef struct {
@@ -35,10 +37,14 @@ typedef struct {
     bool *running;
     GameMode gameMode;
     GameMode lastMode;
+    GameMode stateInGame;
     
     int totalLevelCount;
     int activeSaveSlot;  //this is the active save slot
+
+    bool deleteConfirmation;
     
+    Timer colorTimer;
     Font *font;
     //TODO: Make this platform independent
     SDL_Window *windowHandle;
@@ -87,6 +93,7 @@ void transitionCallbackForMenu(void *data_) {
     trans->info->lastMode = trans->lastMode;
     trans->info->menuCursorAt = 0;
     trans->info->callback(trans->info->callBackData);
+    trans->info->colorTimer = initTimer(MENU_GLOW_PERIOD, false);
     
     SoundType newFlag = getAudioFlagForGameMode(trans->gameMode);
     setParentChannelVolume(newFlag, 1, SCENE_MUSIC_TRANSITION_TIME);
@@ -105,16 +112,22 @@ void changeMenuState(MenuInfo *info, GameMode mode) {
     // info->lastMouseP = v2(-1000, -1000); //make it undefined 
 }
 
-bool updateMenu(MenuOptions *menuOptions, GameButton *gameButtons, MenuInfo *info, Arena *arenaForSounds, WavFile *moveSound) {
+bool updateMenu(MenuOptions *menuOptions, GameButton *gameButtons, MenuInfo *info, Arena *arenaForSounds, WavFile *moveSound, float dt) {
     bool active = true;
     if(wasPressed(gameButtons, BUTTON_DOWN)) {
         active = false;
         playMenuSound(arenaForSounds, moveSound, 0, AUDIO_BACKGROUND);
         info->menuCursorAt++;
+        info->colorTimer = initTimer(MENU_GLOW_PERIOD, false);
         if(info->menuCursorAt >= menuOptions->count) {
             info->menuCursorAt = 0;
         }
     } 
+
+    TimerReturnInfo timerInfo = updateTimer(&info->colorTimer, dt);
+    if(timerInfo.finished) {
+        info->colorTimer = initTimer(MENU_GLOW_PERIOD, false);
+    }
     
     if(wasPressed(gameButtons, BUTTON_UP)) {
         active = false;
@@ -182,10 +195,15 @@ void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info
         
         if(clickable) {
             if(menuIndex == info->menuCursorAt) {
-                menuItemColor = COLOR_YELLOW;
+                float canconicalVal = getTimerValue01(&info->colorTimer);
+                menuItemColor = smoothStep00V4(COLOR_GREEN, canconicalVal, COLOR_YELLOW);
             }
         }
-        outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, menuItemColor, fontSize, true, info->resolutionDiffScale);
+        if(clickable) {
+            outputText(info->font, xAt, yAt, -1, resolution, title, menuMargin, menuItemColor, fontSize, true, info->resolutionDiffScale);
+        } else {
+            outputTextNoBacking(info->font, xAt, yAt, -1, resolution, title, menuMargin, menuItemColor, fontSize, true, info->resolutionDiffScale);
+        }
         yAt += yIncrement;
     }
 }
@@ -206,14 +224,23 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
     Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
     bool isPlayMode = false;
     MenuOptions menuOptions = initDefaultMenuOptions();
+    bool renderBackHelp = true;
+
+    if(!isOn(&info->colorTimer)) {
+        info->colorTimer = initTimer(MENU_GLOW_PERIOD, false);
+    }
     
-    // if(wasPressed(gameButtons, BUTTON_ESCAPE) && info->gameMode != MENU_MODE) {
-    //     if(info->gameMode == PLAY_MODE) {
-    //         changeMenuState(info, PAUSE_MODE);
-    //     } else {
-    //         changeMenuState(info, PLAY_MODE);
-    //     }
-    // }
+    if(wasPressed(gameButtons, BUTTON_ESCAPE) && info->gameMode != MENU_MODE) {
+        if(info->gameMode == PLAY_MODE || info->gameMode == OVERWORLD_MODE) {
+            info->stateInGame = info->gameMode;
+            changeMenuState(info, PAUSE_MODE);
+        } else if(info->gameMode == PAUSE_MODE) {
+            changeMenuState(info, info->stateInGame);
+        } else {
+            changeMenuState(info, info->lastMode);
+            info->deleteConfirmation = false;
+        }
+    }
     bool mouseActive = false;
     bool changeMenuKey = wasPressed(gameButtons, BUTTON_ENTER) || wasPressed(gameButtons, BUTTON_LEFT_MOUSE);
     
@@ -228,9 +255,9 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
     switch(info->gameMode) {
         case LOAD_MODE:{
             
-            menuOptions.options[menuOptions.count++] = "Go Back";
+            menuOptions.options[menuOptions.count++] = "Back";
             
-            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
+            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound, dt);
             
             if(changeMenuKey) {
                 // playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
@@ -238,7 +265,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                     changeMenuState(info, info->lastMode);
                 } 
                 
-                info->lastMode = LOAD_MODE;
+                
             }
             
         } break;
@@ -265,21 +292,18 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             setMenuOption(&menuOptions, "Music: Robert Marsh", false, 0.5f, creditColor);
             setMenuOption(&menuOptions, "Artwork: Kenny Assets", false, 0.5f, creditColor);
             setMenuOption(&menuOptions, "Sound Effects: ZapSplat", false, 0.5f, creditColor);
-            setMenuOption(&menuOptions, "Thank-you for playing!", false, 0.5f, creditColor);
+            setMenuOption(&menuOptions, "Thankyou to Casey Muratori's Handmade Hero", false, 0.5f, creditColor);
+            setMenuOption(&menuOptions, "Thankyou to everyone at Handmade Network", false, 0.5f, creditColor);
+            setMenuOption(&menuOptions, "Thankyou for playing!", false, 0.5f, creditColor);
             
-            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
-            
-            if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
-                changeMenuState(info, MENU_MODE);
-                info->lastMode = CREDITS_MODE;
-            }
+            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound, dt);
             
         } break;
         case QUIT_MODE:{
             menuOptions.options[menuOptions.count++] = "Really Quit?";
-            menuOptions.options[menuOptions.count++] = "Go Back";
+            menuOptions.options[menuOptions.count++] = "Go Back To Menu";
             
-            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
+            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound, dt);
             
             if(changeMenuKey) {
                 // playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
@@ -291,7 +315,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                         changeMenuState(info, info->lastMode);
                     } break;
                 }
-                info->lastMode = QUIT_MODE;
+                
             }
             
         } break;
@@ -299,7 +323,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             menuOptions.options[menuOptions.count++] = "Really Quit?";
             menuOptions.options[menuOptions.count++] = "Go Back";
             
-            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
+            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound, dt);
             
             if(changeMenuKey) {
                 // playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
@@ -311,14 +335,14 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                         changeMenuState(info, info->lastMode);
                     } break;
                 }
-                info->lastMode = DIED_MODE;
+                
             }
         } break;
         case SAVE_MODE:{
             menuOptions.options[menuOptions.count++] = "Save Progress";
             menuOptions.options[menuOptions.count++] = "Go Back";
             
-            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
+            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound, dt);
             
             if(changeMenuKey) {
                 // playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
@@ -334,35 +358,79 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
         case PAUSE_MODE:{
             menuOptions.options[menuOptions.count++] = "Resume";
             menuOptions.options[menuOptions.count++] = "Settings";
+            menuOptions.options[menuOptions.count++] = "Save File";
             menuOptions.options[menuOptions.count++] = "Credits";
             menuOptions.options[menuOptions.count++] = "Quit";
             
-            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound);
+            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound, dt);
             
             if(changeMenuKey) {
                 // playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
                 switch (info->menuCursorAt) {
                     case 0: {
-                        changeMenuState(info, PLAY_MODE);
+                        changeMenuState(info, info->stateInGame);
                     } break;
                     case 1: {
-                        changeMenuState(info, SETTINGS_MODE);
+                        changeMenuState(info, MEDIA_SETTINGS_MODE);
                     } break;
                     case 2: {
-                        changeMenuState(info, CREDITS_MODE);
+                        updateSaveStateDetails(info->levelDataArray, info->saveStateDetails, arrayCount(info->saveStateDetails));
+                        changeMenuState(info, SETTINGS_MODE);
                     } break;
                     case 3: {
+                        changeMenuState(info, CREDITS_MODE);
+                    } break;
+                    case 4: {
                         changeMenuState(info, QUIT_MODE);
                     } break;
                 }
-                info->menuCursorAt = 0;
-                info->lastMode = PAUSE_MODE;
+            }
+        } break;
+        case MEDIA_SETTINGS_MODE:{
+            unsigned int windowFlags = SDL_GetWindowFlags(info->windowHandle);
+            
+            bool isFullScreen = (windowFlags & SDL_WINDOW_FULLSCREEN);
+
+            const char *fullscreenString = isFullScreen ? "Fullscreen On" : "Fullscreen Off";
+            menuOptions.options[menuOptions.count++] = (char *)fullscreenString;
+            const char * soundOption = (globalChannelsState_[AUDIO_BACKGROUND]) ? "Music On" : "Music Off";
+            menuOptions.options[menuOptions.count++] = (char *)soundOption;
+            const char * soundEffectOption = (globalChannelsState_[AUDIO_FOREGROUND]) ? "Sound Effects On" : "Sound Effects Off";
+            menuOptions.options[menuOptions.count++] = (char *)soundEffectOption;
+            
+            mouseActive = updateMenu(&menuOptions, gameButtons, info, longTermArena, moveSound, dt);
+            
+            if(changeMenuKey) {
+                // playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
+                switch (info->menuCursorAt) {
+                    case 0: {
+                         if(isFullScreen) {
+                            if(SDL_SetWindowFullscreen(info->windowHandle, false) < 0) {
+                                printf("couldn't un-set to full screen\n");
+                            }
+                        } else {
+                            if(SDL_SetWindowFullscreen(info->windowHandle, SDL_WINDOW_FULLSCREEN) < 0) {
+                                printf("couldn't set to full screen\n");
+                            }
+                        }
+                    } break;
+                    case 1: {
+                        globalChannelsState_[AUDIO_BACKGROUND] = !globalChannelsState_[AUDIO_BACKGROUND];
+                    } break;
+                    case 2: {
+                        globalChannelsState_[AUDIO_FOREGROUND] = !globalChannelsState_[AUDIO_FOREGROUND];
+                    }
+                }
             }
         } break;
         case SETTINGS_MODE:{
             {
-                static bool deleteConfirmation = false;
-                float settingsFontSize = 0.6f;
+                TimerReturnInfo timerInfo = updateTimer(&info->colorTimer, dt);
+                if(timerInfo.finished) {
+                    info->colorTimer = initTimer(MENU_GLOW_PERIOD, false);
+                }
+
+                float settingsFontSize = 0.7f;
                 
                 V2 mouseP_settings = mouseP;//v2_minus(mouseP, v2_scale(0.5f, resolution));
                 // mouseP_settings.y = resolution.y - mouseP_settings.y; //flip it so it is y up
@@ -401,7 +469,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                     int levelsCompleted = info->saveStateDetails[at].completedCount;
                     int totalLevelCount = info->totalLevelCount;
                     
-                    sprintf(saveDataName, "Save Slot %d\nLevels Completed: %d/%d", (at + 1), levelsCompleted, totalLevelCount);
+                    sprintf(saveDataName, "Levels Completed: %d/%d", levelsCompleted, totalLevelCount);
                     // if(info->saveStateDetails[at].valid) {
                     
                     
@@ -411,7 +479,10 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                     
                     float picDim = 0.6f*width;
                     RenderInfo renderInfo = calculateRenderInfo(v3(xAt, yAt, -1), v3(picDim, picDim, 1), v3(0, 0, 0), mat4());
-                    V4 uiColor = cLerps[at].value;
+
+                    // float canconicalVal = getTimerValue01(&info->colorTimer);
+                    V4 uiColor = COLOR_GREEN;
+
                     Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
                     if(arrayCount(info->saveStateDetails) > 1) {
                         
@@ -446,12 +517,12 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                     }
                     
                     
-                    renderTextureCentreDim(findTextureAsset("save.png"), renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4TopLeftToBottomLeft(resolution.y), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), renderInfo.pvm); 
+                    // renderTextureCentreDim(findTextureAsset("save.png"), renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4TopLeftToBottomLeft(resolution.y), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), renderInfo.pvm); 
                     
-                    float fontY = outputDim.maxY + settingsFontSize*info->font->fontHeight;
-                    Rect2f saveMargin = rect2fCenterDimV2(renderInfo.pos.xy, v2(renderInfo.dim.x, resolution.y));
+                    float fontY = 0.5f*resolution.y;//outputDim.maxY + settingsFontSize*info->font->fontHeight;
+                    Rect2f saveMargin = rect2f(0, 0, resolution.x, resolution.y);
                     Rect2f textOutputDim = outputText(info->font, saveMargin.minX, saveMargin.minY, -1, resolution, saveDataName, saveMargin, COLOR_BLACK, settingsFontSize, false, info->resolutionDiffScale);                    
-                    textOutputDim = outputText(info->font, xAt - (getDim(textOutputDim).x/2), fontY, -1, resolution, saveDataName, saveMargin, COLOR_BLACK, settingsFontSize, true, info->resolutionDiffScale);                    
+                    textOutputDim = outputTextNoBacking(info->font, xAt - (getDim(textOutputDim).x/2), fontY, -1, resolution, saveDataName, saveMargin, COLOR_BLACK, settingsFontSize, true, info->resolutionDiffScale);                    
                     
                     if(info->saveStateDetails[at].valid) {
                         
@@ -467,16 +538,16 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                         // error_printFloat2("mouseP", mouseP_settings.E);
                         float lerpPeriod = 0.3f;
                         if(!updateLerpV4(&dLerps[at], dt, LINEAR)) {
-                            if(!easyLerp_isAtDefault(&dLerps[at]) && !deleteConfirmation) {
+                            if(!easyLerp_isAtDefault(&dLerps[at]) && !info->deleteConfirmation) {
                                 setLerpInfoV4_s(&dLerps[at], dLerps[at].defaultVal, 0.01, &dLerps[at].value);
                             }
                             
                         }
-                        if(!deleteConfirmation) {
+                        if(!info->deleteConfirmation) {
                             if(inBounds(mouseP_settings, deleteBounds, BOUNDS_RECT)) {
                                 setLerpInfoV4_s(&dLerps[at], COLOR_YELLOW, 0.2f, &dLerps[at].value);
                                 if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
-                                    deleteConfirmation = true;
+                                    info->deleteConfirmation = true;
                                 }
                             }
                         } else {
@@ -528,7 +599,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
 
                                     info->lastShownGroup = -1;
                                     // updateSaveStateDetailsWithFile(info->saveStateDetails, arrayCount(info->saveStateDetails));
-                                    deleteConfirmation = false;
+                                    info->deleteConfirmation = false;
                                 }
                             }
                             
@@ -543,7 +614,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                             if(inBounds(mouseP_settings, cancelBounds, BOUNDS_RECT)) {
                                 setLerpInfoV4_s(&cancelLerp, COLOR_YELLOW, 0.2f, &cancelLerp.value);
                                 if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
-                                    deleteConfirmation = false;
+                                    info->deleteConfirmation = false;
                                 }
                             }
                             
@@ -553,43 +624,43 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                         }
                         
                         
-                        outputText(info->font, xFor, yFor, -1, resolution, deleteFileTitle, menuMargin, deleteButtonColor, settingsFontSize, true, info->resolutionDiffScale);                        
+                        outputTextNoBacking(info->font, xFor, yFor, -1, resolution, deleteFileTitle, menuMargin, deleteButtonColor, settingsFontSize, true, info->resolutionDiffScale);                        
                     }
                     
                     xAt += width;
                 }
                 
-                { //back button
-                    RenderInfo renderInfo = calculateRenderInfo(v2ToV3(v2(0.1f*resolution.x, 0.1f*resolution.y), -1), v3(100, 100, 1), v3(0, 0, 0), mat4());
+                // { //back button
+                //     RenderInfo renderInfo = calculateRenderInfo(v2ToV3(v2(0.1f*resolution.x, 0.1f*resolution.y), -1), v3(100, 100, 1), v3(0, 0, 0), mat4());
                     
-                    Rect2f outputDim2 = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
-                    static LerpV4 eLerp = initLerpV4(COLOR_WHITE);
-                    // error_printFloat4("bounds", outputDim2.E);
-                    float lerpPeriod = 0.3f;
-                    if(!updateLerpV4(&eLerp, dt, LINEAR)) {
-                        if(!easyLerp_isAtDefault(&eLerp)) {
-                            setLerpInfoV4_s(&eLerp, COLOR_WHITE, 0.1, &eLerp.value);
-                        }
+                //     Rect2f outputDim2 = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+                //     static LerpV4 eLerp = initLerpV4(COLOR_WHITE);
+                //     // error_printFloat4("bounds", outputDim2.E);
+                //     float lerpPeriod = 0.3f;
+                //     if(!updateLerpV4(&eLerp, dt, LINEAR)) {
+                //         if(!easyLerp_isAtDefault(&eLerp)) {
+                //             setLerpInfoV4_s(&eLerp, COLOR_WHITE, 0.1, &eLerp.value);
+                //         }
                         
-                    }
+                //     }
                     
-                    V4 backUIColor = eLerp.value;
+                //     V4 backUIColor = eLerp.value;
                     
-                    if(!deleteConfirmation) {
+                //     if(!deleteConfirmation) {
                         
-                        if(inBounds(mouseP_settings, outputDim2, BOUNDS_RECT)) {
-                            setLerpInfoV4_s(&eLerp, UI_BUTTON_COLOR, 0.2f, &eLerp.value);
-                            if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
+                //         if(inBounds(mouseP_settings, outputDim2, BOUNDS_RECT)) {
+                //             setLerpInfoV4_s(&eLerp, UI_BUTTON_COLOR, 0.2f, &eLerp.value);
+                //             if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
 
-                                changeMenuState(info, OVERWORLD_MODE);
-                                deleteConfirmation = false;
-                            }
-                        }
-                    }
+                //                 changeMenuState(info, OVERWORLD_MODE);
+                //                 deleteConfirmation = false;
+                //             }
+                //         }
+                //     }
                     
-                    // renderDrawRectOutlineCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm));            
-                    renderTextureCentreDim(info->backTex, renderInfo.pos, renderInfo.dim.xy, backUIColor, 0, mat4TopLeftToBottomLeft(resolution.y), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), renderInfo.pvm); 
-                }   
+                //     // renderDrawRectOutlineCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm));            
+                //     renderTextureCentreDim(info->backTex, renderInfo.pos, renderInfo.dim.xy, backUIColor, 0, mat4TopLeftToBottomLeft(resolution.y), OrthoMatrixToScreen_BottomLeft(resolution.x, resolution.y), renderInfo.pvm); 
+                // }   
             }
             
             /*
@@ -672,12 +743,13 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                         */
         } break;
         case MENU_MODE:{
+            renderBackHelp = false;
             char *title = APP_TITLE;
             Rect2f menuMargin = rect2f(0, 0, resolution.x, resolution.y);
             float fontSize = 1;
             float xAt = (resolution.x - getBounds(title, menuMargin, info->font, fontSize, resolution, info->resolutionDiffScale).x) / 2;
             
-            outputText(info->font, xAt, resolution.y / 2, -1, resolution, title, menuMargin, COLOR_BLACK, fontSize, true, info->resolutionDiffScale);
+            outputTextNoBacking(info->font, xAt, resolution.y / 2, -1, resolution, title, menuMargin, COLOR_BLACK, fontSize, true, info->resolutionDiffScale);
             
             char *secondTitle = "Click To Start";
             fontSize = 0.5f;
@@ -689,7 +761,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
             if(dt_val >= 3.0f) {
                 dt_val = 0;
             }
-            outputText(info->font, xAt, 0.7f*resolution.y, -1, resolution, secondTitle, menuMargin, color, fontSize, true, info->resolutionDiffScale);
+            outputTextNoBacking(info->font, xAt, 0.7f*resolution.y, -1, resolution, secondTitle, menuMargin, color, fontSize, true, info->resolutionDiffScale);
             
             if(wasPressed(gameButtons, BUTTON_LEFT_MOUSE)) {
                 changeMenuState(info, OVERWORLD_MODE);
@@ -724,6 +796,11 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
     if(!isPlayMode) {
         renderMenu(backgroundTex, &menuOptions, info, thisSizeTimers, dt, mouseP, mouseChangedPos, resolution);
         setSoundType(AUDIO_FLAG_MENU);
+        if(renderBackHelp) {
+            char *goBackString = "ESC to go Back";
+            V2 strBounds = getBounds(goBackString, menuMargin, info->font, 0.5f, resolution, info->resolutionDiffScale);
+            outputText(info->font, resolution.x - strBounds.x - 15*info->resolutionDiffScale , resolution.y - strBounds.y, -1, resolution, goBackString, menuMargin, COLOR_WHITE, 0.5f, true, info->resolutionDiffScale);
+        }
     }
     
     for(int i = 0; i < tempTitles.count; ++i) {

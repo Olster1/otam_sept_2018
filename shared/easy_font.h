@@ -359,6 +359,15 @@ Rect2f outputText_with_cursor(Font *font, float x, float y, float z, V2 resoluti
 }
 
 Rect2f outputText(Font *font, float x, float y, float z, V2 resolution, char *text, Rect2f margin, V4 color, float size, bool display, float resolutionDiffScale) {
+
+    Rect2f result = my_stbtt_print_(font, x, y, z, resolution, text, margin, color, size, 0, display, resolutionDiffScale);
+    float offset = 3*resolutionDiffScale;
+    my_stbtt_print_(font, x + offset, y + offset, z - 0.1f, resolution, text, margin, v4(0.5f, 0.5f, 0.5f, min(color.w, 0.8f)), size, 0, display, resolutionDiffScale);
+    return result;
+}
+
+Rect2f outputTextNoBacking(Font *font, float x, float y, float z, V2 resolution, char *text, Rect2f margin, V4 color, float size, bool display, float resolutionDiffScale) {
+
     Rect2f result = my_stbtt_print_(font, x, y, z, resolution, text, margin, color, size, 0, display, resolutionDiffScale);
     return result;
 }

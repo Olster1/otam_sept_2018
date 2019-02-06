@@ -38,7 +38,6 @@ float min(float a, float b) {
 
 #define invalidCodePathStr(msg) { printf(msg); exit(0); }
 #if DEVELOPER_MODE //turn off for crash assert
-#undef assert
 // #define assert(statement) if(!(statement)) { int *a = 0; a = 0;}
 #define assert(statement) if(!(statement)) {printf("Something went wrong at %d in %s\n", __LINE__, __FILE__);  int *a = 0; *a = 0;}
 #define assertStr(statement, str) if(!(statement)) { printf("%s\n", str); } assert(statement); 
@@ -317,6 +316,7 @@ typedef enum {
     BUTTON_6,
     BUTTON_7,
     BUTTON_8,
+    BUTTON_9,
     BUTTON_F1,
     BUTTON_Z,
     BUTTON_R,

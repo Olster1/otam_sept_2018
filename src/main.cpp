@@ -1,3 +1,7 @@
+#if !DEVELOPER_MODE
+#define NDEBUG
+#endif
+
 #include "gameDefines.h"
 
 #if DEVELOPER_MODE
@@ -153,6 +157,8 @@ FUNC(ENTITY_TYPE_SNOWMAN) \
 FUNC(ENTITY_TYPE_IGLOO) \
 FUNC(ENTITY_TYPE_MUSHROOM) \
 FUNC(ENTITY_TYPE_TREE) \
+FUNC(ENTITY_TYPE_TREE1) \
+FUNC(ENTITY_TYPE_TREE2) \
 FUNC(ENTITY_TYPE_CACTUS) \
 FUNC(ENTITY_TYPE_ROCK) \
 FUNC(ENTITY_TYPE_SNOW_PARTICLES) \
@@ -195,6 +201,8 @@ typedef struct {
     Texture *heartFullTex;
     Texture *starTex;
     Texture *treeTex;
+    Texture *treeTex1;
+    Texture *treeTex2;
     Texture *waterTex;
     Texture *waterTexBig;
     Texture *mushroomTex;
@@ -436,6 +444,16 @@ void updateAndRenderWorldEntity(WorldEntity *ent, FrameParams *params, float dt,
             } break;
             case ENTITY_TYPE_TREE: {
                 tex = params->treeTex;
+                ent->grows = true;
+                ent->direction = true;
+            } break;
+            case ENTITY_TYPE_TREE1: {
+                tex = params->treeTex1;
+                ent->grows = true;
+                ent->direction = true;
+            } break;
+            case ENTITY_TYPE_TREE2: {
+                tex = params->treeTex2;
                 ent->grows = true;
                 ent->direction = true;
             } break;
@@ -1137,20 +1155,20 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
         case 3:
         case 4:
         case 5: {
-            params->bgTex = findTextureAsset("blue_grass.png");
+            params->bgTex = findTextureAsset("blue_shroom.png");
         } break;
         case 6:
-        case 7: {
+        case 7:
+        case 8:
+        case 9: {
             params->bgTex = findTextureAsset("yellow_desert.png");
         } break;
-        case 8:
-        case 9:
         case 10: 
         case 11:
         case 12:
         case 13: 
         case 14: {
-            params->bgTex = findTextureAsset("yellow_desert.png");
+            params->bgTex = findTextureAsset("blue_land.png");
         } break;
         default: {
             assert(false);
@@ -1503,12 +1521,20 @@ typedef struct VisitedQueue {
     VisitedQueue *prev;
 } VisitedQueue;
 
+#define OLD_WAY_CONNECTION 1
 void addToQueryList(FrameParams *params, VisitedQueue *sentinel, V2 pos, Arena *arena, bool *boardArray, int boardWidth, int boardHeight) {
     if(pos.x >= 0 && pos.x < boardWidth && pos.y >= 0 && pos.y < boardHeight) {
         bool *visitedPtr = &boardArray[(((int)pos.y)*boardWidth) + (int)pos.x];
         bool visited = *visitedPtr;
         
-        if(!visited && getBoardState(params, pos) == BOARD_SHAPE) {
+
+        #if OLD_WAY_CONNECTION
+        BoardState stateToTest = getBoardState(params, pos);
+        #else
+        BoardState stateToTest = getBoardStateWithConection(params, pos);
+        #endif
+
+        if(!visited && stateToTest == BOARD_SHAPE) {
             *visitedPtr = true;
             VisitedQueue *queue = pushStruct(arena, VisitedQueue); 
             queue->pos = pos;
@@ -1616,14 +1642,22 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
         }
     }
     if(result) {
-        #if 1
+        
         V2 oldPos = shape->blocks[currentHotIndex].pos;
         assert(shape->blocks[currentHotIndex].valid);
         
+#if OLD_WAY_CONNECTION
         BoardValue *oldVal = getBoardValue(params, oldPos);
         //
         assert(oldVal->state == BOARD_SHAPE);
         //BUG!!!!
+#else
+        BoardValue *oldVal = getCopyBoardValue(params, oldPos);
+        assert(oldVal->state == BOARD_NULL);//new
+#endif
+        BoardState lastState = oldVal->state;
+        oldVal->state = BOARD_SHAPE; //new
+        
         
         IslandInfo mainIslandInfo = getShapeIslandCount(shape, oldPos, params);
         assert(mainIslandInfo.count >= 1);
@@ -1637,7 +1671,11 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
             oldVal->state = BOARD_NULL;
             
             //set where the board will be to a valid position
+            #if OLD_WAY_CONNECTION
             BoardValue *newVal = getBoardValue(params, boardPosAt);
+            #else
+            BoardValue *newVal = getCopyBoardValue(params, boardPosAt);
+            #endif
             assert(newVal->state == BOARD_NULL);
             newVal->state = BOARD_SHAPE;
             ////   This code isn't needed anymore. Just used for the assert below. 
@@ -1662,31 +1700,9 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
             }
             //set the state back to being a shape. 
             newVal->state = BOARD_NULL;
-            oldVal->state = BOARD_SHAPE;
+            //oldVal->state = BOARD_SHAPE; //old
+            oldVal->state = lastState; //new
         }
-        #else 
-
-            BoardValue *val1 = getCopyBoardValue(params, v2_plus(boardPosAt, v2(1, 0)));
-            BoardValue *val2 = getCopyBoardValue(params, v2_plus(boardPosAt, v2(-1, 0)));
-            BoardValue *val3 = getCopyBoardValue(params, v2_plus(boardPosAt, v2(0, 1)));
-            BoardValue *val4 = getCopyBoardValue(params, v2_plus(boardPosAt, v2(0, -1)));
-            bool isNextToShape = false;
-            if(val1 && val1->state == BOARD_SHAPE) {
-                isNextToShape = true;
-            }
-            if(val2 && val2->state == BOARD_SHAPE) {
-                isNextToShape = true;
-            }
-            if(val3 && val3->state == BOARD_SHAPE) {
-                isNextToShape = true;
-            }
-            if(val4 && val4->state == BOARD_SHAPE) {
-                isNextToShape = true;
-            }
-
-            if(!isNextToShape) { result = false; }
-
-        #endif
     }
     
     return result;
@@ -1820,62 +1836,80 @@ void addToQueueForCopyBoard(MemoryArenaMark *memMark, V2 newPos, VisitedQueue *s
     sentinel->prev = que;
 }
 
-void takeBoardCopy(FrameParams *params) {
-    assert(params->currentHotIndex >= 0);
-    V2 pos_ = params->currentShape.blocks[params->currentHotIndex].pos;
-    assert(params->currentShape.blocks[params->currentHotIndex].valid);
-    VisitedQueue sentinel = {};
-    sentinel.prev = sentinel.next = &sentinel;
-    
-    MemoryArenaMark memMark = takeMemoryMark(params->longTermArena);
-    bool *boardArray = pushArray(memMark.arena, params->boardWidth*params->boardHeight, bool);
-    BoardBoolInfo boardBoolInfo = {};
-    boardBoolInfo.width = params->boardWidth;
-    boardBoolInfo.height = params->boardHeight;
-    boardBoolInfo.boardArray = boardArray;
+//Note this doesn't put the shape block on the board that is the hot index since this moves during the move. 
+void floodFillShape(FrameParams *params, MemoryArenaMark *memMark, int hotIndex) {
+    if(params->currentShape.blocks[hotIndex].valid) {
+        assert(hotIndex >= 0);
+        V2 pos_ = params->currentShape.blocks[hotIndex].pos;
         
-    sentinel.prev = sentinel.next = pushStruct(memMark.arena, VisitedQueue);
-    sentinel.next->prev = sentinel.next->next = &sentinel;
-    assert(sentinel.next != &sentinel);
-    sentinel.next->pos = pos_;
+        VisitedQueue sentinel = {};
+        sentinel.prev = sentinel.next = &sentinel;
+        
+        bool *boardArray = pushArray(memMark->arena, params->boardWidth*params->boardHeight, bool);
+        BoardBoolInfo boardBoolInfo = {};
+        boardBoolInfo.width = params->boardWidth;
+        boardBoolInfo.height = params->boardHeight;
+        boardBoolInfo.boardArray = boardArray;
+            
+        sentinel.prev = sentinel.next = pushStruct(memMark->arena, VisitedQueue);
+        sentinel.next->prev = sentinel.next->next = &sentinel;
+        assert(sentinel.next != &sentinel);
+        sentinel.next->pos = pos_;
 
-    bool didCopy = copyBoardValToCopyBoard(params, sentinel.next->pos, v2(0, 0), &boardBoolInfo, false);
-    assert(!didCopy);
+        bool didCopy = copyBoardValToCopyBoard(params, sentinel.next->pos, v2(0, 0), &boardBoolInfo, false);
+        assert(!didCopy);
 
-    VisitedQueue *queryAt = sentinel.next;
-    assert(queryAt != &sentinel);
+        VisitedQueue *queryAt = sentinel.next;
+        assert(queryAt != &sentinel);
 
-    while(queryAt != &sentinel) {
-        V2 pos = queryAt->pos;
-        if(copyBoardValToCopyBoard(params, pos, v2(1, 0), &boardBoolInfo, true)) {
-            V2 newPos = v2_plus(pos, v2(1, 0));
-            addToQueueForCopyBoard(&memMark, newPos, &sentinel);
+        while(queryAt != &sentinel) {
+            V2 pos = queryAt->pos;
+            if(copyBoardValToCopyBoard(params, pos, v2(1, 0), &boardBoolInfo, true)) {
+                V2 newPos = v2_plus(pos, v2(1, 0));
+                addToQueueForCopyBoard(memMark, newPos, &sentinel);
+            }
+            if(copyBoardValToCopyBoard(params, pos, v2(-1, 0), &boardBoolInfo, true)) {
+                V2 newPos = v2_plus(pos, v2(-1, 0));
+                addToQueueForCopyBoard(memMark, newPos, &sentinel); 
+            }
+            if(copyBoardValToCopyBoard(params, pos, v2(0, 1), &boardBoolInfo, true)) {
+                V2 newPos = v2_plus(pos, v2(0, 1));
+                addToQueueForCopyBoard(memMark, newPos, &sentinel);
+            }
+            if(copyBoardValToCopyBoard(params, pos, v2(0, -1), &boardBoolInfo, true)) {
+                V2 newPos = v2_plus(pos, v2(0, -1));
+                addToQueueForCopyBoard(memMark, newPos, &sentinel);
+            }
+            queryAt = queryAt->next;
         }
-        if(copyBoardValToCopyBoard(params, pos, v2(-1, 0), &boardBoolInfo, true)) {
-            V2 newPos = v2_plus(pos, v2(-1, 0));
-            addToQueueForCopyBoard(&memMark, newPos, &sentinel); 
-        }
-        if(copyBoardValToCopyBoard(params, pos, v2(0, 1), &boardBoolInfo, true)) {
-            V2 newPos = v2_plus(pos, v2(0, 1));
-            addToQueueForCopyBoard(&memMark, newPos, &sentinel);
-        }
-        if(copyBoardValToCopyBoard(params, pos, v2(0, -1), &boardBoolInfo, true)) {
-            V2 newPos = v2_plus(pos, v2(0, -1));
-            addToQueueForCopyBoard(&memMark, newPos, &sentinel);
-        }
-        queryAt = queryAt->next;
     }
+}
+
+void takeBoardCopy(FrameParams *params) {
+    MemoryArenaMark memMark = takeMemoryMark(params->longTermArena);
 
     for(int y = 0; y < params->boardHeight; y++) {
         for(int x = 0; x < params->boardWidth; x++) {
             BoardValue *val = getBoardValue(params, v2(x, y));        
             assert(val);
             BoardValue *copyval = getCopyBoardValue(params, v2(x, y));        
+            zeroStruct(copyval, BoardValue);
             if(val->state != BOARD_SHAPE) {
                 *copyval = *val;
             } 
         }
     }
+
+    floodFillShape(params, &memMark, params->currentHotIndex);
+    if(params->isMirrorLevel) {
+        int mirrorOffsetCount = params->shapeSizes[0];
+        int mirrorIndex = params->currentHotIndex < mirrorOffsetCount ? (params->currentHotIndex + mirrorOffsetCount) : (params->currentHotIndex - mirrorOffsetCount);
+        if(hasMirrorPartner(params, params->currentHotIndex, mirrorIndex)) { //
+            floodFillShape(params, &memMark, mirrorIndex);
+        }
+    }
+
+    
     releaseMemoryMark(&memMark);
 }
 
@@ -2234,7 +2268,6 @@ static inline V2 findAveragePos(FrameParams *params, LevelType lastLevel) {
     }
     bool groupsToShow = highestGroupId > params->menuInfo.lastShownGroup;
     if(!groupsToShow && lastLevel != LEVEL_NULL) { //when we aren't unlocking anymore groups
-        printf("lastLevel: %d\n", (int)lastLevel);
 
         result = params->levelsData[(int)lastLevel].pos;
     } else {
@@ -2328,25 +2361,6 @@ void setBackToOverworldTransition(FrameParams *params) {
     setTransition_(&params->transitionState, transitionCallbackForBackToOverworld, data);
     
 }
-
-void updateSaveStateDetails(LevelData *levelDatasArray, LevelCountFromFile *saveStateDetails, int count) {
-    assert(count == 1); //this only supports _one_ save file. If you want more use the commented out function in Levels.h file, named the same name.
-    int completedLevelsCount = 0;
-    for(int i = 0; i < LEVEL_COUNT; ++i) {
-        LevelData *data = levelDatasArray + i;
-        if(data->valid) {
-            assert(data->valid);
-            if(data->state == LEVEL_STATE_COMPLETED) {
-                completedLevelsCount++;
-            }
-        }
-    }
-
-    saveStateDetails[0].valid = true;
-    saveStateDetails[0].completedCount = completedLevelsCount;
-    
-}
-
 void setToLoadScreenTransition(FrameParams *params) {
     TransitionDataStartOrEndGame *data = (TransitionDataStartOrEndGame *)calloc(sizeof(TransitionDataStartOrEndGame), 1);
     data->info = &params->menuInfo;
@@ -2594,7 +2608,7 @@ static void updateBoardWinState(FrameParams *params) {
                 setLevelTransition(params, nextLevel); 
             }
         } else {
-            setStartOrEndGameTransition(params, LEVEL_0, CREDITS_MODE);
+            setStartOrEndGameTransition(params, LEVEL_0, MENU_MODE);
         }
         saveFileData(params);
     }
@@ -2724,16 +2738,16 @@ void renderXPBarAndHearts(FrameParams *params, V2 resolution) {
     if(params->isFreestyle) {
         
     } else {
-        float barHeight = 0.4f;
-        float ratioXp = clamp01((float)params->experiencePoints / (float)params->maxExperiencePoints);
-        float startXp = -0.5f; //move back half a square
-        float halfXp = 0.5f*params->boardWidth;
-        float xpWidth = ratioXp*params->boardWidth;
-        RenderInfo renderInfo = calculateRenderInfo(v3(startXp + 0.5f*xpWidth, -2*barHeight, -2), v3_scale(1, v3(xpWidth, barHeight, 1)), params->cameraPos, params->metresToPixels);
-        renderDrawRectCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_GREEN, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+        // float barHeight = 0.4f;
+        // float ratioXp = clamp01((float)params->experiencePoints / (float)params->maxExperiencePoints);
+        // float startXp = -0.5f; //move back half a square
+        // float halfXp = 0.5f*params->boardWidth;
+        // float xpWidth = ratioXp*params->boardWidth;
+        // RenderInfo renderInfo = calculateRenderInfo(v3(startXp + 0.5f*xpWidth, -2*barHeight, -2), v3_scale(1, v3(xpWidth, barHeight, 1)), params->cameraPos, params->metresToPixels);
+        // renderDrawRectCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_GREEN, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
         
-        renderInfo = calculateRenderInfo(v3(startXp + halfXp, -2*barHeight, -2), v3_scale(1, v3(params->boardWidth, barHeight, 1)), params->cameraPos, params->metresToPixels);
-        renderDrawRectOutlineCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+        // renderInfo = calculateRenderInfo(v3(startXp + halfXp, -2*barHeight, -2), v3_scale(1, v3(params->boardWidth, barHeight, 1)), params->cameraPos, params->metresToPixels);
+        // renderDrawRectOutlineCenterDim(renderInfo.pos, renderInfo.dim.xy, COLOR_BLACK, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
     }
 }
 
@@ -2904,11 +2918,21 @@ void gameUpdateAndRender(void *params_) {
     setBlendFuncType(globalRenderGroup, BLEND_FUNC_STANDARD);
     
     if(params->menuInfo.gameMode != OVERWORLD_MODE && params->menuInfo.gameMode != SPLASH_SCREEN_MODE) {
-        if(params->menuInfo.gameMode == SETTINGS_MODE || params->menuInfo.gameMode == QUIT_MODE || params->menuInfo.gameMode == MENU_MODE) {
-            
+        if(params->menuInfo.gameMode == SETTINGS_MODE || params->menuInfo.gameMode == QUIT_MODE || params->menuInfo.gameMode == MENU_MODE || params->menuInfo.gameMode == PAUSE_MODE) {
+            drawAndUpdateParticleSystem(&params->cloudParticleSys, params->dt, v3(0, 0, 0), v3(0, 0 ,0), COLOR_WHITE, v3(0, 0, 0), params->metresToPixels, resolution, true);    
             params->bgTex = params->blueBackgroundTex;
         }
-        renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -5), resolution, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
+        V2 bgSize = {};
+        if(resolution.x > resolution.y) {
+            float ratio = params->bgTex->height / params->bgTex->width;
+            bgSize.x = resolution.x;
+            bgSize.y = resolution.x*ratio;
+        } else {
+            float ratio = params->bgTex->width / params->bgTex->height;
+            bgSize.x = resolution.y*ratio;
+            bgSize.y = resolution.y;
+        }
+        renderTextureCentreDim(params->bgTex, v2ToV3(v2(0, 0), -5), bgSize, COLOR_WHITE, 0, mat4(), mat4(), OrthoMatrixToScreen(resolution.x, resolution.y));                    
     } else if(params->menuInfo.gameMode == SPLASH_SCREEN_MODE) {
         clearBufferAndBind(params->mainFrameBuffer.bufferId, COLOR_WHITE);
     }
@@ -2946,7 +2970,7 @@ void gameUpdateAndRender(void *params_) {
         }
         
         { //refresh level button
-            RenderInfo renderInfo = calculateRenderInfo(v3(-halfResInMeters.x + 1, halfResInMeters.y - 1, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(-halfResInMeters.x + 1.5f, halfResInMeters.y - 1, -1), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -3110,33 +3134,35 @@ void gameUpdateAndRender(void *params_) {
     
     if(isPlayState || currentGameMode == OVERWORLD_MODE) {
         if(currentGameMode == OVERWORLD_MODE) { //Load Button
+            // {
             
-            RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset - 3, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
-            
-            Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
-            static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
-            
-            if(!updateLerpV4(&cLerp, params->dt, LINEAR)) {
-                if(!easyLerp_isAtDefault(&cLerp)) {
-                    setLerpInfoV4_s(&cLerp, COLOR_WHITE, 0.01, &cLerp.value);
-                }
+                // RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset - 3, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
                 
-            }
-            
-            V4 uiColor = cLerp.value;
-            if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
-                params->isHoveringButton = true;
-                setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
-                if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
+                // Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+                // static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
+                
+                // if(!updateLerpV4(&cLerp, params->dt, LINEAR)) {
+                //     if(!easyLerp_isAtDefault(&cLerp)) {
+                //         setLerpInfoV4_s(&cLerp, COLOR_WHITE, 0.01, &cLerp.value);
+                //     }
                     
-                    setToLoadScreenTransition(params);
-                }
-            }
-            
-            renderTextureCentreDim(params->loadTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+                // }
+                
+                // V4 uiColor = cLerp.value;
+                // if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+                //     params->isHoveringButton = true;
+                //     setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
+                //     if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
+                        
+                //         setToLoadScreenTransition(params);
+                //     }
+                // }
+                
+                // renderTextureCentreDim(params->loadTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+            // }   
 
             { //Back to overworld button
-                RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset - 4.5f, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+                RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset - 1.0f, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
                 
                 Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
                 static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -3161,66 +3187,66 @@ void gameUpdateAndRender(void *params_) {
             }
         }
         
-        { //Sound Button
-            RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset - 1.5f, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+        // { //Sound Button
+        //     RenderInfo renderInfo = calculateRenderInfo(v3(halfResInMeters.y - 1 - 1.5f, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
-            Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
-            static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
+        //     Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+        //     static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
             
-            if(!updateLerpV4(&cLerp, params->dt, LINEAR)) {
-                if(!easyLerp_isAtDefault(&cLerp)) {
-                    setLerpInfoV4_s(&cLerp, COLOR_WHITE, 0.01, &cLerp.value);
-                }
+        //     if(!updateLerpV4(&cLerp, params->dt, LINEAR)) {
+        //         if(!easyLerp_isAtDefault(&cLerp)) {
+        //             setLerpInfoV4_s(&cLerp, COLOR_WHITE, 0.01, &cLerp.value);
+        //         }
                 
-            }
+        //     }
             
-            V4 uiColor = cLerp.value;
-            if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
-                params->isHoveringButton = true;
-                setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
-                if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
-                    globalSoundOn = !globalSoundOn;
-                    // changeMenuState(&params->menuInfo, SETTINGS_MODE);
-                }
-            }
+        //     V4 uiColor = cLerp.value;
+        //     if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+        //         params->isHoveringButton = true;
+        //         setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
+        //         if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
+        //             globalSoundOn = !globalSoundOn;
+        //             // changeMenuState(&params->menuInfo, SETTINGS_MODE);
+        //         }
+        //     }
             
-            Texture *currentSoundTex = (globalSoundOn) ? params->speakerTex : params->muteTex;
+        //     Texture *currentSoundTex = (globalSoundOn) ? params->speakerTex : params->muteTex;
             
-            renderTextureCentreDim(currentSoundTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
-        }
+        //     renderTextureCentreDim(currentSoundTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+        // }
         
-        { //Exit Button
-            RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+        // { //Exit Button
+        //     RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
-            Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
-            static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
+        //     Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
+        //     static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
             
-            if(!updateLerpV4(&cLerp, params->dt, LINEAR)) {
-                if(!easyLerp_isAtDefault(&cLerp)) {
-                    setLerpInfoV4_s(&cLerp, COLOR_WHITE, 0.01, &cLerp.value);
-                }
+        //     if(!updateLerpV4(&cLerp, params->dt, LINEAR)) {
+        //         if(!easyLerp_isAtDefault(&cLerp)) {
+        //             setLerpInfoV4_s(&cLerp, COLOR_WHITE, 0.01, &cLerp.value);
+        //         }
                 
-            }
+        //     }
             
-            V4 uiColor = cLerp.value;
-            if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
-                params->isHoveringButton = true;
-                setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
-                if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
-                    changeMenuState(&params->menuInfo, QUIT_MODE);
+        //     V4 uiColor = cLerp.value;
+        //     if(inBounds(params->keyStates->mouseP_yUp, outputDim, BOUNDS_RECT)) {
+        //         params->isHoveringButton = true;
+        //         setLerpInfoV4_s(&cLerp, UI_BUTTON_COLOR, 0.2f, &cLerp.value);
+        //         if(wasPressed(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE) && !transitioning) {
+        //             changeMenuState(&params->menuInfo, QUIT_MODE);
                     
-                }
-            }
+        //         }
+        //     }
             
-            renderTextureCentreDim(params->errorTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
-        }
+        //     renderTextureCentreDim(params->errorTex, renderInfo.pos, renderInfo.dim.xy, uiColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+        // }
     }
 
     //Stil render when we are in a transition
     if(isPlayState) {
         
         { //Back to overworld button
-            RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset - 3, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
+            RenderInfo renderInfo = calculateRenderInfo(v3(uiXPosOffset - 1.0f, halfResInMeters.y - 1, uiZAt), v3(1, 1, 1), v3(0, 0, 0), params->metresToPixels);
             
             Rect2f outputDim = rect2fCenterDimV2(renderInfo.transformPos.xy, renderInfo.transformDim.xy);
             static LerpV4 cLerp = initLerpV4(COLOR_WHITE);
@@ -3251,7 +3277,7 @@ void gameUpdateAndRender(void *params_) {
             float levelNameFontSize = 1.0f;
             char *title = params->levelsData[params->currentLevelType].name;
             float xFontAt = (resolution.x/2) - (getBounds(title, menuMargin, params->font, levelNameFontSize, resolution, params->menuInfo.resolutionDiffScale).x / 2);
-            outputText(params->font, xFontAt, 0.5f*resolution.y, -1, resolution, title, menuMargin, levelNameFontColor, levelNameFontSize, true, params->menuInfo.resolutionDiffScale);
+            outputTextNoBacking(params->font, xFontAt, 0.5f*resolution.y, -1, resolution, title, menuMargin, levelNameFontColor, levelNameFontSize, true, params->menuInfo.resolutionDiffScale);
         }
         
         //outputText(params->font, 10, helpTextY, -1, resolution, "Press R to reset", menuMargin, COLOR_BLACK, 0.5f, true);
@@ -3505,6 +3531,16 @@ void gameUpdateAndRender(void *params_) {
             ent->particleSystem = params->cloudParticleSys;
             prewarmParticleSystem(&ent->particleSystem, v3(0, 0, 0));
         }
+        if(wasPressed(params->keyStates->gameButtons, BUTTON_9)) {
+            assert(params->entityCount < arrayCount(params->worldEntities));
+            WorldEntity *ent = params->worldEntities + params->entityCount++;
+            ent->type = ENTITY_TYPE_TREE1;
+        }
+        if(wasPressed(params->keyStates->gameButtons, BUTTON_TILDE)) {
+            assert(params->entityCount < arrayCount(params->worldEntities));
+            WorldEntity *ent = params->worldEntities + params->entityCount++;
+            ent->type = ENTITY_TYPE_TREE2;
+        }
         #endif
         for(int entIndex = 0; entIndex < params->entityCount; ++entIndex) {
             WorldEntity *ent = params->worldEntities + entIndex;
@@ -3650,6 +3686,7 @@ void gameUpdateAndRender(void *params_) {
                         } else {
                             levelAt->hasPlayedHoverSound = false;
                             levelAt->justOn = false;
+                            turnTimerOff(&levelAt->displayNameTimer);
                         }
                         #if EDITOR_MODE
                         if(wasReleased(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
@@ -3707,7 +3744,7 @@ void gameUpdateAndRender(void *params_) {
 }
 
 int main(int argc, char *args[]) {
-
+    assert(false);
 #if 0// 3d stuff
     V2 res = v2(1980, 1080);
     Matrix4 perspectiveMat = projectionMatrixFOV(60.0f, res.x/res.y);
@@ -3807,8 +3844,6 @@ int main(int argc, char *args[]) {
         }
 #endif
         
-        
-        
         Texture *stoneTex = findTextureAsset("elementStone023.png");
         Texture *woodTex = findTextureAsset("elementWood022.png");
         Texture *bgTex = findTextureAsset("blue_grass.png");
@@ -3819,6 +3854,8 @@ int main(int argc, char *args[]) {
         Texture *heartEmptyTex = findTextureAsset("hud_heartEmpty.png");
         Texture *starTex = findTextureAsset("starGold.png");
         Texture *treeTex = findTextureAsset("tree3.png");
+        Texture *treeTex1 = findTextureAsset("tree1.png");
+        Texture *treeTex2 = findTextureAsset("tree2.png");
         Texture *mushroomTex = findTextureAsset("mushrooomTile.png");
         Texture *rockTex = findTextureAsset("brownRock.png");
         Texture *cactusTex = findTextureAsset("cactus.png");
@@ -3942,16 +3979,16 @@ int main(int argc, char *args[]) {
 
         ////////////  Set up the cloud particle system //////////////
         particleSet = InitParticlesSettings(PARTICLE_SYS_DEFAULT);
-        pushParticleBitmap(&particleSet, findTextureAsset("cloud1.png"), "cloud1");
-        pushParticleBitmap(&particleSet, findTextureAsset("cloud2.png"), "cloud1");
-        pushParticleBitmap(&particleSet, findTextureAsset("cloud3.png"), "cloud1");
-        // pushParticleBitmap(&particleSet, findTextureAsset("clouds4.png"), "cloud1");
-        // pushParticleBitmap(&particleSet, findTextureAsset("snowflake.png"), "snowflake");
+        // pushParticleBitmap(&particleSet, findTextureAsset("cloud1.png"), "cloud1");
+        // pushParticleBitmap(&particleSet, findTextureAsset("cloud2.png"), "cloud1");
+        // pushParticleBitmap(&particleSet, findTextureAsset("cloud3.png"), "cloud1");
+        // // pushParticleBitmap(&particleSet, findTextureAsset("clouds4.png"), "cloud1");
+        pushParticleBitmap(&particleSet, findTextureAsset("snowflake.png"), "snowflake");
         
         particleSet.Loop = true;
         particleSet.bitmapScale = 4.0f;
-        particleSet.posBias = rect2f(0, -5, 0, 5);
-        particleSet.VelBias = rect2f(0.1, 0, 0.2f, 0);
+        particleSet.posBias = rect2f(0, -10, 0, 10);
+        particleSet.VelBias = rect2f(0, 1, 0, 2);
         particleSet.collidesWithFloor = false;
         particleSet.pressureAffected = false;
         
@@ -4041,6 +4078,8 @@ int main(int argc, char *args[]) {
         params->heartEmptyTex = heartEmptyTex;
         params->starTex = starTex;
         params->treeTex = treeTex;
+        params->treeTex2 = treeTex1;
+        params->treeTex1 = treeTex2;
         params->waterTex = waterTex;
         params->waterTexBig = findTextureAsset("watertilebig.png");
         params->mushroomTex = mushroomTex;

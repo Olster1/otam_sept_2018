@@ -52,6 +52,8 @@ typedef struct {
 static int channelVolumes_[AUDIO_CHANNEL_COUNT] = {MAX_VOLUME, MAX_VOLUME};
 static VolumeLerp channelVolumesLerps_[AUDIO_CHANNEL_COUNT] = {};
 
+static bool globalChannelsState_[AUDIO_CHANNEL_COUNT] = {true, true};
+
 static float parentChannelVolumes_[AUDIO_FLAG_COUNT] = {1, 1, 1, 1};
 static VolumeLerp parentChannelVolumesLerps_[AUDIO_FLAG_COUNT] = {};
 
@@ -356,6 +358,10 @@ bool initAudio(SDL_AudioSpec *audioSpec) {
     return successful;
 }
 
+static inline bool channelIsOn(AudioChannel channel) {
+    return globalChannelsState_[channel];
+}
+
 //TODO: Pull mixing function out into it's own function???
 SDL_AUDIO_CALLBACK(audioCallback) {
     SDL_memset(stream, 0, len);
@@ -375,11 +381,8 @@ SDL_AUDIO_CALLBACK(audioCallback) {
             unsigned int bytesToWrite = (remainingBytes < len) ? remainingBytes: len;
             
             int volume = 0;
-            if(globalSoundOn) {
+            if(globalSoundOn && channelIsOn(sound->channel)) {
                 volume = lerp(0, parentChannelVolumes_[sound->soundType], lerp(0, sound->volume, channelVolumes_[sound->channel]));
-                if(volume == 0) {
-                    // printf("%s\n", "NO SOUNDS");    
-                }
                 
             }
             SDL_MixAudio(stream, samples, bytesToWrite, volume);

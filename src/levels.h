@@ -292,3 +292,21 @@ void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *
     
     *lastShownGroup_ = lastShownGroup;
 }
+
+void updateSaveStateDetails(LevelData *levelDatasArray, LevelCountFromFile *saveStateDetails, int count) {
+    assert(count == 1); //this only supports _one_ save file. If you want more use the commented out function in Levels.h file, named the same name.
+    int completedLevelsCount = 0;
+    for(int i = 0; i < LEVEL_COUNT; ++i) {
+        LevelData *data = levelDatasArray + i;
+        if(data->valid) {
+            assert(data->valid);
+            if(data->state == LEVEL_STATE_COMPLETED) {
+                completedLevelsCount++;
+            }
+        }
+    }
+
+    saveStateDetails[0].valid = true;
+    saveStateDetails[0].completedCount = completedLevelsCount;
+    
+}
