@@ -187,9 +187,13 @@ static inline LevelCountFromFile findLevelCount(char *readName) {
 
 void startGameAgain(int level) {
     assert(level >= 0 && level < 3);
-    char readName[1028] = {};
-    sprintf(readName, "%ssaveFile%d.h", globalExeBasePath, level);
-    platformDeleteFile(readName);
+    char shortName[1028] = {};
+    sprintf(shortName, "saveFile%d.h", level);
+    char *readName = concat(globalExeBasePath, shortName);
+    if(platformDoesFileExist(readName)) {
+        platformDeleteFile(readName);
+    }
+    free(readName);
 }
 
 
@@ -220,9 +224,10 @@ void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *
         }
     }
     
-    char readName[256] = {};
-    sprintf(readName, "%ssaveFile%d.h", globalExeBasePath, saveSlot);
-    assert(strlen(readName) < 255);
+    char shortName[256] = {};
+    sprintf(shortName, "saveFile%d.h", saveSlot);
+    assert(strlen(shortName) < 255);
+    char *readName = concat(globalExeBasePath, shortName);
     // printf("%s\n", readName);
     int lastShownGroup = 10000; //really big number. No groups above this. 
     if(platformDoesFileExist(readName)) {
@@ -291,6 +296,8 @@ void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *
     }
     
     *lastShownGroup_ = lastShownGroup;
+
+    free(readName);
 }
 
 void updateSaveStateDetails(LevelData *levelDatasArray, LevelCountFromFile *saveStateDetails, int count) {

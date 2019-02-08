@@ -1669,6 +1669,7 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
         
         IslandInfo mainIslandInfo = getShapeIslandCount(shape, oldPos, params);
         assert(mainIslandInfo.count >= 1);
+
         
         if(mainIslandInfo.count <= 1) {
             //There is an isolated block
@@ -1708,9 +1709,8 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
             }
             //set the state back to being a shape. 
             newVal->state = BOARD_NULL;
-            //oldVal->state = BOARD_SHAPE; //old
-            oldVal->state = lastState; //new
         }
+        oldVal->state = lastState; //new
     }
     
     return result;
@@ -2328,6 +2328,8 @@ void transitionCallbackForBackToOverworld(void *data_) {
     for(int i = 0; i < LEVEL_COUNT; ++i) {
         params->levelsData[i].angle = 0;
         params->levelsData[i].dA = 0;
+        params->levelsData[i].particleSystem.Active = false;
+        turnTimerOff(&params->levelsData[i].showTimer);
     }
 
     V3 newPos = v2ToV3(findAveragePos(params, params->lastLevelType), params->overworldCamera.z);
@@ -2428,14 +2430,16 @@ void saveFileData(FrameParams *params) {
             addElementInifinteAllocWithCount_(&data, buffer, strlen(buffer));
         }
     }
-    char writeName[512] = {};
-    sprintf(writeName, "%ssaveFile%d.h", globalExeBasePath, params->menuInfo.activeSaveSlot);
+    char shortName[512] = {};
+    sprintf(shortName, "saveFile%d.h", params->menuInfo.activeSaveSlot);
+    char *writeName = concat(globalExeBasePath, shortName);
     // printf("SAVE FILE: %s\n", writeName);
     
     game_file_handle handle = platformBeginFileWrite(writeName);
     platformWriteFile(&handle, data.memory, data.count*data.sizeOfMember, 0);
     platformEndFile(handle);
     
+    free(writeName);
     releaseInfiniteAlloc(&data);
 }
 
@@ -3554,6 +3558,7 @@ void gameUpdateAndRender(void *params_) {
             WorldEntity *ent = params->worldEntities + entIndex;
 
             updateAndRenderWorldEntity(ent, params, params->dt, resolution, overworldCam);
+
         }
         #if EDITOR_MODE 
         if(wasReleased(params->keyStates->gameButtons, BUTTON_LEFT_MOUSE)) {
@@ -3815,8 +3820,8 @@ int main(int argc, char *args[]) {
         
 #define CREATE_FONT_ATLAS 0
 #if CREATE_FONT_ATLAS
-        easyAtlas_createTextureAtlas("textureAtlas", "img/", "atlas/", appInfo.windowHandle, &longTermArena, TEXTURE_FILTER_LINEAR);
-        easyAtlas_createTextureAtlas("tileAtlas", "tiles/", "atlas/", appInfo.windowHandle, &longTermArena, TEXTURE_FILTER_NEAREST);
+        easyAtlas_createTextureAtlas("textureAtlas", "img/", "atlas/", appInfo.windowHandle, &longTermArena, TEXTURE_FILTER_LINEAR, 10);
+        easyAtlas_createTextureAtlas("tileAtlas", "tiles/", "atlas/", appInfo.windowHandle, &longTermArena, TEXTURE_FILTER_NEAREST, 0);
         exit(0);
 #endif
         // loadAndAddImagesToAssets("img/");
@@ -3827,7 +3832,7 @@ int main(int argc, char *args[]) {
         bool running = true;
         
         LevelType startLevel = LEVEL_0;
-        GameMode startGameMode = START_MENU_MODE;
+        GameMode startGameMode = MENU_MODE;
 #if DEVELOPER_MODE
         Tweaker tweaker = {};
         if(refreshTweakFile(concat(globalExeBasePath, "../src/tweakFile.txt"), &tweaker)) {

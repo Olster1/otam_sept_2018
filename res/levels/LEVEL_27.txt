@@ -2,10 +2,10 @@
 //this is about the top being blocked when you come in. so You have to time your landing to coincide. 
 LevelData: {
 	name: "Putty will Help";
-	groupId: 13;
+	groupId: 3;
 	shapeSize: 5;
 	startOffset: 1;
-	lifePoints: 4;
+	lifePoints: 1;
 }
 Windmill: {
 	id: 1;
@@ -37,11 +37,11 @@ Windmill: {
 Board: {
 	0000000
 	0000000
-	000!000
-	000a000
-	00!0!00
-	00a0a00
 	0000000
+	000a000
+	0000!00
+	0000a00
+	00a0000
 	0000000/
 	!!!!!0!
 	

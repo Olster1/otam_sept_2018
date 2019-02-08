@@ -79,9 +79,7 @@ typedef struct {
 
 #include "float.h"
 
-#define EASY_ATLAS_PADDING 10
-
-static inline EasyAtlas_BinPartition *easyAtlas_findBestFitBin(EasyAtlas_BinState *state, Texture *tex) {
+static inline EasyAtlas_BinPartition *easyAtlas_findBestFitBin(EasyAtlas_BinState *state, Texture *tex, int EASY_ATLAS_PADDING) {
 	EasyAtlas_BinPartition *sentinel = &state->sentinel;
 	EasyAtlas_BinPartition *binAt = sentinel->next;
 	EasyAtlas_BinPartition *bestFit = 0;
@@ -132,7 +130,7 @@ static inline void easyAtlas_removeBin(EasyAtlas_BinPartition *bin, EasyAtlas_Bi
 	state->freeList = bin;
 }
 
-static inline void easyAtlas_partitionBin(EasyAtlas_BinState *state, EasyAtlas_BinPartition *bin, Texture *tex) {
+static inline void easyAtlas_partitionBin(EasyAtlas_BinState *state, EasyAtlas_BinPartition *bin, Texture *tex, int EASY_ATLAS_PADDING) {
 	V2 texDim = v2(tex->width + EASY_ATLAS_PADDING, tex->height + EASY_ATLAS_PADDING);
 	Rect2f br = bin->rect;
 	Rect2f a = br;
@@ -169,7 +167,7 @@ static inline bool easyAtlas_allElmsBeenAdded(InfiniteAlloc *atlasElms) {
 	return result;
 }
 
-static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, InfiniteAlloc *atlasElms, bool outputImageFile, char *name) {
+static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, InfiniteAlloc *atlasElms, bool outputImageFile, char *name, int EASY_ATLAS_PADDING) {
     
 	MemoryArenaMark tempMark = takeMemoryMark(memoryArena);
 	
@@ -208,7 +206,7 @@ static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, Inf
 				Texture texOnStack = atlasElm->tex;
                 
 				if(state.sentinel.next != &state.sentinel) {
-					EasyAtlas_BinPartition *bin = easyAtlas_findBestFitBin(&state, &texOnStack);
+					EasyAtlas_BinPartition *bin = easyAtlas_findBestFitBin(&state, &texOnStack, EASY_ATLAS_PADDING);
 					if(bin) {
 						atlasElm->added = true;
                         	
@@ -237,7 +235,7 @@ static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, Inf
                         
 					    free(atlasElm->shortName);
                         
-					    easyAtlas_partitionBin(&state, bin, &texOnStack);
+					    easyAtlas_partitionBin(&state, bin, &texOnStack, EASY_ATLAS_PADDING);
 					} else {
 						//make sure the texture can at least fit on a big size. 
 						assert(texOnStack.width + EASY_ATLAS_PADDING < size && texOnStack.height + EASY_ATLAS_PADDING < size);
@@ -364,7 +362,7 @@ static inline void easyAtlas_loadTextureAtlas(char *fileName, RenderTextureFilte
 	}
 }	
 
-static inline void easyAtlas_createTextureAtlas(char *idName, char *folderName, char *ouputFolderName, SDL_Window *windowHandle, Arena *memoryArena, RenderTextureFilter filter) {
+static inline void easyAtlas_createTextureAtlas(char *idName, char *folderName, char *ouputFolderName, SDL_Window *windowHandle, Arena *memoryArena, RenderTextureFilter filter, int padding) {
 	char *imgFileTypes[] = {"jpg", "jpeg", "png", "bmp"};
 	folderName = concat(globalExeBasePath, folderName);
 	ouputFolderName = concat(globalExeBasePath, ouputFolderName);
@@ -394,7 +392,7 @@ static inline void easyAtlas_createTextureAtlas(char *idName, char *folderName, 
 	easyAtlas_sortBySize(&atlasElms);
 	stbi_flip_vertically_on_write(true);//flip bytes vertically
     
-	easyAtlas_drawAtlas(ouputFolderName, memoryArena, &atlasElms, true, idName);
+	easyAtlas_drawAtlas(ouputFolderName, memoryArena, &atlasElms, true, idName, padding);
     
 	releaseInfiniteAlloc(&atlasElms);
     

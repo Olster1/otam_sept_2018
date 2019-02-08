@@ -2,6 +2,7 @@
 #define RESOURCE_PATH_EXTENSION "../res/" 
 #else 
 #define RESOURCE_PATH_EXTENSION "res/"
+#define NDEBUG
 #endif
 
 #include <GL/gl3w.h>
@@ -53,7 +54,8 @@ int main(int argc, char *args[]) {
         unsigned int lastTime = SDL_GetTicks();
         bool scrollBarActive = false;
 
-        loadAndAddImagesToAssets("img/");
+        //loadAndAddImagesToAssets("img/");
+        easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/textureAtlas_1"), TEXTURE_FILTER_LINEAR);
 
         Texture *fitrisTex = findTextureAsset("Fitris.png");
         Texture *tickTex = findTextureAsset("UIBox.png");
@@ -208,7 +210,10 @@ int main(int argc, char *args[]) {
                 #ifdef __APPLE__ 
 
                     const char *argsForApp = (const char *)arguments;
-                    char *execLocation = concat(SDL_GetBasePath(), "game"); 
+                    #if DEVELOPER_MODE
+                    #else
+                    char *execLocation = concat(SDL_GetBasePath(), "../MacOS/game"); 
+                    #endif
                     char *arg1 = execLocation;
                     char arg2[512];
                     char arg3[512];
