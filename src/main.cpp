@@ -307,6 +307,8 @@ typedef struct {
 
     //
 
+    int currentGroupId;
+
     bool confirmCloseScreen;
     
     bool backgroundSoundPlaying;
@@ -931,6 +933,36 @@ void loadLevelNames_DEPRECATED(FrameParams *params) {
     }
 }
 
+static inline void setBackgroundImage(FrameParams *params, int groupId) {
+    switch(groupId) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5: {
+            params->bgTex = findTextureAsset("blue_shroom.png");
+        } break;
+        case 6:
+        case 7:
+        case 8:
+        case 9: {
+            params->bgTex = findTextureAsset("yellow_desert.png");
+        } break;
+        case 10: 
+        case 11:
+        case 12:
+        case 13: 
+        case 14: {
+            params->bgTex = findTextureAsset("blue_land.png");
+        } break;
+        default: {
+            assert(false);
+        }
+    }
+}
+
+
 typedef enum {
     NULL_PROPERTIES,
     EXTRA_SHAPE_PROPERTIES,
@@ -1148,32 +1180,8 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
     //Now overwride the background image so they are related to groups
     LevelData *lvlData = params->levelsData + levelTypeIn;
     
-    switch(lvlData->groupId) {
-        case 0:
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-        case 5: {
-            params->bgTex = findTextureAsset("blue_shroom.png");
-        } break;
-        case 6:
-        case 7:
-        case 8:
-        case 9: {
-            params->bgTex = findTextureAsset("yellow_desert.png");
-        } break;
-        case 10: 
-        case 11:
-        case 12:
-        case 13: 
-        case 14: {
-            params->bgTex = findTextureAsset("blue_land.png");
-        } break;
-        default: {
-            assert(false);
-        }
-    }
+    setBackgroundImage(params, lvlData->groupId);
+    params->currentGroupId = lvlData->groupId;
 
     if(!hasLifePoints) {
         
@@ -1521,7 +1529,7 @@ typedef struct VisitedQueue {
     VisitedQueue *prev;
 } VisitedQueue;
 
-#define OLD_WAY_CONNECTION 1
+#define OLD_WAY_CONNECTION 0
 void addToQueryList(FrameParams *params, VisitedQueue *sentinel, V2 pos, Arena *arena, bool *boardArray, int boardWidth, int boardHeight) {
     if(pos.x >= 0 && pos.x < boardWidth && pos.y >= 0 && pos.y < boardHeight) {
         bool *visitedPtr = &boardArray[(((int)pos.y)*boardWidth) + (int)pos.x];
@@ -2901,8 +2909,6 @@ void gameUpdateAndRender(void *params_) {
     //ceneter the camera
     params->cameraPos.xy = v2_scale(0.5f, v2((float)params->boardWidth - 1, (float)params->boardHeight - 1));
 
-    
-    
     easyOS_processKeyStates(params->keyStates, resolution, params->screenDim, params->menuInfo.running);
     //make this platform independent
     easyOS_beginFrame(resolution);
@@ -2918,10 +2924,12 @@ void gameUpdateAndRender(void *params_) {
     setBlendFuncType(globalRenderGroup, BLEND_FUNC_STANDARD);
     
     if(params->menuInfo.gameMode != OVERWORLD_MODE && params->menuInfo.gameMode != SPLASH_SCREEN_MODE) {
-        if(params->menuInfo.gameMode == SETTINGS_MODE || params->menuInfo.gameMode == QUIT_MODE || params->menuInfo.gameMode == MENU_MODE || params->menuInfo.gameMode == PAUSE_MODE) {
-            drawAndUpdateParticleSystem(&params->cloudParticleSys, params->dt, v3(0, 0, 0), v3(0, 0 ,0), COLOR_WHITE, v3(0, 0, 0), params->metresToPixels, resolution, true);    
+        if(params->menuInfo.gameMode == PLAY_MODE) {
+            setBackgroundImage(params, params->currentGroupId);
+        } else {
             params->bgTex = params->blueBackgroundTex;
         }
+        
         V2 bgSize = {};
         if(resolution.x > resolution.y) {
             float ratio = params->bgTex->height / params->bgTex->width;
@@ -3649,7 +3657,7 @@ void gameUpdateAndRender(void *params_) {
                             //Output the levels name
                             char *levelName = levelAt->name;
                             if(!levelAt->hasPlayedHoverSound) {
-                                playMenuSound(params->soundArena, params->arrangeSound, 0, AUDIO_BACKGROUND);    
+                                playMenuSound(params->soundArena, params->arrangeSound, 0, AUDIO_FOREGROUND);    
                                 levelAt->hasPlayedHoverSound = true;
                             }
                             //printf("%s\n", levelName);
@@ -3744,7 +3752,6 @@ void gameUpdateAndRender(void *params_) {
 }
 
 int main(int argc, char *args[]) {
-    assert(false);
 #if 0// 3d stuff
     V2 res = v2(1980, 1080);
     Matrix4 perspectiveMat = projectionMatrixFOV(60.0f, res.x/res.y);

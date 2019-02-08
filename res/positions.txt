@@ -171,10 +171,6 @@ levelType: "LEVEL_42";
 pos: 18.642536 1.936713;
 }
 {
-levelType: "LEVEL_43";
-pos: 28.438576 10.261046;
-}
-{
 levelType: "LEVEL_44";
 pos: 19.205036 1.217963;
 }

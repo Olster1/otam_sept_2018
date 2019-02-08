@@ -136,7 +136,7 @@ levelState: "LEVEL_STATE_COMPLETED";
 }
 {
 levelType: "LEVEL_34";
-levelState: "LEVEL_STATE_UNLOCKED";
+levelState: "LEVEL_STATE_COMPLETED";
 }
 {
 levelType: "LEVEL_35";
@@ -169,10 +169,6 @@ levelState: "LEVEL_STATE_UNLOCKED";
 {
 levelType: "LEVEL_42";
 levelState: "LEVEL_STATE_UNLOCKED";
-}
-{
-levelType: "LEVEL_43";
-levelState: "LEVEL_STATE_COMPLETED";
 }
 {
 levelType: "LEVEL_44";

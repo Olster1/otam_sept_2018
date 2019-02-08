@@ -42,7 +42,8 @@ FontSheet *createFontSheet(Font *font, int firstChar, int endChar) {
     const int bitmapW = FONT_SIZE;
     const int bitmapH = FONT_SIZE;
     const int numOfPixels = bitmapH*bitmapW;
-    u8 temp_bitmap[numOfPixels*1]; //bakefontbitmap is one byte per pixel. 
+    const int bytesPerPixelForMono = 1;
+    u8 *temp_bitmap = (u8 *)calloc(sizeof(u8)*numOfPixels*bytesPerPixelForMono, 1); //bakefontbitmap is one byte per pixel. 
     
     //TODO: use platform file io functions instead. 
     FileContents contents = platformReadEntireFile(font->fileName, false);
@@ -87,6 +88,7 @@ FontSheet *createFontSheet(Font *font, int firstChar, int endChar) {
     sheet->handle = renderLoadTexture(FONT_SIZE, FONT_SIZE, bitmapTexture);
     assert(sheet->handle);
     free(bitmapTexture);
+    free(temp_bitmap);
     
     return sheet;
 }

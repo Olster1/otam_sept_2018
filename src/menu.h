@@ -116,7 +116,7 @@ bool updateMenu(MenuOptions *menuOptions, GameButton *gameButtons, MenuInfo *inf
     bool active = true;
     if(wasPressed(gameButtons, BUTTON_DOWN)) {
         active = false;
-        playMenuSound(arenaForSounds, moveSound, 0, AUDIO_BACKGROUND);
+        playMenuSound(arenaForSounds, moveSound, 0, AUDIO_FOREGROUND);
         info->menuCursorAt++;
         info->colorTimer = initTimer(MENU_GLOW_PERIOD, false);
         if(info->menuCursorAt >= menuOptions->count) {
@@ -131,7 +131,7 @@ bool updateMenu(MenuOptions *menuOptions, GameButton *gameButtons, MenuInfo *inf
     
     if(wasPressed(gameButtons, BUTTON_UP)) {
         active = false;
-        playMenuSound(arenaForSounds, moveSound, 0, AUDIO_BACKGROUND);
+        playMenuSound(arenaForSounds, moveSound, 0, AUDIO_FOREGROUND);
         info->menuCursorAt--;
         if(info->menuCursorAt < 0) {
             info->menuCursorAt = menuOptions->count - 1;
@@ -501,7 +501,7 @@ GameMode drawMenu(MenuInfo *info, Arena *longTermArena, GameButton *gameButtons,
                                 if(info->activeSaveSlot != at) {
                                     info->activeSaveSlot = at;
                                     loadSaveFile(levelsData, levelDataCount, info->activeSaveSlot, lastShowGroup);
-                                    playMenuSound(longTermArena, submitSound, 0, AUDIO_BACKGROUND);
+                                    playMenuSound(longTermArena, submitSound, 0, AUDIO_FOREGROUND);
                                     setLerpInfoV4_s(&cLerps[at], COLOR_GREEN, 0.2f, &cLerps[at].value);
                                     for(int lerpIndex = 0; lerpIndex < arrayCount(cLerps); lerpIndex++) {
                                         if(at != lerpIndex) {
