@@ -204,12 +204,10 @@ int main(int argc, char *args[]) {
 
             Texture *buttonTex = holdingButton ? downTex : upTex;
             if(EasyUI_UpdateButton(!barOpen, &holdingButton, buttonTex, &mainFont, "Play!", &keyStates, 1, v3(9, 15, -1), setupInfo.metresToPixels, setupInfo.pixelsToMeters, resolution, dt, &launchLerp, setupInfo.screenRelativeSize)) {
-                char arguments[1028] = {};
-                sprintf(arguments, "%d %d %d %d", (int)resolutions[gameResolutionIndex].x, (int)resolutions[gameResolutionIndex].y, fullscreen, blackBars);
+                
                 
                 #ifdef __APPLE__ 
 
-                    const char *argsForApp = (const char *)arguments;
                     #if DEVELOPER_MODE
                     #else
                     char *execLocation = concat(SDL_GetBasePath(), "../MacOS/game"); 
@@ -232,7 +230,9 @@ int main(int argc, char *args[]) {
                     }
                     // running = false;
                 #elif _WIN32
-                if(WinExec(concat("./game ", arguments), SW_SHOWDEFAULT) > 31) {
+                char arguments[1028] = {};
+                sprintf(arguments, "%d %d %d %d", (int)resolutions[gameResolutionIndex].x, (int)resolutions[gameResolutionIndex].y, fullscreen, blackBars);
+                if(WinExec(concat("./feohthefitter.exe ", arguments), SW_SHOWDEFAULT) > 31) {
                     running = false;
                 } else {
                     assert(false);

@@ -1,5 +1,3 @@
-//just moving blocks with bombs (shuffling)
-//this is about the top being blocked when you come in. so You have to time your landing to coincide. 
 LevelData: {
 	name: "Hard to Find";
 	groupId: 11;
@@ -30,7 +28,7 @@ Board: {
 	00a0a0000
 	0000a0a00
 	0a00a00a0
-	0000a0000/
+	0000a0000
 	0000a0000/
 	
 }

@@ -3023,6 +3023,16 @@ void gameUpdateAndRender(void *params_) {
             bool canDie = params->lifePointsMax > 0;
             
             bool retryLevel = ((params->lifePoints <= 0) && canDie) || rAWasPressed || retryButtonPressed; 
+
+            int testCount = 0;
+            for(int shpIndex = 0; shpIndex < params->currentShape.count; shpIndex++) {
+                if(!params->currentShape.blocks[shpIndex].valid) {
+                    testCount++;
+                }
+            }
+            if(testCount == params->currentShape.count) {
+                params->createShape = true;
+            }
             if(params->createShape || retryLevel) {
                 if(!retryLevel) {
                     params->currentShape.count = 0;
@@ -3833,6 +3843,15 @@ int main(int argc, char *args[]) {
         
         LevelType startLevel = LEVEL_0;
         GameMode startGameMode = MENU_MODE;
+
+        char shortName[1028] = {};
+        sprintf(shortName, "saveFile0.h");
+        char *saveLevelName = concat(globalExeBasePath, shortName);
+        if(platformDoesFileExist(saveLevelName)) {
+            startGameMode = OVERWORLD_MODE;
+        }
+        
+        free(saveLevelName);
 #if DEVELOPER_MODE
         Tweaker tweaker = {};
         if(refreshTweakFile(concat(globalExeBasePath, "../src/tweakFile.txt"), &tweaker)) {
