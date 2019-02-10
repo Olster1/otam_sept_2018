@@ -5,7 +5,7 @@
 #define FADE_TIMER_INTERVAL 0.3f
 #define SCENE_TRANSITION_TIME 0.3f
 #define SCENE_MUSIC_TRANSITION_TIME (SCENE_TRANSITION_TIME + 0.2f) //extra lee way so they overlap 
-#define CHEAT_MODE 0
+#define CHEAT_MODE 1
 #define XP_PER_LINE 100
 #define GO_TO_NEXT_GROUP_AUTO 0
 #define UI_BUTTON_COLOR COLOR_YELLOW

@@ -1898,13 +1898,13 @@ void takeBoardCopy(FrameParams *params) {
 
     for(int y = 0; y < params->boardHeight; y++) {
         for(int x = 0; x < params->boardWidth; x++) {
-            BoardValue *val = getBoardValue(params, v2(x, y));        
-            assert(val);
+            // BoardValue *val = getBoardValue(params, v2(x, y));        
+            // assert(val);
             BoardValue *copyval = getCopyBoardValue(params, v2(x, y));        
             zeroStruct(copyval, BoardValue);
-            if(val->state != BOARD_SHAPE) {
-                *copyval = *val;
-            } 
+            // if(val->state != BOARD_SHAPE) {
+            //     *copyval = *val;
+            // } 
         }
     }
 
