@@ -157,6 +157,33 @@ typedef struct {
     
 } Texture;
 
+typedef enum {
+    RENDER_LIGHT_DIRECTIONAL,
+    RENDER_LIGHT_POINT,
+    RENDER_LIGHT_FLASHLIGHT
+} RenderLightType;
+
+typedef struct {
+    RenderLightType type;
+    
+    V3 position; //or direction
+
+    V3 ambient;
+    V3 diffuse; 
+    V3 specular; //Usually black->white mono
+
+    //for point light and flash light -> represents the attentuation as you get further away
+    float constant;
+    float linear;
+    float quadratic;
+    ///
+
+    //for just the flash light -> for the cone of the flash light
+    float cutoff;
+    float outerCutoff;
+    //
+} RenderLight;
+
 typedef struct {
     Texture *diffuseMap;
     Texture *specularMap;
@@ -210,6 +237,8 @@ typedef struct {
     BufferStorage lastBufferStorage[512];
 
     Texture *whiteTexture;
+
+    //RenderLight lights[16];
     
 } RenderGroup;
 

@@ -565,6 +565,146 @@ BoardValue *getCopyBoardValue(FrameParams *params, V2 pos) {
     return result;
 }
 
+typedef enum {
+    DIRECTION_RIGHT, 
+    DIRECTION_DOWN, 
+    DIRECTION_LEFT, 
+    DIRECTION_UP, 
+} Direction;
+
+static inline void drawOutline(FrameParams *params, V2 drawAt, Direction direction, V4 color, float offset, V2 resolution, float zAt) {
+
+    V2 posStart = v2(0, 0);
+    V2 posStartAbs = v2(0, 0);
+    V2 posEnd = v2(0, 0);
+    bool init = true;
+    bool end = false;
+    float lineDim = 0.05f;
+    float lineLength = 0.25f;
+    bool blank = false;
+    bool plus = true;
+    while(!end) {
+        V2 lineWidth = v2(0, 0);
+        switch(direction) {
+            case DIRECTION_RIGHT: {
+                if(init) {
+                    posStartAbs = posStart = v2_plus(drawAt, v2(-0.5f, 0.5f));
+                    posStart.x += offset - lineLength;
+                } else {
+                    posStart = posEnd;
+                }
+                plus = true;
+                posEnd = v2_plus(posStart, v2(lineLength, 0));
+
+                if(posEnd.x - posStartAbs.x >= 1.0f) {
+                    posEnd.x = posStartAbs.x + 1.0f;
+                    end = true;
+                }
+                lineWidth.y = lineDim;
+
+            } break;
+            case DIRECTION_DOWN: {
+                if(init) {
+                    posStartAbs = posStart = v2_plus(drawAt, v2(0.5f, 0.5f));
+                    posStart.y -= offset - lineLength;
+                } else {
+                    posStart = posEnd;
+                }
+                plus = false;
+                posEnd = v2_minus(posStart, v2(0, lineLength));
+
+                if(posStartAbs.y - posEnd.y >= 1.0f) {
+                    posEnd.y = posStartAbs.y - 1.0f;
+                    end = true;
+                }
+    
+                lineWidth.x = lineDim;
+            } break;
+            case DIRECTION_LEFT: {
+                if(init) {
+                    posStartAbs = posStart = v2_plus(drawAt, v2(0.5f, -0.5f));
+                    posStart.x -= offset - lineLength;
+                    
+                } else {
+                    posStart = posEnd;
+                }
+                plus = false;
+                posEnd = v2_minus(posStart, v2(lineLength, 0));
+
+                if(posStartAbs.x - posEnd.x >= 1.0f) {
+                    posEnd.x = posStartAbs.x - 1.0f;
+                    end = true;
+                }
+                lineWidth.y = lineDim;
+            } break;
+            case DIRECTION_UP: {
+                if(init) {
+                    posStartAbs = posStart = v2_plus(drawAt, v2(-0.5f, -0.5f));
+                    posStart.y += offset - lineLength;
+                } else {
+                    posStart = posEnd;
+                }
+                plus = true;
+                posEnd = v2_plus(posStart, v2(0, lineLength));
+
+                if(posEnd.y - posStartAbs.y >= 1.0f) {
+                    posEnd.y = posStartAbs.y + 1.0f;
+                    end = true;
+                }
+                lineWidth.x = lineDim;
+                
+            } break;
+        }
+
+        if(!blank) {
+            V2 drawposStart = posStart;
+            if(init) {
+                if(plus) {
+                    if(posStart.x < posStartAbs.x) {
+                        drawposStart.x = posStartAbs.x;
+                    }
+                    if(posStart.y < posStartAbs.y) {
+                        drawposStart.y = posStartAbs.y;
+                    }
+                } else {
+                    if(posStart.x > posStartAbs.x) {
+                        drawposStart.x = posStartAbs.x;
+                    }
+                    if(posStart.y > posStartAbs.y) {
+                        drawposStart.y = posStartAbs.y;
+                    }
+                }
+
+                init = false;
+            }
+            Rect2f rect = rect2f(drawposStart.x - lineWidth.x, drawposStart.y - lineWidth.y, posEnd.x + lineWidth.x, posEnd.y + lineWidth.y);  
+            RenderInfo renderInfo = calculateRenderInfo(v2ToV3(getCenter(rect), zAt), v2ToV3(getDim(rect), 1), params->cameraPos, params->metresToPixels);
+            renderDrawRectCenterDim(renderInfo.pos, renderInfo.dim.xy, color, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+        }
+        blank = !blank;
+    }
+}
+
+typedef struct {
+    float offsetAt;
+} CellTracker;
+
+// V4 beige = hexARGBTo01Color(0xFFF4B2B2);
+static inline void drawCellTracker(FrameParams *params, CellTracker *tracker, V2 boardPos, V4 color, V2 resolution, bool update) {
+    if(update) {
+        tracker->offsetAt += params->dt*0.4f;
+        if(tracker->offsetAt > 0.5f) {
+            tracker->offsetAt = 0;
+        }
+    }
+    V2 drawAt = boardPos;//actuall calcualte board
+    
+    drawOutline(params, drawAt, DIRECTION_RIGHT, color, tracker->offsetAt, resolution, -0.2f);
+    drawOutline(params, drawAt, DIRECTION_DOWN, color, tracker->offsetAt, resolution, -0.2f);
+    drawOutline(params, drawAt, DIRECTION_LEFT, color, tracker->offsetAt, resolution, -0.2f);
+    drawOutline(params, drawAt, DIRECTION_UP, color, tracker->offsetAt, resolution, -0.2f);
+}
+
 bool inBoardBounds(FrameParams *params, V2 pos) {
     bool result = false;
     if(pos.x >= 0 && pos.x < params->boardWidth && pos.y >= 0 && pos.y < params->boardHeight) {
@@ -2952,6 +3092,8 @@ void gameUpdateAndRender(void *params_) {
     for(int partIndex = 0; partIndex < params->particleSystems.count; ++partIndex) {
         // drawAndUpdateParticleSystem(&params->particleSystem, params->dt, v3(0, 0, -4), v3(0, 0 ,0), params->cameraPos, params->metresToPixels, resolution);
     }
+
+    
     
     V2 mouseP = params->keyStates->mouseP;
     V2 halfResInMeters = v2_scale(0.5f, params->resInMeters);
@@ -3008,6 +3150,7 @@ void gameUpdateAndRender(void *params_) {
         }   
     }
     
+
     if(!transitioning && isPlayState && !params->confirmCloseScreen) {   
         float dtLeft = params->dt;
         float oldDt = params->dt;
