@@ -127,6 +127,14 @@ typedef struct {
     int max;
 } ExtraShape;
 
+
+typedef struct {
+    float offsetAt;
+    bool active;
+    Timer fadeTimer;
+    bool shouldUpdate;
+} CellTracker;
+
 typedef struct {
     bool valid;
     BoardValType type;
@@ -135,6 +143,8 @@ typedef struct {
     BoardState prevState;
     
     V4 color;
+
+    CellTracker cellTracker;
     
     Timer fadeTimer;
 } BoardValue;
@@ -685,24 +695,18 @@ static inline void drawOutline(FrameParams *params, V2 drawAt, Direction directi
     }
 }
 
-typedef struct {
-    float offsetAt;
-} CellTracker;
-
-// V4 beige = hexARGBTo01Color(0xFFF4B2B2);
-static inline void drawCellTracker(FrameParams *params, CellTracker *tracker, V2 boardPos, V4 color, V2 resolution, bool update) {
-    if(update) {
+static inline void drawCellTracker(FrameParams *params, CellTracker *tracker, V2 boardPos, V4 color, V2 resolution, float zPos) {
+    if(tracker->shouldUpdate) {
         tracker->offsetAt += params->dt*0.4f;
         if(tracker->offsetAt > 0.5f) {
             tracker->offsetAt = 0;
         }
     }
-    V2 drawAt = boardPos;//actuall calcualte board
-    
-    drawOutline(params, drawAt, DIRECTION_RIGHT, color, tracker->offsetAt, resolution, -0.2f);
-    drawOutline(params, drawAt, DIRECTION_DOWN, color, tracker->offsetAt, resolution, -0.2f);
-    drawOutline(params, drawAt, DIRECTION_LEFT, color, tracker->offsetAt, resolution, -0.2f);
-    drawOutline(params, drawAt, DIRECTION_UP, color, tracker->offsetAt, resolution, -0.2f);
+
+    drawOutline(params, boardPos, DIRECTION_RIGHT, color, tracker->offsetAt, resolution, zPos);
+    drawOutline(params, boardPos, DIRECTION_DOWN, color, tracker->offsetAt, resolution, zPos);
+    drawOutline(params, boardPos, DIRECTION_LEFT, color, tracker->offsetAt, resolution, zPos);
+    drawOutline(params, boardPos, DIRECTION_UP, color, tracker->offsetAt, resolution, zPos);
 }
 
 bool inBoardBounds(FrameParams *params, V2 pos) {
@@ -761,6 +765,11 @@ void allocateBoard(FrameParams *params, int boardWidth, int boardHeight) {
             boardVal->prevState = BOARD_NULL;
             
             turnTimerOff(&boardVal->fadeTimer);
+            turnTimerOff(&boardVal->cellTracker.fadeTimer);
+            boardVal->cellTracker.shouldUpdate = false;
+            boardVal->cellTracker.offsetAt = 0;
+            boardVal->cellTracker.active = false;
+
             boardVal->color = COLOR_WHITE;
         }
     }
@@ -1545,6 +1554,11 @@ void resetMouseUI(FrameParams *params) {
         V2 pos = params->currentShape.blocks[params->currentHotIndex].pos;
         BoardValue *val = getBoardValue(params, pos);
         val->color = COLOR_WHITE;
+        if(val->cellTracker.active) {
+            val->cellTracker.fadeTimer = initTimer(0.2f, false);
+        }
+        val->cellTracker.active = false;
+        val->cellTracker.shouldUpdate = false;
     }
     
     params->currentHotIndex = -1; //reset hot ui   
@@ -2142,6 +2156,13 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                     if(params->currentHotIndex < 0) {
                         color = alienColors.color1;
                     }
+                    BoardValue *val = getBoardValue(params, pos);
+                    if(!val->cellTracker.active) {
+                        val->cellTracker.fadeTimer = initTimer(0.2f, false);
+                        val->cellTracker.active = true;    
+                        val->cellTracker.shouldUpdate = true;
+                    }
+                    
                 }
                 
                 if(hotBlockIndex >= 0 && params->currentHotIndex < 0) {
@@ -2186,6 +2207,10 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
         if(wasPressed(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE) && hotBlockIndex >= 0) {
             params->currentHotIndex = hotBlockIndex;
             takeBoardCopy(params);
+
+            BoardValue *val = getBoardValue(params, shape->blocks[params->currentHotIndex].pos);
+            assert(val->cellTracker.active);
+            val->cellTracker.shouldUpdate = false;
         }
         
         if(params->currentHotIndex >= 0) {
@@ -3475,8 +3500,52 @@ void gameUpdateAndRender(void *params_) {
                 RenderInfo bgRenderInfo = calculateRenderInfo(v3(boardX, boardY, -3), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
                 BoardValue *boardVal = &params->board[boardY*params->boardWidth + boardX];
                 renderTextureCentreDim(params->boarderTex, bgRenderInfo.pos, bgRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), bgRenderInfo.pvm));            
+
+                //cell tracker
+                {
+                    CellTracker *tracker = &boardVal->cellTracker;
+                    V4 outlinerColor = tracker->shouldUpdate ? hexARGBTo01Color(0xFFB2D2F4) : hexARGBTo01Color(0xFFCDFFC9);
+                    bool shouldDraw = true;
+                    if(boardX == 2 && boardY == 5) {
+                        printf("%s%lu\n", "is 2 5", (unsigned long)time(NULL));
+                    }
+                    if(isOn(&tracker->fadeTimer)) {
+                        if(boardX == 2 && boardY == 5) {
+                            printf("%s\n", "timer on");
+                        }
+                        TimerReturnInfo timerInfo = updateTimer(&tracker->fadeTimer, params->dt);
+                        if(timerInfo.finished) {
+                            turnTimerOff(&tracker->fadeTimer);
+                        }
+                        if(tracker->active) {
+                            outlinerColor = lerpV4(COLOR_NULL, timerInfo.canonicalVal, outlinerColor);    
+                        } else {
+                            outlinerColor = lerpV4(outlinerColor, timerInfo.canonicalVal, COLOR_NULL);    
+                        }
+                        
+                    } else {
+                        if(tracker->active) {
+                            if(boardX == 2 && boardY == 5) {
+                                printf("%s\n", "is active");
+                            }
+                            //printf("%d %d\n", boardX, boardY);
+                            //don't do anything //maybe glow?
+                        } else {
+                            if(boardX == 2 && boardY == 5) {
+                                printf("%s\n", "not active");
+                            }
+                            shouldDraw = false;
+
+                        }
+                    }
+                    
+                    if(shouldDraw) {
+                        drawCellTracker(params, tracker, v2(boardX, boardY), outlinerColor, resolution, -0.2f);
+                    }
+                }
                 
                 if(!(boardVal->prevState == BOARD_NULL && boardVal->state == BOARD_NULL)) {
+
                     V4 currentColor = boardVal->color;
                     if(isOn(&boardVal->fadeTimer)) {
                         TimerReturnInfo timeInfo = updateTimer(&boardVal->fadeTimer, params->dt);

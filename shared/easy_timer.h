@@ -69,7 +69,7 @@ TimerReturnInfo updateTimer(Timer *timer, float dt) {
 
         if(timer->value_ >= timer->period) {
             float minusVal = (timer->value_ - timer->period);
-            assert(timer->period > 0);
+            assert(timer->period > 0.0f);
             assert(minusVal >= 0.0f);
             int lots = (int)(minusVal / timer->period);
             returnInfo.residue = minusVal - (lots*timer->period);
