@@ -4278,7 +4278,7 @@ int main(int argc, char *args[]) {
         params->arrangeSound = findSoundAsset("click2.wav");
         
         params->backgroundSound = findSoundAsset("Fitris_Soundtrack.wav");//findSoundAsset("Fitris_Soundtrack.wav");
-        params->backgroundSound2 = findSoundAsset("runaway.wav");//findSoundAsset("Fitris_Soundtrack.wav");
+        //params->backgroundSound2 = findSoundAsset("runaway.wav");//findSoundAsset("Fitris_Soundtrack.wav");
         params->enterLevelSound = findSoundAsset("click2.wav");
         
         params->backgroundSoundPlaying = false;
