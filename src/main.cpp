@@ -132,7 +132,9 @@ typedef struct {
     float offsetAt;
     bool active;
     Timer fadeTimer;
+    // Timer colorGlowTimer;
     bool shouldUpdate;
+    bool wasHot;
 } CellTracker;
 
 typedef struct {
@@ -227,6 +229,7 @@ typedef struct {
     Texture *errorTex;
     Texture *iglooTex;
     Texture *snowflakeTex;
+    Texture *lineTemplateTex;
     Texture *snowManTex;
     
     Texture *alienTex[5];
@@ -690,13 +693,15 @@ static inline void drawOutline(FrameParams *params, V2 drawAt, Direction directi
             Rect2f rect = rect2f(drawposStart.x - lineWidth.x, drawposStart.y - lineWidth.y, posEnd.x + lineWidth.x, posEnd.y + lineWidth.y);  
             RenderInfo renderInfo = calculateRenderInfo(v2ToV3(getCenter(rect), zAt), v2ToV3(getDim(rect), 1), params->cameraPos, params->metresToPixels);
             renderDrawRectCenterDim(renderInfo.pos, renderInfo.dim.xy, color, 0, mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), renderInfo.pvm)); 
+            // renderTextureCentreDim(params->lineTemplateTex, renderInfo.pos, v2_scale(1, renderInfo.dim.xy), color, 0, mat4(), renderInfo.pvm, OrthoMatrixToScreen(resolution.x, resolution.y)); 
         }
         blank = !blank;
     }
 }
 
 static inline void drawCellTracker(FrameParams *params, CellTracker *tracker, V2 boardPos, V4 color, V2 resolution, float zPos) {
-    if(tracker->shouldUpdate) {
+    // if(tracker->shouldUpdate) 
+    {
         tracker->offsetAt += params->dt*0.4f;
         if(tracker->offsetAt > 0.5f) {
             tracker->offsetAt = 0;
@@ -766,9 +771,11 @@ void allocateBoard(FrameParams *params, int boardWidth, int boardHeight) {
             
             turnTimerOff(&boardVal->fadeTimer);
             turnTimerOff(&boardVal->cellTracker.fadeTimer);
+            // turnTimerOff(&boardVal->cellTracker.colorGlowTimer);
             boardVal->cellTracker.shouldUpdate = false;
             boardVal->cellTracker.offsetAt = 0;
             boardVal->cellTracker.active = false;
+            boardVal->cellTracker.wasHot = false;
 
             boardVal->color = COLOR_WHITE;
         }
@@ -1554,11 +1561,11 @@ void resetMouseUI(FrameParams *params) {
         V2 pos = params->currentShape.blocks[params->currentHotIndex].pos;
         BoardValue *val = getBoardValue(params, pos);
         val->color = COLOR_WHITE;
-        if(val->cellTracker.active) {
-            val->cellTracker.fadeTimer = initTimer(0.2f, false);
-        }
-        val->cellTracker.active = false;
-        val->cellTracker.shouldUpdate = false;
+        // if(val->cellTracker.active) {
+        //     val->cellTracker.fadeTimer = initTimer(0.2f, false);
+        // }
+        // val->cellTracker.active = false;
+        // val->cellTracker.shouldUpdate = false;
     }
     
     params->currentHotIndex = -1; //reset hot ui   
@@ -2157,32 +2164,39 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                         color = alienColors.color1;
                     }
                     BoardValue *val = getBoardValue(params, pos);
-                    if(!val->cellTracker.active) {
-                        val->cellTracker.fadeTimer = initTimer(0.2f, false);
-                        val->cellTracker.active = true;    
+                    if(params->currentHotIndex < 0) { //not already holding a shape
+                        val->cellTracker.wasHot = true;
                         val->cellTracker.shouldUpdate = true;
                     }
                     
                 }
                 
-                if(hotBlockIndex >= 0 && params->currentHotIndex < 0) {
+                if(hotBlockIndex >= 0 && params->currentHotIndex < 0) { //something was hot but not holding anything
                     if(isMirrorPartnerIndex(params, hotBlockIndex, i, false)) {
-                        color = alienColors.color1;
+                        //this is the hot partner
+                        BoardValue *val = getBoardValue(params, pos);
+                        val->cellTracker.wasHot = true;
+                        val->cellTracker.shouldUpdate = true;
+                        // color = alienColors.color1; //
                     }
                 }
                 
-                if(params->currentHotIndex == i) {
+                if(params->currentHotIndex == i) { //we are holding this shape
                     assert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
-                    color = alienColors.color2;
+                    // color = alienColors.color2;
                 }
                 
                 if(isMirrorPartnerIndex(params, params->currentHotIndex, i, true)) {
-                    color = alienColors.color2;
+                    //this is the current hot index
+                    // color = alienColors.color2;
+                    BoardValue *val = getBoardValue(params, pos);
+                    val->cellTracker.wasHot = true;
+                    val->cellTracker.shouldUpdate = false;
                 }
                 
                 BoardValue *val = getBoardValue(params, pos);
                 assert(val);
-                val->color = color;
+                // val->color = color;
             }
         }
         
@@ -2197,25 +2211,26 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                 V2 pos = shape->blocks[mirrorIndexAt].pos;
                 BoardValue *val = getBoardValue(params, pos);
                 assert(val);
-                val->color = getAlienHoverColor(shape, hotBlockIndex).color1;
-            } else {
-                // printf("%s\n", "no mirror partner");
-                // assert(params->shapeSizes[0] != params->shapeSizes[1]);
-            }
+                val->cellTracker.wasHot = true;
+                val->cellTracker.shouldUpdate = true;
+                // val->color = getAlienHoverColor(shape, hotBlockIndex).color1;
+            } 
         }
         
         if(wasPressed(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE) && hotBlockIndex >= 0) {
             params->currentHotIndex = hotBlockIndex;
             takeBoardCopy(params);
-
-            BoardValue *val = getBoardValue(params, shape->blocks[params->currentHotIndex].pos);
-            assert(val->cellTracker.active);
-            val->cellTracker.shouldUpdate = false;
         }
         
         if(params->currentHotIndex >= 0) {
             //We are holding onto a block
             V2 pos = params->keyStates->mouseP_yUp;
+
+            //update cell tracker
+            BoardValue *val = getBoardValue(params, shape->blocks[params->currentHotIndex].pos);
+            val->cellTracker.wasHot = true;
+            val->cellTracker.shouldUpdate = false;
+            ///
             
             V2 boardPosAt = V4MultMat4(v4(pos.x, pos.y, 1, 1), params->pixelsToMeters).xy;
             boardPosAt.x += cameraPos.x;
@@ -3504,15 +3519,33 @@ void gameUpdateAndRender(void *params_) {
                 //cell tracker
                 {
                     CellTracker *tracker = &boardVal->cellTracker;
-                    V4 outlinerColor = tracker->shouldUpdate ? hexARGBTo01Color(0xFFB2D2F4) : hexARGBTo01Color(0xFFCDFFC9);
                     bool shouldDraw = true;
-                    if(boardX == 2 && boardY == 5) {
-                        printf("%s%lu\n", "is 2 5", (unsigned long)time(NULL));
-                    }
-                    if(isOn(&tracker->fadeTimer)) {
-                        if(boardX == 2 && boardY == 5) {
-                            printf("%s\n", "timer on");
+
+                    if(tracker->wasHot) {
+                        if(!tracker->active) {
+                            tracker->active = true;
+                            // tracker->shouldUpdate = true;
+                            tracker->fadeTimer = initTimer(0.11f, false);    
                         }
+                    } else {
+                        if(tracker->active) {
+                          tracker->fadeTimer = initTimer(0.2f, false);       
+                          tracker->active = false;
+                          tracker->shouldUpdate = false;
+                        }
+                    }
+
+                    V4 outlinerColor = tracker->shouldUpdate ? hexARGBTo01Color(0xFFB2D2F4) : hexARGBTo01Color(0xFFCDFFC9);
+
+                    // if(isOn(&tracker->colorGlowTimer)) {
+                    //     TimerReturnInfo colorTimerInfo = updateTimer(&tracker->colorGlowTimer, params->dt);
+                    //     if(colorTimerInfo.finished) {
+                    //         turnTimerOn(&tracker->colorGlowTimer);
+                    //     }
+                    //     outlinerColor = smoothStep00V4(outlinerColor, colorTimerInfo.canonicalVal, COLOR_YELLOW);
+                    // }
+                    
+                    if(isOn(&tracker->fadeTimer)) {
                         TimerReturnInfo timerInfo = updateTimer(&tracker->fadeTimer, params->dt);
                         if(timerInfo.finished) {
                             turnTimerOff(&tracker->fadeTimer);
@@ -3525,15 +3558,8 @@ void gameUpdateAndRender(void *params_) {
                         
                     } else {
                         if(tracker->active) {
-                            if(boardX == 2 && boardY == 5) {
-                                printf("%s\n", "is active");
-                            }
-                            //printf("%d %d\n", boardX, boardY);
-                            //don't do anything //maybe glow?
+                            
                         } else {
-                            if(boardX == 2 && boardY == 5) {
-                                printf("%s\n", "not active");
-                            }
                             shouldDraw = false;
 
                         }
@@ -3542,6 +3568,8 @@ void gameUpdateAndRender(void *params_) {
                     if(shouldDraw) {
                         drawCellTracker(params, tracker, v2(boardX, boardY), outlinerColor, resolution, -0.2f);
                     }
+                    //make all blocks not hot
+                    tracker->wasHot = false;
                 }
                 
                 if(!(boardVal->prevState == BOARD_NULL && boardVal->state == BOARD_NULL)) {
@@ -4047,6 +4075,7 @@ int main(int argc, char *args[]) {
         exit(0);
 #endif
         // loadAndAddImagesToAssets("img/");
+        // loadAndAddImagesToAssets("tiles/");
         easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/textureAtlas_1"), TEXTURE_FILTER_LINEAR);
         easyAtlas_loadTextureAtlas(concat(globalExeBasePath, "atlas/tileAtlas_1"), TEXTURE_FILTER_NEAREST);
         loadAndAddSoundsToAssets("sounds/", &setupInfo.audioSpec);
@@ -4120,6 +4149,7 @@ int main(int argc, char *args[]) {
         params->snowManTex = findTextureAsset("snowman.png");
         params->iglooTex = findTextureAsset("iceHouse.png");
         params->snowflakeTex = findTextureAsset("snowflake.png");
+        params->lineTemplateTex = findTextureAsset("lineTemplate.png");
 
         params->blueBackgroundTex = findTextureAsset("blue_grass.png");
         
