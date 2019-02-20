@@ -1596,6 +1596,7 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
         // CHECK FOR EXPLOSIVES HIT
         int idsHitCount = 0;
         int idsHit[MAX_SHAPE_COUNT] = {};
+        bool playedExplosiveSound = false;
         
         for(int i = 0; i < shape->count; ++i) {
             if(shape->blocks[i].valid) {
@@ -1613,9 +1614,12 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
                     assert(params->lifePointsMax > 0);
                     params->lifePoints--;
                     params->wasHitByExplosive = true;
-                    playGameSound(params->soundArena, params->explosiveSound, 0, AUDIO_FOREGROUND);
+                    if(!playedExplosiveSound) {
+                        playGameSound(params->soundArena, params->explosiveSound, 0, AUDIO_FOREGROUND);
+                        playedExplosiveSound = true;
+                    }
                     
-                    //this is so you can't still be holding a block if there is a change you grab it before 
+                    //this is so you can't still be holding a block if there is a chance you grab it before 
                     //it explodes. 
                     if(params->currentHotIndex == i) {
                         resetMouseUI(params);
