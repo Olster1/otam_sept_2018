@@ -232,7 +232,7 @@ int main(int argc, char *args[]) {
                 #elif _WIN32
                 char arguments[1028] = {};
                 sprintf(arguments, "%d %d %d %d", (int)resolutions[gameResolutionIndex].x, (int)resolutions[gameResolutionIndex].y, fullscreen, blackBars);
-                if(WinExec(concat("./Feoh the Fitter.exe ", arguments), SW_SHOWDEFAULT) > 31) {
+                if(WinExec(concat("./game.exe ", arguments), SW_SHOWDEFAULT) > 31) {
                     running = false;
                 } else {
                     assert(false);
