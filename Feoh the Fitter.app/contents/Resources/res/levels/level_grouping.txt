@@ -1,0 +1,112 @@
+Nothing: 0 //group 0 //count 1
+
+static blocks: 1, 2 //group 1 //count 2
+
+blocks and bombs: 10, 11, 12 //group 2 //count 3
+
+bombs: 5, 8 // group 3 //count 2
+ 
+moving blocks un-timed: 13, 7 //group 4 //count 2
+
+moving blocks timed -> ledges: 3, 4, 6, 9 //group 5 //count 4
+
+moving blocks timed -> shuffling to avoid getting blocked: 17, 15, 16, 14, 20 //group 6 //count 5
+
+moving blocks timed -> something blocking the entrance so you have to time the entrance: 23, 18//group 7 //count 2
+
+moving blocks timed with red lines -> 19, 21, 22, 24, 25 // group 8 // count 5
+
+using multiple shapes to plug holes etc. -> 25, 27, 28, 29, 30, 31, 32, 33, 34  // group 9 // count 9
+
+mirrorred levels -> 26 // group 10 // count 1
+
+JUST BLOCKS - 1
+BLOCKS WITH BOMBS - 2
+TIMED BLOCKS - 3
+TIMED BLOCKS WITH BOMBS - 4
+RED LINES - 5
+INCOMING TO LEVEL - 6
+LEDGES - 7
+MIRROR LEVELS - 8
+//Notes
+Hanging by limb is a bit different -> not just about moving sahpes but ledges as well. -> move to later groups
+Bootstrap is similar to hanging by a limb
+The ledge 
+///
+FUNC(LEVEL_0) \  
+FUNC(LEVEL_1) \
+FUNC(LEVEL_2) \
+FUNC(LEVEL_3) \
+FUNC(LEVEL_4) \
+FUNC(LEVEL_5) \
+FUNC(LEVEL_6) \
+FUNC(LEVEL_7) \
+FUNC(LEVEL_8) \
+FUNC(LEVEL_9) \
+FUNC(LEVEL_10) \
+FUNC(LEVEL_11) \
+FUNC(LEVEL_12) \
+FUNC(LEVEL_13) \
+FUNC(LEVEL_14) \
+FUNC(LEVEL_15) \
+FUNC(LEVEL_16) \
+FUNC(LEVEL_17) \
+FUNC(LEVEL_18) \
+FUNC(LEVEL_19) \
+FUNC(LEVEL_20) \
+FUNC(LEVEL_21) \
+FUNC(LEVEL_22) \
+FUNC(LEVEL_23) \
+FUNC(LEVEL_24) \
+FUNC(LEVEL_25) \
+FUNC(LEVEL_26) \
+FUNC(LEVEL_27) \
+FUNC(LEVEL_28) \
+FUNC(LEVEL_29) \
+FUNC(LEVEL_30) \
+FUNC(LEVEL_31) \
+FUNC(LEVEL_32) \
+FUNC(LEVEL_33) \
+FUNC(LEVEL_34) \
+FUNC(LEVEL_35) \
+FUNC(LEVEL_36) \
+FUNC(LEVEL_37) \
+FUNC(LEVEL_38) \
+FUNC(LEVEL_39) \
+FUNC(LEVEL_40) \
+FUNC(LEVEL_41) \
+FUNC(LEVEL_42) \
+FUNC(LEVEL_43) \
+FUNC(LEVEL_44) \
+FUNC(LEVEL_45) \
+FUNC(LEVEL_46) \
+FUNC(LEVEL_47) \
+FUNC(LEVEL_48) \
+FUNC(LEVEL_49) \
+FUNC(LEVEL_50) \
+
+
+Manevouring the shape 
+	- just blocks
+	- blocks with bombs 
+	- timed blocks (windmill type shapes)
+
+Ledges
+	- have to use ledge to prop shape on so they don't hit the bombs below
+
+On/Off blocks shuffling
+   - Have to time it to get into all the crevices. 
+
+Incoming to a level 
+	- have to time the start so you don't get caught at the top
+
+Extra Shapes can finish lines (red lines not just green lines)
+	- have to time the on/off shapes to finish a line
+
+Linking shapes together 
+	- bomb blows whole in shape, have to link it to complete the level
+	- the level can start with more than one shape, so have to use them together 
+
+
+
+

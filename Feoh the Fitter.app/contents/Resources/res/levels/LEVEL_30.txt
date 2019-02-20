@@ -1,0 +1,51 @@
+//just moving blocks with bombs (shuffling)
+//this is about the top being blocked when you come in. so You have to time your landing to coincide. 
+LevelData: {
+	name: "Collateral Damage";
+	groupId: 11;
+	shapeSize: 3;
+	shapeSize2: 3;
+	startOffset: 0;
+	startOffset2: 4;
+	//shapeSize: 5;
+	//startOffset: 1;
+	lifePoints: 4;
+}
+Windmill: {
+	id: 1;
+	growDir: -1 0;
+	isBomb: true;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 0.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 2;
+}
+Windmill: {
+	id: 2;
+	growDir: 1 0;
+	isBomb: true;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 0.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 2;
+}
+
+Board: {
+	0000000
+	0000000
+	000!000
+	000a000
+	0000000/
+	!!!0!!!
+	!!!0!!!
+	!!!0!!!
+	
+}

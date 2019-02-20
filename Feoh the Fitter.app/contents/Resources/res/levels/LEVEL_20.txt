@@ -1,0 +1,45 @@
+//just moving blocks with bombs (shuffling)
+LevelData: {
+	name: "It just keeps on going";
+	groupId: 6;
+	shapeSize: 2;
+	updateFullRow: false;
+	//lifePoints: 1;
+}
+Windmill: {
+	id: 1;
+	growDir: 1 0;
+	isBomb: false;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 0.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 1;
+}
+Windmill: {
+	id: 2;
+	growDir: 1 0;
+	isBomb: false;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 1.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 1;
+}
+Board: {
+	00
+	12
+	00
+	21
+	00/
+	12
+	00/
+	21
+	00/
+}

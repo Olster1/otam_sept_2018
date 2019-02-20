@@ -1,0 +1,15 @@
+//nothing 
+LevelData: {
+	backgroundImage: "blue_shroom.png";
+	lifePoints: 0;
+	groupId: 0;
+	shapeSize: 3;
+	name: "Easy Beginnings";
+}
+Board: {
+	0000
+	0000
+	0000
+	0000/
+	0000/
+}

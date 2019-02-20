@@ -1,0 +1,37 @@
+//just moving blocks with bombs (shuffling)
+//this is about the top being blocked when you come in. so You have to time your landing to coincide. 
+LevelData: {
+	name: "Extra Hand";
+	groupId: 12;
+	shapeSize: 3;
+	shapeSize2: 4;
+	startOffset: 0;
+	startOffset2: 5; //should be 6
+	isMirror: true;
+	lifePoints: 3;
+}
+Windmill: {
+	id: 1;
+	growDir: 1 0;
+	isBomb: true;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 0.0;
+
+	timeAffected: false;
+
+	perpSize: 0;
+	max: 1;
+}
+
+Board: {
+	000000000
+	000000000
+	000000000
+	00!!00!!0
+	000000000
+	000000000
+	000aa000a/
+	!!!!!!!!!
+	
+}

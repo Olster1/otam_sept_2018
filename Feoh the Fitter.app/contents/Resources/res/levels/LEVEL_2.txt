@@ -1,0 +1,15 @@
+//just blocks
+LevelData: {
+	name: "Not Too High";
+	groupId: 1;
+}
+
+Board: {
+	00000
+	00000
+	00000
+	a000a
+	000/
+	a000a
+	00/
+}

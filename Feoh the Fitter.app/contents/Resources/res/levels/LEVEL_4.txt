@@ -1,0 +1,39 @@
+//just moving blocks
+LevelData: {
+	backgroundImage: "blue_shroom.png";
+	name: "Castle Pillars";
+	groupId: 4;
+}
+Windmill: {
+	id: 1;
+	growDir: 0 1;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 0.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 3;
+}
+Windmill: {
+	id: 2;
+	growDir: 0 1;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 0.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 3;
+}
+Board: {
+	000000
+	000000
+	000000
+	0000
+	00000
+	000/
+	100002/
+}

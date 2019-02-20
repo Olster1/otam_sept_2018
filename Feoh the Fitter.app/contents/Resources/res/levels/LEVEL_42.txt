@@ -1,0 +1,33 @@
+//just moving blocks with bombs (shuffling)
+//this is about the top being blocked when you come in. so You have to time your landing to coincide. 
+LevelData: {
+	name: "Mmm...";
+	groupId: 9;
+	shapeSize: 3;
+	startOffset: 1;
+	lifePoints: 6;
+}
+Windmill: {
+	id: 1;
+	growDir: 1 0;
+	isBomb: false;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 0.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 1;
+}
+
+Board: {
+	00000
+	00000
+	00000
+	!!0!!
+	00000
+	00000
+	!!!!!/
+	
+}

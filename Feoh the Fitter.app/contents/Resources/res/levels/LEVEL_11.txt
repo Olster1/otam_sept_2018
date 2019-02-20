@@ -1,0 +1,16 @@
+//blocks and bombs
+LevelData: {
+	name: "Impassable";
+	groupId: 2;
+	lifePoints: 2;
+}
+
+Board: {
+	0000
+	0000
+	0000
+	0000!!
+	0a0a
+	a000
+	000/
+}

@@ -1,0 +1,68 @@
+//just moving blocks with bombs (shuffling)
+LevelData: {
+	name: "Passing By";
+	groupId: 7;
+	shapeSize: 3;
+	startOffset: 1;
+	lifePoints: 1;
+}
+
+Windmill: {
+	id: 2;
+	growDir: 0 1;
+	isBomb: true;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 0.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 2;
+}
+Windmill: {
+	id: 3;
+	growDir: 0 1;
+	isBomb: true;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 1.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 2;
+}
+Windmill: {
+	id: 4;
+	growDir: 0 1;
+	isBomb: true;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 2.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 2;
+}
+Windmill: {
+	id: 5;
+	growDir: 0 1;
+	isBomb: true;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 3.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 2;
+}
+Board: {
+	0000
+	0000
+	0000/
+	0000/
+	2345/ 
+}

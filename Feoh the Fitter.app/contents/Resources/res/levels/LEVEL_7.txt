@@ -1,0 +1,24 @@
+//moving block not timed
+LevelData: {
+	backgroundImage: "blue_shroom.png";
+	name: "Patience";
+	groupId: 4;
+}
+Windmill: {
+	id: 1;
+	growDir: 1 0;
+
+	growTimerPeriod: 0.5;
+	beginTimerPeriod: 0.0;
+
+	perpSize: 0;
+	max: 2;
+}
+Board: {
+	00000
+	00000
+	1000
+	0000
+	000
+	00000/
+}

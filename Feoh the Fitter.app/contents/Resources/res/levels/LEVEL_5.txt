@@ -1,0 +1,16 @@
+//just bombs
+LevelData: {
+	lifePoints: 4	
+	backgroundImage: "blue_shroom.png";
+	name: "Find your Way out of this one";
+	groupId: 3;
+}
+Board: {
+	00000
+	0!00!0
+	00!0!0
+	00!0
+	!00!0
+	00!
+	000000/
+}

@@ -1,0 +1,29 @@
+//moving shape and bombs
+LevelData: {
+	backgroundImage: "blue_shroom.png";
+	name: "Hanging by a Limb";
+	groupId: 5;
+	shapeSize: 5;
+	lifePoints: 1;
+	startOffset: 1;
+}
+Windmill: {
+	id: 1;
+	growDir: -1 0;
+
+	growTimerPeriod: 0.8;
+	beginTimerPeriod: 0.0;
+
+	perpSize: 0;
+	max: 1;
+}
+Board: {
+	000000
+	000000
+	000000
+	000000
+	00000001
+	!0!!!!!!
+	a0aaaaaa/
+	!!!!!!!!
+}

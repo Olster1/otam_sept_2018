@@ -1,0 +1,42 @@
+//moving blocks and bombs
+LevelData: {
+	backgroundImage: "blue_shroom.png";
+	name: "Bootstrap";
+	groupId: 5;
+	lifePoints: 1;
+	shapeSize: 5;
+}
+Windmill: {
+	id: 1;
+	growDir: 1 0;
+
+	growTimerPeriod: 1.0;
+	beginTimerPeriod: 0.0;
+
+	timeAffected: true;
+
+	perpSize: 0;
+	max: 1;
+}
+// Windmill: {
+// 	id: 2;
+// 	growDir: 0 1;
+
+// 	growTimerPeriod: 1.0;
+// 	beginTimerPeriod: 0.0;
+
+// 	timeAffected: true;
+
+// 	perpSize: 0;
+// 	max: 3;
+// }
+Board: {
+	00000
+	00000
+	00000
+	0000
+	10001
+	0000/
+	00000
+	!!!!!
+}

@@ -1,0 +1,16 @@
+LevelData: {
+	lifePoints: 1;
+	groupId: 3;
+	name: "Bombs Galore";
+}
+
+Board: {
+	00000
+	00000
+	00000
+	00000/
+	!!0!!
+	!!0!!
+	!!a!!
+	!!0!!
+}
