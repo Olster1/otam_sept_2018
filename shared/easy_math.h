@@ -1022,7 +1022,9 @@ float smoothStep01(float a, float t, float b) {
 }
 
 float smoothStep00(float a, float t, float b) {
-    float mappedT = sin(t*PI32);
+    float mappedT = -cos(t*2*PI32);
+    mappedT = inverse_lerp(-1, mappedT, 1);
+    assert(mappedT >= 0.0f && mappedT <= 1.0f);
     float value = lerp(a, mappedT, b);
     return value;
 }
