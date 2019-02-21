@@ -112,7 +112,7 @@ typedef struct {
 	SDL_AudioSpec audioSpec;
 } AppSetupInfo;
 
-AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder, Arena *memArena) {
+AppSetupInfo easyOS_setupApp(V2 *resolution, char *resPathFolder, Arena *memArena) {
 	AppSetupInfo result = {};
     
 	V2 idealResolution = v2(1280, 720); // Not sure if this is the best place for this?? Have to see. 
@@ -120,6 +120,13 @@ AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder, Arena *memArena
     SDL_DisplayMode mode;
     SDL_GetCurrentDisplayMode(0, &mode);
     result.refresh_rate = mode.refresh_rate;
+
+    if(resolution->x == 0 || resolution->y == 0) {
+    	resolution->x = mode.w;
+    	resolution->y = mode.h;
+    }
+
+    if(resolution )
     
 #if DESKTOP
     gl3wInit();
@@ -145,7 +152,7 @@ AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder, Arena *memArena
     //////////
     
     ////SETUP OPEN GL//
-    enableRenderer(resolution.x, resolution.y, memArena);
+    enableRenderer(resolution->x, resolution->y, memArena);
     renderCheckError();
     //////
     
@@ -155,9 +162,9 @@ AppSetupInfo easyOS_setupApp(V2 resolution, char *resPathFolder, Arena *memArena
     
     /////////Scale the size factor to be keep size of app constant. 
     // V2 screenRelativeSize = v2(idealResolution.x / resolution.x, idealResolution.y / resolution.y); 
-    V2 screenRelativeSize_ = v2(resolution.x/idealResolution.x, resolution.y/idealResolution.y); 
+    V2 screenRelativeSize_ = v2(resolution->x/idealResolution.x, resolution->y/idealResolution.y); 
     float screenRelativeSize;
-    if(resolution.x > resolution.y) {
+    if(resolution->x > resolution->y) {
     	screenRelativeSize = screenRelativeSize_.y;
     } else {
     	screenRelativeSize = screenRelativeSize_.x;

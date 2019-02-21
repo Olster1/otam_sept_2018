@@ -1891,7 +1891,7 @@ static inline void updateShapeMoveTime(FitrisShape *shape, FrameParams *params) 
         resetMouseUI(params);
     }
     bool isHoldingShape = params->currentHotIndex >= 0;
-    params->moveTime = params->dt;
+    params->moveTime = 0;//params->dt;
     
     if(isHoldingShape) { 
         if(!params->wasHoldingShape) {
@@ -4025,7 +4025,7 @@ int main(int argc, char *args[]) {
     V2 screenDim = {}; //init in create app function
     V2 resolution = v2(0, 0);
     bool blackBars = true;
-    bool fullscreen = false;
+    bool fullscreen = true;
     if(argc > 1) {
         assert(argc == 5);
         char *resolutionX = args[1];
@@ -4037,7 +4037,12 @@ int main(int argc, char *args[]) {
         blackBars = atoi(blackBarsStr);
         fullscreen = atoi(fullscreenStr);
     } else {
-        resolution = v2(1280, 720);
+        // SDL_DisplayMode DM;
+        // SDL_GetCurrentDisplayMode(0, &DM);
+        // resolutions[0].x = DM.w;
+        // resolutions[0].y = DM.h;
+
+        // resolution = v2(1280, 720);
         // resolution = v2(1980, 1080);
     }
 
@@ -4058,7 +4063,7 @@ int main(int argc, char *args[]) {
         Arena soundArena = createArena(Kilobytes(200));
         Arena longTermArena = createArena(Kilobytes(200));
         
-        AppSetupInfo setupInfo = easyOS_setupApp(resolution, RESOURCE_PATH_EXTENSION, &longTermArena);
+        AppSetupInfo setupInfo = easyOS_setupApp(&resolution, RESOURCE_PATH_EXTENSION, &longTermArena);
         
         assets = (Asset **)pushSize(&longTermArena, 4096*sizeof(Asset *));
         
