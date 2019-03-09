@@ -6,6 +6,69 @@
 
 #endif
 
+typedef struct {
+    void *Data;
+    bool HasErrors;
+    u64 fileOffsetAt;
+}  LoggerFileHandle;
+
+static LoggerFileHandle globalLoggerHandle;
+
+void EasyLogInfo(LoggerFileHandle *Handle, void *Memory, size_t Size, int Offset)
+{
+    Handle->HasErrors = false;
+    SDL_RWops *FileHandle = (SDL_RWops *)Handle->Data;
+    if(!Handle->HasErrors)
+    {
+        Handle->HasErrors = true; 
+        
+        if(FileHandle)
+        {
+            
+            if(SDL_RWseek(FileHandle, Offset, RW_SEEK_SET) >= 0)
+            {
+                if(SDL_RWwrite(FileHandle, Memory, 1, Size) == Size)
+                {
+                    Handle->HasErrors = false;
+                }
+            }
+        }
+    }    
+}
+
+static inline void EasyOpenLogger() {
+    LoggerFileHandle Result = {};
+
+    char timeStampBuffer[2018] = {};
+    sprintf(timeStampBuffer, "%lu.txt", (unsigned long)time(NULL)); 
+    char *logFileName = "/LogFile_";
+    int newStrLen = strlen(globalExeBasePath) + strlen(logFileName) + strlen(timeStampBuffer) + 1; // +1 for null terminator
+    char *fileName = (char *)calloc(newStrLen, 1); 
+
+    sprintf(fileName, "%s%s%s", globalExeBasePath, logFileName, timeStampBuffer);
+    
+    SDL_RWops* FileHandle = SDL_RWFromFile(fileName, "w+");
+    
+    if(FileHandle)
+    {
+        Result.Data = FileHandle;
+    }
+    else
+    {
+        Result.HasErrors = true;
+    }
+    
+    globalLoggerHandle = Result;
+}
+
+void EasyCloseLogger()
+{
+    SDL_RWops*  FileHandle = (SDL_RWops* )globalLoggerHandle.Data;
+    if(FileHandle) {
+        SDL_RWclose(FileHandle);
+    }
+}
+
 #if DEVELOPER_MODE
 #define calloc(size, item) malloc(size)
 #endif
@@ -28,7 +91,6 @@ float min(float a, float b) {
     return result;
 }
 
-
 #ifdef _WIN32
 //printf doens't print to the console annoyingly!!
 #define printf(...) {char str[256]; sprintf_s(str, __VA_ARGS__); OutputDebugString(str); }
@@ -39,13 +101,13 @@ float min(float a, float b) {
 #endif 
 
 #define invalidCodePathStr(msg) { printf(msg); exit(0); }
-#if DEVELOPER_MODE //turn off for crash assert
-// #define assert(statement) if(!(statement)) { int *a = 0; a = 0;}
-#define assert(statement) if(!(statement)) {printf("Something went wrong at %d in %s\n", __LINE__, __FILE__);  int *a = 0; *a = 0;}
-#define assertStr(statement, str) if(!(statement)) { printf("%s\n", str); } assert(statement); 
+#if !DEVELOPER_MODE //turn off for crash EasyAssert
+// #define EasyAssert(statement) if(!(statement)) { int *a = 0; a = 0;}
+#define EasyAssert(statement) if(!(statement)) {printf("Something went wrong at %d in %s\n", __LINE__, __FILE__);  int *a = 0; *a = 0;}
+#define EasyAssertStr(statement, str) if(!(statement)) { printf("%s\n", str); } EasyAssert(statement); 
 #else
-#define assert(statement) 
-#define assertStr(statement, str)
+#define EasyAssert(statement) if(!(statement)) { if(!globalLoggerHandle.Data) { EasyOpenLogger(); } char charBuffer[1028]; sprintf(charBuffer, "%d %s", __LINE__, __FILE__); int sizeToWrtite = strlen(charBuffer)*sizeof(u8); EasyLogInfo(&globalLoggerHandle, charBuffer, sizeToWrtite, globalLoggerHandle.fileOffsetAt); globalLoggerHandle.fileOffsetAt += sizeToWrtite;}
+#define EasyAssertStr(statement, str)
 #endif
 
 #include <limits.h>
@@ -122,7 +184,7 @@ void *pushSize(Arena *arena, size_t size) {
         size_t extension = max(Kilobytes(1028), size);
         if(piece)  {
             MemoryPiece **piecePtr = &arena->piecesFreeList;
-            assert(piece->totalSize > 0);
+            EasyAssert(piece->totalSize > 0);
             while(piece && piece->totalSize < extension) {//find the right size piece. 
                 piecePtr = &piece->next; 
                 piece = piece->next;
@@ -141,23 +203,23 @@ void *pushSize(Arena *arena, size_t size) {
             piece->totalSize = extension;
             piece->currentSize = 0;
         }
-        assert(piece);
-        assert(piece->memory);
-        assert(piece->totalSize > 0);
-        assert(piece->currentSize == 0);
+        EasyAssert(piece);
+        EasyAssert(piece->memory);
+        EasyAssert(piece->totalSize > 0);
+        EasyAssert(piece->currentSize == 0);
 
         //stick on list
         piece->next = arena->pieces;
         arena->pieces = piece;
 
         // piece->totalSizeOfArena = arena->totalSize;
-        // assert((arena->currentSize_ + size) <= arena->totalSize); 
+        // EasyAssert((arena->currentSize_ + size) <= arena->totalSize); 
     }
 
     MemoryPiece *piece = arena->pieces;
 
-    assert(piece);
-    assert((piece->currentSize + size) <= piece->totalSize); 
+    EasyAssert(piece);
+    EasyAssert((piece->currentSize + size) <= piece->totalSize); 
     
     void *result = ((u8 *)piece->memory) + piece->currentSize;
     piece->currentSize += size;
@@ -169,8 +231,8 @@ void *pushSize(Arena *arena, size_t size) {
 Arena createArena(size_t size) {
     Arena result = {};
     pushSize(&result, size);
-    assert(result.pieces);
-    assert(result.pieces->memory);
+    EasyAssert(result.pieces);
+    EasyAssert(result.pieces->memory);
     return result;
 }
 
@@ -193,9 +255,9 @@ MemoryArenaMark takeMemoryMark(Arena *arena) {
 void releaseMemoryMark(MemoryArenaMark *mark) {
     mark->arena->markCount--;
     Arena *arena = mark->arena;
-    assert(mark->id == arena->markCount);
-    assert(arena->markCount >= 0);
-    assert(arena->pieces);
+    EasyAssert(mark->id == arena->markCount);
+    EasyAssert(arena->markCount >= 0);
+    EasyAssert(arena->pieces);
     //all ways the top piece is the current memory block for the arena. 
     MemoryPiece *piece = arena->pieces;
     if(mark->piece != piece) {
@@ -209,18 +271,18 @@ void releaseMemoryMark(MemoryArenaMark *mark) {
                 break;
             } else {
                 arena->pieces = piece->next;
-                assert(arena->pieces);
+                EasyAssert(arena->pieces);
                 //put on free list
                 piece->next = arena->piecesFreeList;
                 arena->piecesFreeList = piece;
             }
         }
-        assert(found);
+        EasyAssert(found);
     } 
-    assert(arena->pieces == mark->piece);
+    EasyAssert(arena->pieces == mark->piece);
     //roll back size
     piece->currentSize = mark->memAt;
-    assert(piece->currentSize <= piece->totalSize);
+    EasyAssert(piece->currentSize <= piece->totalSize);
 }
 
 
@@ -278,8 +340,8 @@ char *concat(char *a, char *b) {
     {
         *at++ = b[i];
     }
-    assert(at == &newString[newStrLen - 1])
-        assert(newString[newStrLen - 1 ] == '\0');
+    EasyAssert(at == &newString[newStrLen - 1])
+    EasyAssert(newString[newStrLen - 1 ] == '\0');
     return newString;
 }
 
@@ -390,13 +452,13 @@ void splice(InputBuffer *buffer, char *string, bool addString) { //if false will
     for(int i = 0; i < tempCharCount; ++i) {
         buffer->chars[buffer->cursorAt + i] = tempChars[i]; 
     }
-    assert(buffer->length < arrayCount(buffer->chars));
+    EasyAssert(buffer->length < arrayCount(buffer->chars));
     buffer->chars[buffer->length] = '\0'; //null terminate buffer
 }
 
 //TODO: Make this more robust TODO: I don't think this is neccessary??
 char *getResPathFromExePath(char *exePath, char *folderName) {
-    assert(!"invalid path");
+    EasyAssert(!"invalid path");
     // unsigned int execPathLength = strlen(exePath) + 1; //for the null terminate character
     
     // char *at = exePath;
@@ -415,7 +477,7 @@ char *getResPathFromExePath(char *exePath, char *folderName) {
     // resPath[indexAt + 2] = 's';
     // resPath[indexAt + 3] = '/';
     // resPath[indexAt + 4] = '\0';
-    // assert(strlen(resPath) <= execPathLength);
+    // EasyAssert(strlen(resPath) <= execPathLength);
     
     return 0;
 }
@@ -434,7 +496,7 @@ char *lastFilePortion(char *at) {
     char *result = (char *)calloc(length, 1);
     
     memcpy(result, recent, length);
-    assert(result[length - 1] == '\0');
+    EasyAssert(result[length - 1] == '\0');
     
     return result;
 }

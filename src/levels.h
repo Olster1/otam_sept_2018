@@ -128,9 +128,9 @@ static inline V2 getPos(OverworldLevelState *state, LevelGroup *group) {
 }
 */
 static inline void addLevelToGroup(LevelGroup *group, LevelType type) {
-    assert(group->count < arrayCount(group->levels));
+    EasyAssert(group->count < arrayCount(group->levels));
     group->levels[group->count++] = type;
-    assert(group->activated == false);
+    EasyAssert(group->activated == false);
 }
 
 static inline LevelCountFromFile findLevelCount(char *readName) {
@@ -140,7 +140,7 @@ static inline LevelCountFromFile findLevelCount(char *readName) {
         counts.valid = true;
         
         FileContents saveFileContents = getFileContentsNullTerminate(readName);
-        assert(saveFileContents.valid);
+        EasyAssert(saveFileContents.valid);
         
         EasyTokenizer tokenizer = lexBeginParsing((char *)saveFileContents.memory, true);
         bool parsing = true;
@@ -161,7 +161,7 @@ static inline LevelCountFromFile findLevelCount(char *readName) {
                         for(int i = 0; i < arrayCount(LevelStateStrings); ++i) {
                             if(cmpStrNull(LevelStateStrings[i], stringToCopy)) {
                                 stateToSet = (LevelState)i;
-                                assert(stateToSet != LEVEL_STATE_NULL);
+                                EasyAssert(stateToSet != LEVEL_STATE_NULL);
                                 break;
                             }
                         }
@@ -186,7 +186,7 @@ static inline LevelCountFromFile findLevelCount(char *readName) {
 }
 
 void startGameAgain(int level) {
-    assert(level >= 0 && level < 3);
+    EasyAssert(level >= 0 && level < 3);
     char shortName[1028] = {};
     sprintf(shortName, "saveFile%d.h", level);
     char *readName = concat(globalExeBasePath, shortName);
@@ -226,13 +226,13 @@ void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *
     
     char shortName[256] = {};
     sprintf(shortName, "saveFile%d.h", saveSlot);
-    assert(strlen(shortName) < 255);
+    EasyAssert(strlen(shortName) < 255);
     char *readName = concat(globalExeBasePath, shortName);
     // printf("%s\n", readName);
     int lastShownGroup = 10000; //really big number. No groups above this. 
     if(platformDoesFileExist(readName)) {
         FileContents saveFileContents = getFileContentsNullTerminate(readName);
-        assert(saveFileContents.valid);
+        EasyAssert(saveFileContents.valid);
         
         EasyTokenizer tokenizer = lexBeginParsing((char *)saveFileContents.memory, true);
         bool parsing = true;
@@ -252,26 +252,26 @@ void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *
                         for(int i = 0; i < arrayCount(LevelTypeStrings); ++i) {
                             if(cmpStrNull(LevelTypeStrings[i], stringToCopy)) {
                                 levelAt = (LevelType)i;
-                                assert(levelAt != LEVEL_NULL);
+                                EasyAssert(levelAt != LEVEL_NULL);
                                 break;
                             }
                         }
                     }
                     if(stringsMatchNullN("levelState", token.at, token.size)) {
-                        assert(levelAt != LEVEL_NULL);
+                        EasyAssert(levelAt != LEVEL_NULL);
                         LevelData *level = levelsData + levelAt;
                         char *stringToCopy = getStringFromDataObjects(&data, &tokenizer);
                         LevelState stateToSet = LEVEL_STATE_NULL;
                         for(int i = 0; i < arrayCount(LevelStateStrings); ++i) {
                             if(cmpStrNull(LevelStateStrings[i], stringToCopy)) {
                                 stateToSet = (LevelState)i;
-                                assert(stateToSet != LEVEL_STATE_NULL);
+                                EasyAssert(stateToSet != LEVEL_STATE_NULL);
                                 break;
                             }
                         }
                         
                         if(stateToSet != LEVEL_STATE_COMPLETED) {
-                            assert(stateToSet == LEVEL_STATE_UNLOCKED);
+                            EasyAssert(stateToSet == LEVEL_STATE_UNLOCKED);
                             if(level->groupId < lastShownGroup) {
                                 lastShownGroup = level->groupId;
                             }
@@ -301,12 +301,12 @@ void loadSaveFile(LevelData *levelsData, int numberOfLevels, int saveSlot, int *
 }
 
 void updateSaveStateDetails(LevelData *levelDatasArray, LevelCountFromFile *saveStateDetails, int count) {
-    assert(count == 1); //this only supports _one_ save file. If you want more use the commented out function in Levels.h file, named the same name.
+    EasyAssert(count == 1); //this only supports _one_ save file. If you want more use the commented out function in Levels.h file, named the same name.
     int completedLevelsCount = 0;
     for(int i = 0; i < LEVEL_COUNT; ++i) {
         LevelData *data = levelDatasArray + i;
         if(data->valid) {
-            assert(data->valid);
+            EasyAssert(data->valid);
             if(data->state == LEVEL_STATE_COMPLETED) {
                 completedLevelsCount++;
             }

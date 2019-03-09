@@ -44,8 +44,8 @@ Asset *findAsset(char *fileName) {
         if(!file) {
             found = true; 
         } else {
-            assert(file->file);
-            assert(file->name);
+            EasyAssert(file->file);
+            EasyAssert(file->name);
             if(cmpStrNull(fileName, file->name)) {
                 result = file;
                 found = true;
@@ -64,32 +64,32 @@ Asset *findAsset(char *fileName) {
 
 Texture *getTextureAsset(Asset *assetPtr) {
     Texture *result = (Texture *)(assetPtr->file);
-    assert(result);
+    EasyAssert(result);
     return result;
 }
 
 WavFile *getSoundAsset(Asset *assetPtr) {
     WavFile *result = (WavFile *)(assetPtr->file);
-    assert(result);
+    EasyAssert(result);
     return result;
 }
 
 AnimationParent *getAnimationAsset(Asset *assetPtr) {
     AnimationParent *result = (AnimationParent *)(assetPtr->file);
-    assert(result);
+    EasyAssert(result);
     return result;
 }
 
 Event *getEventAsset(Asset *assetPtr) {
     Event *result = (Event *)(assetPtr->file);
-    assert(result);
+    EasyAssert(result);
     return result;
 }
 
 Asset *addAsset_(char *fileName, void *asset) { 
     char *truncName = getFileLastPortion(fileName);
     int hashKey = getAssetHash(truncName, arrayCount(assets));
-    assert(fileName != truncName);
+    EasyAssert(fileName != truncName);
     Asset **filePtr = assets + hashKey;
     
     bool found = false; 
@@ -108,7 +108,7 @@ Asset *addAsset_(char *fileName, void *asset) {
             filePtr = &file->next;
         }
     }
-    assert(found);
+    EasyAssert(found);
     return result;
 }
 
@@ -132,7 +132,7 @@ Asset *loadImageAsset(char *fileName) {
     Texture *tex = (Texture *)calloc(sizeof(Texture), 1);
     memcpy(tex, &texOnStack, sizeof(Texture));
     Asset *result = addAssetTexture(fileName, tex);
-    assert(result);
+    EasyAssert(result);
     return result;
 }
 
@@ -140,7 +140,7 @@ Asset *loadSoundAsset(char *fileName, SDL_AudioSpec *audioSpec) {
     WavFile *sound = (WavFile *)calloc(sizeof(WavFile), 1);
     loadWavFile(sound, fileName, audioSpec);
     Asset *result = addAssetSound(fileName, sound);
-    assert(result);
+    EasyAssert(result);
     //free(fileName);
     return result;
 }

@@ -76,9 +76,9 @@ RayCastInfo easy_phys_castRay(V2 startP, V2 ray, V2 *points, int count) {
 				isNanErrorf(yAt);
 				if(yAt >= 0 && yAt < sideLength) {
 					if(tAt < min_tAt || !isSet) {
-						assert(signOf(startValueX) != signOf(endValueX) || (startValueX == 0 && endValueX == 0) || (startValueX == 0.0f || endValueX == 0.0f));
+						EasyAssert(signOf(startValueX) != signOf(endValueX) || (startValueX == 0 && endValueX == 0) || (startValueX == 0.0f || endValueX == 0.0f));
 						float xAt = lerp(startValueX, tAt, endValueX); 
-						assert(floatEqual_withError(xAt, 0));
+						EasyAssert(floatEqual_withError(xAt, 0));
 						isNanErrorf(tAt);
 						isNanErrorf(startValueX);
 						isNanErrorf(endValueX);

@@ -49,7 +49,7 @@ inline float ATan2_0toTau(float Y, float X) {
         Result += TAU32; // is in the bottom range ie. 180->360. -PI32 being PI32. So we can flip it up by adding TAU32
     }
     
-    assert(Result >= 0 && Result <= (TAU32 + 0.00001));
+    EasyAssert(Result >= 0 && Result <= (TAU32 + 0.00001));
     return Result;
 }
 
@@ -1024,7 +1024,7 @@ float smoothStep01(float a, float t, float b) {
 float smoothStep00(float a, float t, float b) {
     float mappedT = -cos(t*2*PI32);
     mappedT = inverse_lerp(-1, mappedT, 1);
-    assert(mappedT >= 0.0f && mappedT <= 1.0f);
+    EasyAssert(mappedT >= 0.0f && mappedT <= 1.0f);
     float value = lerp(a, mappedT, b);
     return value;
 }

@@ -19,7 +19,7 @@ void addVar_(InfiniteAlloc *mem, void *val_, int count, char *varName, VarType t
 
     if(count > 0) {
         if(count > 1 && !(type == VAR_CHAR_STAR || type == VAR_INT || type == VAR_FLOAT)) {
-            assert(!"array not handled yet");
+            EasyAssert(!"array not handled yet");
         }
         switch(type) {
             case VAR_CHAR_STAR: {
@@ -27,7 +27,7 @@ void addVar_(InfiniteAlloc *mem, void *val_, int count, char *varName, VarType t
                     char *val = (char *)val_;
                     sprintf(data, "\"%s\"", val);
                 } else {
-                    assert(count > 1);
+                    EasyAssert(count > 1);
                     printf("isArray\n");
 
                     char **val = (char **)val_;
@@ -61,7 +61,7 @@ void addVar_(InfiniteAlloc *mem, void *val_, int count, char *varName, VarType t
                     int *val = (int *)val_;
                     sprintf(data, "%d", val[0]);
                 } else {
-                    assert(count > 1);
+                    EasyAssert(count > 1);
 
                     int *val = (int *)val_;
                     char *bracket = "[";
@@ -84,7 +84,7 @@ void addVar_(InfiniteAlloc *mem, void *val_, int count, char *varName, VarType t
                     float *val = (float *)val_;
                     sprintf(data, "%f", val[0]);
                 } else {
-                    assert(count > 1);
+                    EasyAssert(count > 1);
 
                     float *val = (float *)val_;
                     char *bracket = "[";
@@ -161,7 +161,7 @@ InfiniteAlloc getDataObjects(EasyTokenizer *tokenizer) {
         char *at = tokenizer->src;
         EasyToken token = lexGetNextToken(tokenizer);
         // lexPrintToken(&token);
-        assert(at != tokenizer->src);
+        EasyAssert(at != tokenizer->src);
         switch(token.type) {
             case TOKEN_NULL_TERMINATOR: {
                 parsing = false;
@@ -238,7 +238,7 @@ static inline float easyText_getIntOrFloat(DataObject obj) {
     if(obj.type == VAR_FLOAT) {
         a = obj.floatVal;
     } else {
-        assert(obj.type == VAR_INT);
+        EasyAssert(obj.type == VAR_INT);
         a = (int)obj.intVal;
     }
     return a;
@@ -247,8 +247,8 @@ static inline float easyText_getIntOrFloat(DataObject obj) {
 V2 buildV2FromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
     *data = getDataObjects(tokenizer);
     DataObject *objs = (DataObject *)data->memory;
-    assert(objs[0].type == VAR_FLOAT || objs[0].type == VAR_INT);
-    assert(objs[1].type == VAR_FLOAT || objs[0].type == VAR_INT);
+    EasyAssert(objs[0].type == VAR_FLOAT || objs[0].type == VAR_INT);
+    EasyAssert(objs[1].type == VAR_FLOAT || objs[0].type == VAR_INT);
 
     float a = easyText_getIntOrFloat(objs[0]);
     float b = easyText_getIntOrFloat(objs[1]);
@@ -260,9 +260,9 @@ V2 buildV2FromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
 V3 buildV3FromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
     *data = getDataObjects(tokenizer);
     DataObject *objs = (DataObject *)data->memory;
-    assert(objs[0].type == VAR_FLOAT);
-    assert(objs[1].type == VAR_FLOAT);
-    assert(objs[2].type == VAR_FLOAT);
+    EasyAssert(objs[0].type == VAR_FLOAT);
+    EasyAssert(objs[1].type == VAR_FLOAT);
+    EasyAssert(objs[2].type == VAR_FLOAT);
 
     V3 result = v3(objs[0].floatVal, objs[1].floatVal, objs[2].floatVal);
     return result;
@@ -271,10 +271,10 @@ V3 buildV3FromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
 V4 buildV4FromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
     *data = getDataObjects(tokenizer);
     DataObject *objs = (DataObject *)data->memory;
-    assert(objs[0].type == VAR_FLOAT);
-    assert(objs[1].type == VAR_FLOAT);
-    assert(objs[2].type == VAR_FLOAT);
-    assert(objs[3].type == VAR_FLOAT);
+    EasyAssert(objs[0].type == VAR_FLOAT);
+    EasyAssert(objs[1].type == VAR_FLOAT);
+    EasyAssert(objs[2].type == VAR_FLOAT);
+    EasyAssert(objs[3].type == VAR_FLOAT);
 
     V4 result = v4(objs[0].floatVal, objs[1].floatVal, objs[2].floatVal, objs[3].floatVal);
     return result;
@@ -283,7 +283,7 @@ V4 buildV4FromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
 char *getStringFromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
     *data = getDataObjects(tokenizer);
     DataObject *objs = (DataObject *)data->memory;
-    assert(objs[0].type == VAR_CHAR_STAR);
+    EasyAssert(objs[0].type == VAR_CHAR_STAR);
 
     char *result = objs[0].stringVal;
 
@@ -297,7 +297,7 @@ char *getStringFromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
 unsigned long getIntFromDataObjects_(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
     *data = getDataObjects(tokenizer);
     DataObject *objs = (DataObject *)data->memory;
-    assert(objs[0].type == VAR_INT);
+    EasyAssert(objs[0].type == VAR_INT);
     
     unsigned long result = objs[0].intVal;
 
@@ -307,7 +307,7 @@ unsigned long getIntFromDataObjects_(InfiniteAlloc *data, EasyTokenizer *tokeniz
 bool getBoolFromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
     *data = getDataObjects(tokenizer);
     DataObject *objs = (DataObject *)data->memory;
-    assert(objs[0].type == VAR_BOOL);
+    EasyAssert(objs[0].type == VAR_BOOL);
     
     bool result = objs[0].boolVal;
 
@@ -318,7 +318,7 @@ bool getBoolFromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
 float getFloatFromDataObjects(InfiniteAlloc *data, EasyTokenizer *tokenizer) {
     *data = getDataObjects(tokenizer);
     DataObject *objs = (DataObject *)data->memory;
-    assert(objs[0].type == VAR_FLOAT);
+    EasyAssert(objs[0].type == VAR_FLOAT);
     
     float result = objs[0].floatVal;
     return result;

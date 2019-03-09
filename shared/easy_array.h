@@ -11,11 +11,11 @@
 #define invalidCodePathStr(msg) { printf(msg); exit(0); }
 #endif
 
-#if !defined assert 
-#if 1 //easy assert
-#define assert(statement) if(!(statement)) {printf("Something went wrong at %d", __LINE__); exit(0);}
+#if !defined EasyAssert 
+#if 1 //easy EasyAssert
+#define EasyAssert(statement) if(!(statement)) {printf("Something went wrong at %d", __LINE__); exit(0);}
 #else 
-#define assert(statement) if(!(statement)) { int *i_ = 0; *i_ = 0; }
+#define EasyAssert(statement) if(!(statement)) { int *i_ = 0; *i_ = 0; }
 #endif
 #endif
 
@@ -87,20 +87,20 @@ InfiniteAlloc initInfinteAlloc_(int sizeOfMember) {
     return result;
 }
 
-#define addElementInfinteAlloc(arena, data) assert(sizeof(data) == arena->sizeOfMember); addElementInfinteAlloc_(arena, (void *)&data)
+#define addElementInfinteAlloc(arena, data) EasyAssert(sizeof(data) == arena->sizeOfMember); addElementInfinteAlloc_(arena, (void *)&data)
 
 
 #define getElementFromAlloc(arena, index, type) (type *)getElementFromAlloc_(arena, index);
 void *getElementFromAlloc_(InfiniteAlloc *arena, int index)  {
-    assert(index >= 0 && index < arena->count); 
+    EasyAssert(index >= 0 && index < arena->count); 
     u8 *memAt = ((u8 *)arena->memory) + (arena->sizeOfMember*index);
     return memAt;
 }
 
 void *addElementInifinteAllocWithCount_(InfiniteAlloc *arena, void *data, int count) {
-    assert(arena->sizeOfMember > 0);
+    EasyAssert(arena->sizeOfMember > 0);
     expandMemoryArray_(arena, count);
-    assert((arena->count + count) < arena->totalCount);
+    EasyAssert((arena->count + count) < arena->totalCount);
     u8 *memAt = (u8 *)arena->memory + (arena->sizeOfMember*arena->count);
     arena->count += count;
     if(data) {
@@ -138,7 +138,7 @@ Pool *initPool(Array_Dynamic *array, size_t sizeofType, unsigned int id) {
     while(*poolHashPtr) {
         poolHashPtr = &((*poolHashPtr)->next);
     } 
-    assert(!(*poolHashPtr));
+    EasyAssert(!(*poolHashPtr));
     
     *poolHashPtr = pool;
     //
@@ -153,7 +153,7 @@ void initArray_(Array_Dynamic *array, size_t sizeofType) {
     //set up sentinel
     ValidIndex *sent = &array->freeIndexesSent;
     array->freeIndexesSent.next = array->freeIndexesSent.prev = sent;
-    assert(array->freeIndexesSent.next == &array->freeIndexesSent);
+    EasyAssert(array->freeIndexesSent.next == &array->freeIndexesSent);
     ////
 }
 
@@ -166,12 +166,12 @@ bool isElmValid(Pool *pool, int index) {
 
 int addElement_(Array_Dynamic *array, void *elmData, size_t sizeofData) {
     
-    assert(sizeofData == array->sizeofType);
+    EasyAssert(sizeofData == array->sizeofType);
     
     Pool *pool = array->latestPool;
     
     if(!pool) { //we don't set any pools up to begin with to save any memory being used. (low cost to use them!) Oliver 20/02/18
-        assert(array->poolIdAt == 0);
+        EasyAssert(array->poolIdAt == 0);
         pool = array->latestPool = initPool(array, array->sizeofType, array->poolIdAt++);
     }
     
@@ -181,28 +181,28 @@ int addElement_(Array_Dynamic *array, void *elmData, size_t sizeofData) {
         ValidIndex *validIndex = array->freeIndexesSent.next; 
         indexAt = validIndex->index;
         pool = validIndex->pool;
-        assert(pool);
+        EasyAssert(pool);
         //remove from linked list 
-        assert(validIndex);
-        assert(validIndex != &array->freeIndexesSent);
-        assert(validIndex->prev == &array->freeIndexesSent);
+        EasyAssert(validIndex);
+        EasyAssert(validIndex != &array->freeIndexesSent);
+        EasyAssert(validIndex->prev == &array->freeIndexesSent);
         array->freeIndexesSent.next = validIndex->next; //move to next item; 
         validIndex->next->prev = validIndex->prev;
         
         
-        assert(pool);
+        EasyAssert(pool);
         //put on free list
         validIndex->prev = 0;
         validIndex->next = array->freeList;
         array->freeList = validIndex;
-        assert(!isElmValid(pool, indexAt));
+        EasyAssert(!isElmValid(pool, indexAt));
     } else {
         if(pool->indexAt >= pool->count) {
             //add new pool 
             pool = array->latestPool = initPool(array, array->sizeofType, array->poolIdAt++);
         } 
         //add element
-        assert(pool->indexAt < pool->count);
+        EasyAssert(pool->indexAt < pool->count);
         
         indexAt = pool->indexAt++;
         array->count++;
@@ -295,7 +295,7 @@ void removeElement_unordered(Array_Dynamic *array, int absIndex) {
         void *elm = pool->memory + (index*array->sizeofType);
         unsigned int lastIndex = --pool->indexAt;
         if(lastIndex != index) {
-            assert(index < lastIndex);
+            EasyAssert(index < lastIndex);
             void *elm2 = pool->memory + (lastIndex*array->sizeofType);
             //get element from the end. 
             memcpy(elm, elm2, array->sizeofType);
@@ -311,7 +311,7 @@ void removeElement_unordered(Array_Dynamic *array, int absIndex) {
 //
 void *getLastElement(Array_Dynamic *array) { //returns the last element on the list. [array->count - 1]
     void *lastElm = getElement(array, array->count - 1);
-    assert(lastElm);
+    EasyAssert(lastElm);
     return lastElm;
 }
 
@@ -329,7 +329,7 @@ void removeElement_ordered(Array_Dynamic *array, int absIndex) {
             //alloc new valid index
             validInd = (ValidIndex *)calloc(sizeof(ValidIndex), 1);
         }
-        assert(validInd);
+        EasyAssert(validInd);
         //assgin info
         validInd->index = info.indexAt;
         validInd->pool = info.pool;
@@ -362,7 +362,7 @@ void removeSectionOfElements(Array_Dynamic *array, RemoveType type, int min, int
         if(type == REMOVE_ORDERED) {
             removeElement_ordered(array, i);
         } else {
-            assert(type == REMOVE_UNORDERED);
+            EasyAssert(type == REMOVE_UNORDERED);
             removeElement_unordered(array, i);
         }
     }

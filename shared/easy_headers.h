@@ -3,10 +3,9 @@
 #include "easy_types.h"
 // #include <string.h>
 
+static char* globalExeBasePath;
 
 #include "easy.h"
-
-static char* globalExeBasePath;
 
 #include "easy_files.h"
 #include "easy_math.h"

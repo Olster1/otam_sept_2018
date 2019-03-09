@@ -278,7 +278,7 @@ void pushRenderItemForModel(VaoHandle *handles, RenderGroup *group, RenderProgra
     }
     
     RenderItem *info = (RenderItem *)addElementInifinteAlloc_(&group->items, 0);
-    assert(info);
+    EasyAssert(info);
     info->bufferId = group->currentBufferId;
     info->depthTest = group->currentDepthTest;
     info->blendFuncType = group->blendFuncType;
@@ -298,7 +298,7 @@ void pushRenderItem(VaoHandle *handles, RenderGroup *group, Vertex *triangleData
     }
     
     RenderItem *info = (RenderItem *)addElementInifinteAlloc_(&group->items, 0);
-    assert(info);
+    EasyAssert(info);
     info->bufferId = group->currentBufferId;
     info->depthTest = group->currentDepthTest;
     info->blendFuncType = group->blendFuncType;
@@ -329,7 +329,7 @@ void pushRenderItem(VaoHandle *handles, RenderGroup *group, Vertex *triangleData
     //Could make this cleaner by original making it a SHAPE_TEXTURE. Might prevent possible bugs that 
     //might occur??!! - Oliver 22/1/19
     if(info->type == SHAPE_RECTANGLE) {
-        assert(program == &textureProgram);
+        EasyAssert(program == &textureProgram);
         info->program = &textureProgram;
         info->type = SHAPE_TEXTURE; 
         //set the texture so the render item gets assigned the uv data.
@@ -338,7 +338,7 @@ void pushRenderItem(VaoHandle *handles, RenderGroup *group, Vertex *triangleData
     
     if(texture) {
         info->textureHandle = (u32)texture->id;
-        assert(info->textureHandle);
+        EasyAssert(info->textureHandle);
         info->textureUVs = texture->uvCoords;
     } 
     info->pMat = pMat;
@@ -392,7 +392,7 @@ RenderProgram createRenderProgram(char *vShaderSource, char *fShaderSource) {
         }
     }
     
-    assert(result.valid);
+    EasyAssert(result.valid);
     
     return result;
 }
@@ -402,7 +402,7 @@ void renderCheckError_(int lineNumber, char *fileName) {
     GLenum err = glGetError();
     if(err) {
         printf((char *)"GL error check: %x at %d in %s\n", err, lineNumber, fileName);
-        assert(!err);
+        EasyAssert(!err);
     }
     
 }
@@ -425,7 +425,7 @@ ShaderValInfo getAttribFromProgram(RenderProgram *prog, char *name) {
     if(!result.valid) {
         printf("%s\n", name);
     }
-    assert(result.valid);
+    EasyAssert(result.valid);
     return result;
 }
 
@@ -436,7 +436,7 @@ ShaderValInfo getUniformFromProgram(RenderProgram *prog, char *name) {
         if(cmpStrNull(name, val->name)) {
             result.handle = val->handle;
             //printf("%d\n", val->handle);
-            //assert(result.handle > 0);
+            //EasyAssert(result.handle > 0);
             result.valid = true;
             break;
         }
@@ -444,7 +444,7 @@ ShaderValInfo getUniformFromProgram(RenderProgram *prog, char *name) {
     if(!result.valid) {
         printf("%s\n", name);
     }
-    assert(result.valid);
+    EasyAssert(result.valid);
     return result;
 }
 
@@ -468,7 +468,7 @@ void findAttribsAndUniforms(RenderProgram *prog, char *stream, bool isVertexShad
     while(parsing) {
         char *at = tokenizer.src;
         EasyToken token = lexGetNextToken(&tokenizer);
-        assert(at != tokenizer.src);
+        EasyAssert(at != tokenizer.src);
         switch(token.type) {
             case TOKEN_NULL_TERMINATOR: {
                 parsing = false;
@@ -480,7 +480,7 @@ void findAttribsAndUniforms(RenderProgram *prog, char *stream, bool isVertexShad
                     token = lexGetNextToken(&tokenizer);
                     char *name = nullTerminate(token.at, token.size);
                     //printf("Uniform Found: %s\n", name);
-                    assert(prog->uniformCount < arrayCount(prog->uniforms));
+                    EasyAssert(prog->uniformCount < arrayCount(prog->uniforms));
                     ShaderVal *val = prog->uniforms + prog->uniformCount++;
                     val->name = name;
                     val->handle = renderGetUniformLocation(prog, name);
@@ -491,7 +491,7 @@ void findAttribsAndUniforms(RenderProgram *prog, char *stream, bool isVertexShad
                     token = lexGetNextToken(&tokenizer);
                     char *name = nullTerminate(token.at, token.size);
                     // printf("Attrib Found: %s\n", name);
-                    assert(prog->attribCount < arrayCount(prog->attribs));
+                    EasyAssert(prog->attribCount < arrayCount(prog->attribs));
                     ShaderVal *val = prog->attribs + prog->attribCount++;
                     val->name = name;
                     val->handle = renderGetAttribLocation(prog, name);
@@ -620,7 +620,7 @@ static inline V3 screenSpaceToWorldSpace(Matrix4 perspectiveMat, V2 screenP, V2 
 
     Matrix4 inverseMat = mat4();
     bool valid = mat4_inverse(perspectiveMat.E_, inverseMat.E_);
-    assert(valid);
+    EasyAssert(valid);
         
     V3 cameraSpaceP = V4MultMat4(clipSpaceP, inverseMat).xyz;
 
@@ -881,7 +881,7 @@ FrameBuffer createFrameBuffer(int width, int height, int flags) {
     glBindFramebuffer(GL_FRAMEBUFFER, frameBufferHandle);
     renderCheckError();
     
-    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+    EasyAssert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
     
     FrameBuffer result = {};
     result.textureId = mainTexture;
@@ -932,7 +932,7 @@ FrameBuffer createFrameBufferMultiSample(int width, int height, int flags, int s
                            textureId, 0);
     renderCheckError();
     
-    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+    EasyAssert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
     
     FrameBuffer result = {};
     result.textureId = textureId;
@@ -972,8 +972,8 @@ static inline void addInstanceAttribForMatrix(int index, GLuint attribLoc, int n
 
 static inline void addInstancingAttrib (GLuint attribLoc, int numOfFloats, size_t offsetForStruct, size_t offsetInStruct, int divisor) {
     
-    assert(attribLoc < GL_MAX_VERTEX_ATTRIBS);
-    assert(offsetForStruct > 0);
+    EasyAssert(attribLoc < GL_MAX_VERTEX_ATTRIBS);
+    EasyAssert(offsetForStruct > 0);
     if(numOfFloats == 16) {
         addInstanceAttribForMatrix(0, attribLoc, 4, offsetForStruct, offsetInStruct, divisor);
         addInstanceAttribForMatrix(1, attribLoc, 4, offsetForStruct, offsetInStruct, divisor);
@@ -983,7 +983,7 @@ static inline void addInstancingAttrib (GLuint attribLoc, int numOfFloats, size_
         glEnableVertexAttribArray(attribLoc);  
         renderCheckError();
         
-        assert(numOfFloats <= 4);
+        EasyAssert(numOfFloats <= 4);
         glVertexAttribPointer(attribLoc, numOfFloats, GL_FLOAT, GL_FALSE, offsetForStruct, ((char *)0) + offsetInStruct);
         renderCheckError();
         
@@ -1029,7 +1029,7 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
         
         bufferHandles->indexCount = indexCount;
         
-        assert(!bufferHandles->valid);
+        EasyAssert(!bufferHandles->valid);
         bufferHandles->valid = true;
         
         //these can also be retrieved before hand to speed up the process!!!
@@ -1080,7 +1080,7 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
             addInstancingAttrib (UVattrib, 4, offsetForStruct, sizeof(float)*36, 1);
         }
         
-        assert(offsetForStruct == sizeof(float)*40);
+        EasyAssert(offsetForStruct == sizeof(float)*40);
         
         glBindVertexArray(0);
         
@@ -1093,8 +1093,8 @@ static inline void initVao(VaoHandle *bufferHandles, Vertex *triangleData, int t
 static V2 globalBlurDir = {};
 void drawVao(VaoHandle *bufferHandles, RenderProgram *program, ShapeType type, u32 textureId, u32 PVMId, u32 colorId, u32 uvsId, V4 color, DrawCallType drawCallType, int instanceCount) {
     
-    assert(bufferHandles);
-    assert(bufferHandles->valid);
+    EasyAssert(bufferHandles);
+    EasyAssert(bufferHandles->valid);
     
     glUseProgram(program->glProgram);
     renderCheckError();
@@ -1439,7 +1439,7 @@ void sortItems(RenderGroup *group) {
         bool incrementIndex = true;
         RenderItem *infoA = (RenderItem *)getElementFromAlloc_(&group->items, index);
         RenderItem *infoB = (RenderItem *)getElementFromAlloc_(&group->items, index + 1);
-        assert(infoA && infoB);
+        EasyAssert(infoA && infoB);
         bool swap = cmpRenderItemFunc(infoA, infoB);
         if(swap) {
             RenderItem temp = *infoA;
@@ -1481,8 +1481,8 @@ void drawRenderGroup(RenderGroup *group) {
     //     if(handle) {
     //         if(handle->refresh) {
     //             renderDeleteVaoHandle(handle);
-    //             assert(!handle->refresh);
-    //             assert(!handle->valid);
+    //             EasyAssert(!handle->refresh);
+    //             EasyAssert(!handle->valid);
     //         }
     //     }
     // }
@@ -1509,7 +1509,7 @@ void drawRenderGroup(RenderGroup *group) {
                 glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
             } break;
             default: {
-                assert(!"case not handled");
+                EasyAssert(!"case not handled");
             }
         }
         InfiniteAlloc allInstanceData = initInfinteAlloc(float);        
@@ -1537,8 +1537,8 @@ void drawRenderGroup(RenderGroup *group) {
                 
                 if(info->bufferHandles == nextItem->bufferHandles && info->textureHandle == nextItem->textureHandle && info->program == nextItem->program) {
                     
-                    assert(info->blendFuncType == nextItem->blendFuncType);
-                    assert(info->depthTest == nextItem->depthTest);
+                    EasyAssert(info->blendFuncType == nextItem->blendFuncType);
+                    EasyAssert(info->depthTest == nextItem->depthTest);
                     //collect data
                     addElementInifinteAllocWithCount_(&allInstanceData, nextItem->vmMat.val, 16);
 
@@ -1594,12 +1594,12 @@ void drawRenderGroup(RenderGroup *group) {
         }
         
 #if !USING_ATTRIBS_FOR_INSTANCING
-        assert(group->lastStorageBufferCount < arrayCount(group->lastBufferStorage));
+        EasyAssert(group->lastStorageBufferCount < arrayCount(group->lastBufferStorage));
         group->lastBufferStorage[group->lastStorageBufferCount++] = pvmStore;
-        assert(group->lastStorageBufferCount < arrayCount(group->lastBufferStorage));
+        EasyAssert(group->lastStorageBufferCount < arrayCount(group->lastBufferStorage));
         group->lastBufferStorage[group->lastStorageBufferCount++] = colorStore;
         if(uvs.count > 0) {
-            assert(group->lastStorageBufferCount < arrayCount(group->lastBufferStorage));
+            EasyAssert(group->lastStorageBufferCount < arrayCount(group->lastBufferStorage));
             group->lastBufferStorage[group->lastStorageBufferCount++] = uvStore;
         }
 #endif
@@ -1647,7 +1647,7 @@ Texture createTextureOnGPU(unsigned char *image, int w, int h, int comp, RenderT
         } else if(comp == 4) {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
         } else {
-            assert(!"Channel number not handled!");
+            EasyAssert(!"Channel number not handled!");
         }
         
         glBindTexture(GL_TEXTURE_2D, 0);
@@ -1666,12 +1666,12 @@ Texture loadImage(char *fileName, RenderTextureFilter filter) {
         if(comp == 3) {
             stbi_image_free(image);
             image = stbi_load(fileName, &w, &h, &comp, STBI_rgb);
-            assert(image);
-            assert(comp == 3);
+            EasyAssert(image);
+            EasyAssert(comp == 3);
         }
     } else {
         printf("%s\n", fileName);
-        assert(!"no image found");
+        EasyAssert(!"no image found");
     }
     
     Texture result = createTextureOnGPU(image, w, h, comp, filter);

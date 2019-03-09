@@ -125,11 +125,11 @@ int declareScrollFile(UIState *state, char *fileName, Texture **viewing, V4 init
     elm.type = UI_SCROLL_FILE;
     elm.viewing = viewing;
     
-    assert(fileName);
+    EasyAssert(fileName);
     
     elm.texture = loadImage(fileName);
     
-    assert(state->parentElmPtrs.count > 0);
+    EasyAssert(state->parentElmPtrs.count > 0);
     int index = declareUIElm_(state, &elm, initialColor, hotColor, interactColor, margin);
     
     return index;
@@ -144,7 +144,7 @@ int declareScrollFileParent(UIState *state, char *dirName, Texture **viewing, V4
     int index = declareUIElm_(state, &elm, initialColor, hotColor, interactColor, margin);
     
     UIElement *parentElm = (UIElement *)getElement(&state->elements, index);
-    assert(parentElm);
+    EasyAssert(parentElm);
     addElement(&state->parentElmPtrs, parentElm);	
     
 #ifdef __APPLE__
@@ -171,7 +171,7 @@ int declareScrollFileParent(UIState *state, char *dirName, Texture **viewing, V4
         closedir(directory);
     }
 #else 
-    assert(!"not implemented");
+    EasyAssert(!"not implemented");
 #endif
     
     return index;
@@ -280,7 +280,7 @@ void updateUI(UIState *state, int bufferWidth, int bufferHeight, float yAt, floa
                     yAt += getDim(uiBounds).y + extraSpacing;
                 } break;
                 case UI_TEXTBOX: {
-                    assert(!"not implemented");
+                    EasyAssert(!"not implemented");
                 } break;
                 case UI_SCROLL_FILE_PARENT: {
                     elm->xOffset += elm->xAccel*sqr(dt) + elm->xVel*dt;
@@ -308,8 +308,8 @@ void updateUI(UIState *state, int bufferWidth, int bufferHeight, float yAt, floa
                     
                     V2 dim = v2(texture->width, texture->height);
                     dim = normalizeV2(dim);
-                    assert(parentElm);
-                    assert(parentElm->type == UI_SCROLL_FILE_PARENT);
+                    EasyAssert(parentElm);
+                    EasyAssert(parentElm->type == UI_SCROLL_FILE_PARENT);
                     dim = v2_scale(parentElm->dimScale, dim);
                     
                     xScrollAt += dim.x/2;

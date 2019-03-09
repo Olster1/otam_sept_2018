@@ -10,7 +10,7 @@ static inline int compileFiles(char *folderName, char **fileTypes, int typeCount
 	    char *shortName = getFileLastPortion(fullName);
 	    if(shortName[0] != '.') { //don't load hidden file 
 			FileContents contents = getFileContents(fullName);        
-			assert(contents.valid);
+			EasyAssert(contents.valid);
 			char buffer[512] = {};
 			char *name = getFileLastPortionWithoutExtension(shortName);
 			sprintf(buffer, "static char *%s_shader = \"", name);

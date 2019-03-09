@@ -173,7 +173,7 @@ void renderMenu(Texture *backgroundTex, MenuOptions *menuOptions, MenuInfo *info
         MenuOption *option = menuOptions->optionSettings + menuIndex;
         
         float fontSize = option->size;//mapValue(sin(dtValue), -1, 1, 0.7f, 1.2f);
-        assert(fontSize > 0.0f);
+        EasyAssert(fontSize > 0.0f);
         
         char *title = menuOptions->options[menuIndex];
         float xAt = xAt_ - (getBounds(title, menuMargin, info->font, fontSize, resolution, info->resolutionDiffScale).x / 2);

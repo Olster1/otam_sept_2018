@@ -5,14 +5,14 @@
 void isNanErrorf_(float value, int line, char *fileName) {
     if(isNanf(value)) {
         printf("NAN value at line number %d in file %s\n", line, fileName);
-        assert(!"is nan");
+        EasyAssert(!"is nan");
     }
 }
 #define isNanErrorV2(value) isNanErrorV2_(value, __LINE__, (char *)__FILE__)
 void isNanErrorV2_(V2 value, int line, char *fileName) {
     if(isNanV2(value)) {
         printf("NAN value at line number %d in file %s\n", line, fileName);
-        assert(!"is nan");
+        EasyAssert(!"is nan");
     }
 }
 
@@ -20,7 +20,7 @@ void isNanErrorV2_(V2 value, int line, char *fileName) {
 void isNanErrorV3_(V3 value, int line, char *fileName) {
     if(isNanV3(value)) {
         printf("NAN value at line number %d in file %s\n", line, fileName);
-        assert(!"is nan");
+        EasyAssert(!"is nan");
     }
 }
 

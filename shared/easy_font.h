@@ -86,7 +86,7 @@ FontSheet *createFontSheet(Font *font, int firstChar, int endChar) {
     int writeResult = stbi_write_png(concat(globalExeBasePath, nameBuf), bitmapW, bitmapH, 4, bitmapTexture, stride_in_bytes);
 #endif
     sheet->handle = renderLoadTexture(FONT_SIZE, FONT_SIZE, bitmapTexture);
-    assert(sheet->handle);
+    EasyAssert(sheet->handle);
     free(bitmapTexture);
     free(temp_bitmap);
     
@@ -115,7 +115,7 @@ FontSheet *findFontSheet(Font *font, unsigned int character) {
         sheet->next = font->sheets;
         font->sheets = sheet;
     }
-    assert(result);
+    EasyAssert(result);
 
     return result;
 }
@@ -148,7 +148,7 @@ typedef struct {
 static inline GlyphInfo easyFont_getGlyph(Font *font, u32 unicodePoint) {
     GlyphInfo glyph = {};
     FontSheet *sheet = findFontSheet(font, unicodePoint);
-    assert(sheet);
+    EasyAssert(sheet);
 
     if(unicodePoint != '\n') {
         if (((int)(unicodePoint) >= sheet->minText && (int)(unicodePoint) < sheet->maxText)) {
@@ -163,7 +163,7 @@ static inline GlyphInfo easyFont_getGlyph(Font *font, u32 unicodePoint) {
             glyph.uvCoords = rect2f(q.s0, q.t1, q.s1, q.t0);
 
         } else {
-            assert(!"invalid code path");
+            EasyAssert(!"invalid code path");
         }
     }
     return glyph;
@@ -206,12 +206,12 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, c
         // unsigned int unicodePoint = *text;
         // int unicodeLen = 1;
 
-        assert(tempR == text);
+        EasyAssert(tempR == text);
         bool increment = true;
         bool drawText = false;
         //points1[pC1++] = v2(x, y);
         FontSheet *sheet = findFontSheet(font, unicodePoint);
-        assert(sheet);
+        EasyAssert(sheet);
 
         if(unicodePoint != '\n') {
             if (((int)(unicodePoint) >= sheet->minText && (int)(unicodePoint) < sheet->maxText)) {
@@ -222,7 +222,7 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, c
                 //     error_printFloat4("uv values", uvCoords.E);
                 // }
                 stbtt_GetBakedQuad(sheet->cdata, FONT_SIZE, FONT_SIZE, unicodePoint - sheet->minText, &x, &y, &q, 1);
-                assert(quadCount < arrayCount(qs));
+                EasyAssert(quadCount < arrayCount(qs));
                 GlyphInfo *glyph = qs + quadCount++; 
                 glyph->textureHandle = sheet->handle;
                 // if(unicodePoint == 'y') {
@@ -240,7 +240,7 @@ Rect2f my_stbtt_print_(Font *font, float x, float y, float zAt, V2 resolution, c
                 glyph->lastXY = lastXY;
                 glyph->unicodePoint = unicodePoint;
             } else {
-                assert(!"false");
+                EasyAssert(!"false");
             }
         }
         

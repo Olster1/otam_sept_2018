@@ -31,11 +31,11 @@ int easyUnicode_unicodeLength(unsigned char byte) {
 	int result = 1;
 	unsigned char shiftedByte = byte >> 4;
 	if(!easyUnicode_isContinuationByte(byte) && !easyUnicode_isSingleByte(byte)) {
-		assert(easyUnicode_isLeadingByte(byte));
+		EasyAssert(easyUnicode_isLeadingByte(byte));
 		if(shiftedByte == bytes2) { result = 2; }
 		if(shiftedByte == bytes3) { result = 3; }
 		if(shiftedByte == bytes4) { result = 4; }
-		if(result == 1) assert(!"invalid path");
+		if(result == 1) EasyAssert(!"invalid path");
 	} 
 
 	return result;
@@ -50,17 +50,17 @@ unsigned int easyUnicode_utf8ToUtf32(unsigned char **streamPtr, bool advancePtr)
 	unsigned int fiveBitsFull = (1 << 4 | 1 << 3 | 1 << 2 | 1 << 1 | 1 << 0);
 	unsigned int fourBitsFull = (1 << 3 | 1 << 2 | 1 << 1 | 1 << 0);
 
-	if(easyUnicode_isContinuationByte(stream[0])) { assert(!"shouldn't be a continuation byte. Have you advanced pointer correctly?"); }
+	if(easyUnicode_isContinuationByte(stream[0])) { EasyAssert(!"shouldn't be a continuation byte. Have you advanced pointer correctly?"); }
 	int unicodeLen = easyUnicode_unicodeLength(stream[0]);
 	if(unicodeLen > 1) {
-		assert(easyUnicode_isLeadingByte(stream[0]));
+		EasyAssert(easyUnicode_isLeadingByte(stream[0]));
 		//needs to be decoded
 		switch(unicodeLen) {
 			case 2: {
 				// printf("%s\n", "two byte unicode");
 				unsigned int firstByte = stream[0];
 				unsigned int secondByte = stream[1];
-				assert(easyUnicode_isContinuationByte(secondByte));
+				EasyAssert(easyUnicode_isContinuationByte(secondByte));
 				result |= (secondByte & sixBitsFull);
 				result |= ((firstByte & sixBitsFull) << 6);
 
@@ -71,8 +71,8 @@ unsigned int easyUnicode_utf8ToUtf32(unsigned char **streamPtr, bool advancePtr)
 				unsigned int firstByte = stream[0];
 				unsigned int secondByte = stream[1];
 				unsigned int thirdByte = stream[2];
-				assert(easyUnicode_isContinuationByte(secondByte));
-				assert(easyUnicode_isContinuationByte(thirdByte));
+				EasyAssert(easyUnicode_isContinuationByte(secondByte));
+				EasyAssert(easyUnicode_isContinuationByte(thirdByte));
 				result |= (thirdByte & sixBitsFull);
 				result |= ((secondByte & sixBitsFull) << 6);
 				result |= ((firstByte & fiveBitsFull) << 12);
@@ -85,9 +85,9 @@ unsigned int easyUnicode_utf8ToUtf32(unsigned char **streamPtr, bool advancePtr)
 				unsigned int secondByte = stream[1];
 				unsigned int thirdByte = stream[2];
 				unsigned int fourthByte = stream[3];
-				assert(easyUnicode_isContinuationByte(secondByte));
-				assert(easyUnicode_isContinuationByte(thirdByte));
-				assert(easyUnicode_isContinuationByte(fourthByte));
+				EasyAssert(easyUnicode_isContinuationByte(secondByte));
+				EasyAssert(easyUnicode_isContinuationByte(thirdByte));
+				EasyAssert(easyUnicode_isContinuationByte(fourthByte));
 				result |= (thirdByte & sixBitsFull);
 				result |= ((secondByte & sixBitsFull) << 6);
 				result |= ((firstByte & sixBitsFull) << 12);
@@ -96,7 +96,7 @@ unsigned int easyUnicode_utf8ToUtf32(unsigned char **streamPtr, bool advancePtr)
 				if(advancePtr) (*streamPtr) += 4;
 			} break;
 			default: {
-				assert(!"invalid path");
+				EasyAssert(!"invalid path");
 			}
 		}
 	} else {
@@ -118,7 +118,7 @@ unsigned int *easyUnicode_utf8StreamToUtf32Stream(unsigned char *stream) {
 	while(*stream) {
 		unsigned char *a = stream;
 		*at = easyUnicode_utf8ToUtf32(&stream, true);
-		assert(stream != a);
+		EasyAssert(stream != a);
 		at++;
 	}
 	// printf("the end: %d\n", size);

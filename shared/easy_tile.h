@@ -99,7 +99,7 @@ static inline TileLayouts easyTile_initLayouts() {
 
 static inline tile_pos_type easyTile_getTileType(TileLayouts *layouts, int *spots) {
     tile_pos_type result = TOP_LEFT_TILE;
-    assert(layouts->count == 10);
+    EasyAssert(layouts->count == 10);
 
     for(int i = 0; i < layouts->count; ++i) {
         tile_type_layout *layout = layouts->layouts + i;
@@ -125,6 +125,6 @@ static inline tile_pos_type easyTile_getTileType(TileLayouts *layouts, int *spot
         
     }
     
-    //Assert(Result != NULL_TILE);
+    //EasyAssert(Result != NULL_TILE);
     return result;
 }

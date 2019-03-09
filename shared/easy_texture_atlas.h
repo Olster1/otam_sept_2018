@@ -17,11 +17,11 @@ static inline void easyAtlas_sortBySize(InfiniteAlloc *atlasElms) {
 	int max = (atlasElms->count - 1);
 	for(int index = 0; index < max; ) {
 		bool incrementIndex = true;
-		assert(index + 1 < atlasElms->count);
+		EasyAssert(index + 1 < atlasElms->count);
 		
 		Easy_AtlasElm *infoA = (Easy_AtlasElm *)getElementFromAlloc_(atlasElms, index);
 		Easy_AtlasElm *infoB = (Easy_AtlasElm *)getElementFromAlloc_(atlasElms, index + 1);
-		assert(infoA && infoB);
+		EasyAssert(infoA && infoB);
 		int sizeA = infoA->tex.width*infoA->tex.height;
     	int sizeB = infoB->tex.width*infoB->tex.height;
 		bool swap = sizeA < sizeB;
@@ -48,7 +48,7 @@ static inline void easyAtlas_sortBySize(InfiniteAlloc *atlasElms) {
 	// 	Easy_AtlasElm *infoB = (Easy_AtlasElm *)getElementFromAlloc_(atlasElms, index + 1);
 	// 	int sizeA = infoA->tex.width*infoA->tex.height;
     //    	int sizeB = infoB->tex.width*infoB->tex.height;
-	// 	assert(sizeA >= sizeB);
+	// 	EasyAssert(sizeA >= sizeB);
 	// }
 }
 
@@ -105,11 +105,11 @@ static inline void easyAtlas_addBin(Rect2f a, EasyAtlas_BinState *state) {
 		} else {
 			bin = pushStruct(state->memoryArena, EasyAtlas_BinPartition);	
 		}
-		assert(bin);
+		EasyAssert(bin);
 		
 		//add to the doubley linked list. 
 		bin->next = &state->sentinel;
-		assert(state->sentinel.prev->next == &state->sentinel);
+		EasyAssert(state->sentinel.prev->next == &state->sentinel);
 		bin->prev = state->sentinel.prev;
         
 		state->sentinel.prev->next = bin;
@@ -121,7 +121,7 @@ static inline void easyAtlas_addBin(Rect2f a, EasyAtlas_BinState *state) {
 }
 
 static inline void easyAtlas_removeBin(EasyAtlas_BinPartition *bin, EasyAtlas_BinState *state) {
-	assert(bin->prev->next == bin);
+	EasyAssert(bin->prev->next == bin);
 	bin->prev->next = bin->next;
 	bin->next->prev = bin->prev;
     
@@ -238,7 +238,7 @@ static inline void easyAtlas_drawAtlas(char *folderName, Arena *memoryArena, Inf
 					    easyAtlas_partitionBin(&state, bin, &texOnStack, EASY_ATLAS_PADDING);
 					} else {
 						//make sure the texture can at least fit on a big size. 
-						assert(texOnStack.width + EASY_ATLAS_PADDING < size && texOnStack.height + EASY_ATLAS_PADDING < size);
+						EasyAssert(texOnStack.width + EASY_ATLAS_PADDING < size && texOnStack.height + EASY_ATLAS_PADDING < size);
 					}
 				} else {
 					printf("%s\n", "no more bins");
@@ -331,13 +331,13 @@ static inline void easyAtlas_loadTextureAtlas(char *fileName, RenderTextureFilte
 	        	tex->uvCoords = uvCoords;
                 
 	        	Asset *result = addAssetTexture(imageName, tex);
-	        	assert(result);
+	        	EasyAssert(result);
 	        } break;
 	        case TOKEN_WORD: {
 	            if(stringsMatchNullN("name", token.at, token.size)) {
 	                char *string = getStringFromDataObjects(&data, &tokenizer);
                     int strSize = strlen(string); 
-                    assert(strSize < arrayCount(imageName));
+                    EasyAssert(strSize < arrayCount(imageName));
                     nullTerminateBuffer(imageName, string, strSize);
 	            }
 	            if(stringsMatchNullN("width", token.at, token.size)) {
@@ -376,7 +376,7 @@ static inline void easyAtlas_createTextureAtlas(char *idName, char *folderName, 
 	    char *shortName = getFileLastPortion(fullName);
 	    if(shortName[0] != '.') { //don't load hidden file 
 	        Asset *asset = findAsset(shortName);
-	        assert(!asset);
+	        EasyAssert(!asset);
             
         	Easy_AtlasElm elm = {};
         	elm.shortName = shortName;
@@ -384,7 +384,7 @@ static inline void easyAtlas_createTextureAtlas(char *idName, char *folderName, 
         	free(fullName);
             
         	addElementInifinteAllocWithCount_(&atlasElms, &elm, 1);
-	        assert(shortName);
+	        EasyAssert(shortName);
 	    }
 	}
     

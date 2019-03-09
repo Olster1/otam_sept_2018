@@ -37,7 +37,7 @@ Matrix4 easy3d_lookAt(V3 cameraPos, V3 targetPos, V3 upVec) {
 		rightVec = v3(1, 0, 0);
 	}
 	V3 yAxis = normalizeV3(v3_crossProduct(direction, rightVec));
-	assert(getLengthV3(yAxis) != 0);
+	EasyAssert(getLengthV3(yAxis) != 0);
 	
 	result = mat4_xyzAxis(rightVec, yAxis, direction);
 

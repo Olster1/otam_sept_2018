@@ -1,6 +1,11 @@
 #define PRINT_FRAME_RATE 0
 #define WRITE_SHADERS 0
 
+void EasyOS_setupAssert() {
+	globalExeBasePath = concat(SDL_GetBasePath(), RESOURCE_PATH_EXTENSION);
+
+}
+
 typedef struct {
 	unsigned int frameBackBufferId;
 	unsigned int renderBackBufferId; //used for ios 
@@ -10,10 +15,13 @@ typedef struct {
 } OSAppInfo;
 
 OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim, bool fullscreen) {
+	if(!globalExeBasePath) {
+		EasyOS_setupAssert();
+	}
 	OSAppInfo result = {};
 	result.valid = true;
 	if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER) != 0) {
-		assert(!"sdl not initialized");
+		EasyAssert(!"sdl not initialized");
 		result.valid = false;
 		return result;
 	} 
@@ -72,16 +80,16 @@ OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim, bool fullscreen) {
             if(SDL_GL_SetSwapInterval(1) == 0) {
             } else {
 #if DESKTOP
-                assert(!"Couldn't set swap interval\n");
+                EasyAssert(!"Couldn't set swap interval\n");
                 result.valid = false;
 #endif
             }
         } else {
-            assert(!"Couldn't make context current\n");
+            EasyAssert(!"Couldn't make context current\n");
             result.valid = false;
         }
     } else {
-        assert(!"couldn't make a context");
+        EasyAssert(!"couldn't make a context");
         result.valid = false;
     }
     
@@ -91,7 +99,7 @@ OSAppInfo easyOS_createApp(char *windowName, V2 *screenDim, bool fullscreen) {
     SDL_bool sysResult = SDL_GetWindowWMInfo(result.windowHandle, &sysInfo);
     if(!sysResult) {
         printf("%s\n", SDL_GetError());
-        assert(!"couldn't get info");
+        EasyAssert(!"couldn't get info");
         result.valid = false;
     }
     
@@ -112,7 +120,7 @@ typedef struct {
 	SDL_AudioSpec audioSpec;
 } AppSetupInfo;
 
-AppSetupInfo easyOS_setupApp(V2 *resolution, char *resPathFolder, Arena *memArena) {
+AppSetupInfo easyOS_setupApp(V2 *resolution, Arena *memArena) {
 	AppSetupInfo result = {};
     
 	V2 idealResolution = v2(1280, 720); // Not sure if this is the best place for this?? Have to see. 
@@ -131,9 +139,6 @@ AppSetupInfo easyOS_setupApp(V2 *resolution, char *resPathFolder, Arena *memAren
 #if DESKTOP
     gl3wInit();
 #endif
-    
-	// globalExeBasePath = getResPathFromExePath(SDL_GetBasePath(), resPathFolder);
-    globalExeBasePath = concat(SDL_GetBasePath(), resPathFolder);
     
     //for stb_image so the images aren't upside down.
     stbi_set_flip_vertically_on_load(true);
@@ -171,8 +176,8 @@ AppSetupInfo easyOS_setupApp(V2 *resolution, char *resPathFolder, Arena *memAren
     }
 
     float ratio = 64.0f*screenRelativeSize;
-    // assert(ratio.x != 0);
-    // assert(ratio.y != 0);
+    // EasyAssert(ratio.x != 0);
+    // EasyAssert(ratio.y != 0);
     result.metresToPixels = Matrix4_scale(mat4(), v3(ratio, ratio, 1));
     result.pixelsToMeters = Matrix4_scale(mat4(), v3(1.0f / ratio, 1.0f / ratio, 1));
     result.screenRelativeSize = screenRelativeSize;
@@ -197,7 +202,7 @@ float easyOS_getScreenRatio(V2 screenDim, V2 resolution) {
 	if(h1 > screenDim.y) {
 	    screenRatio =  screenDim.y / resolution.y;
 	    float w1 = resolution.x * screenRatio;
-	    // assert(w1 <= screenDim.x);
+	    // EasyAssert(w1 <= screenDim.x);
 	}
 	return screenRatio;
 }
@@ -283,7 +288,7 @@ static inline void easyOS_processKeyStates(AppKeyStates *state, V2 resolution, V
 	/////
 	zeroArray(state->gameButtons);
 	
-	assert(state->gameButtons[BUTTON_LEFT_MOUSE].transitionCount == 0);
+	EasyAssert(state->gameButtons[BUTTON_LEFT_MOUSE].transitionCount == 0);
 	//ask player for new input
 	SDL_Event event = {};
 	state->scrollWheelY = 0;

@@ -1,6 +1,6 @@
 float randomBetween(float a, float b) { // including a and b
     float result = ((float)rand() / (float)RAND_MAX);
-    assert(result >= 0 && result <= 1.0f);
+    EasyAssert(result >= 0 && result <= 1.0f);
     result = lerp(a, result, b);
     return result;
 }
@@ -90,7 +90,7 @@ struct particle_system {
 
 
 inline void pushParticleBitmap(particle_system_settings *Settings, Texture *Bitmap, char *name) {
-    assert(Settings->BitmapCount < arrayCount(Settings->Bitmaps));
+    EasyAssert(Settings->BitmapCount < arrayCount(Settings->Bitmaps));
     int indexAt = Settings->BitmapCount++;
     Settings->Bitmaps[indexAt] = Bitmap;
     Settings->BitmapNames[indexAt] = name;
@@ -163,7 +163,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
                 timer->value_ += dt;        
                 if(timer->value_ >= timer->period) {
                     particlesToCreate = (int)(timer->value_ / timer->period);
-                    assert(particlesToCreate > 0);
+                    EasyAssert(particlesToCreate > 0);
                     timer->value_ = 0;
 
                 }
@@ -251,7 +251,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
             int CelX = (int)(P.x + halfGridWidth);
             int CelY = (int)(P.y + halfGridHeight);
 
-            //assert(CelX >= -1);
+            //EasyAssert(CelX >= -1);
             if(CelX < 0) {
                 CelX = 0;
             }
@@ -261,7 +261,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
             
             if(CelX >= CEL_GRID_SIZE){ CelX = CEL_GRID_SIZE - 1;}
             if(CelY >= CEL_GRID_SIZE){ CelY = CEL_GRID_SIZE - 1;}
-            assert(CelX >= 0 && CelX < CEL_GRID_SIZE && CelY >= 0 && CelY < CEL_GRID_SIZE);
+            EasyAssert(CelX >= 0 && CelX < CEL_GRID_SIZE && CelY >= 0 && CelY < CEL_GRID_SIZE);
             
             particle_cel *Cel = &System->ParticleGrid[CelY][CelX];
             
@@ -282,7 +282,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
                     X < CEL_GRID_SIZE;
                     ++X)
                 {
-                    assert(X >= 0 && X < CEL_GRID_SIZE && Y >= 0 && Y < CEL_GRID_SIZE);
+                    EasyAssert(X >= 0 && X < CEL_GRID_SIZE && Y >= 0 && Y < CEL_GRID_SIZE);
                     particle_cel *Cel = &System->ParticleGrid[Y][X];
                     
                     V3 P = CelGridOrigin + v3(GridScale*(float)X, GridScale*(float)Y, 0);
@@ -318,7 +318,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
                     if(CelX < 1){ CelX = 1;}
                     if(CelY < 1){ CelY = 1;}
                     
-                    assert(CelX >= 0 && CelX < CEL_GRID_SIZE && CelY >= 0 && CelY < CEL_GRID_SIZE);
+                    EasyAssert(CelX >= 0 && CelX < CEL_GRID_SIZE && CelY >= 0 && CelY < CEL_GRID_SIZE);
 
                     particle_cel *CelCenter = &System->ParticleGrid[CelY][CelX];
                     particle_cel *CelLeft = &System->ParticleGrid[CelY][CelX - 1];
@@ -387,7 +387,7 @@ internal inline void drawAndUpdateParticleSystem(particle_system *System, float 
                 float alphaValue = t;
     #endif
 
-                // assert(t >= 0 && t <= 1);
+                // EasyAssert(t >= 0 && t <= 1);
                 
                 alphaValue = clamp(0, alphaValue, 1);
 

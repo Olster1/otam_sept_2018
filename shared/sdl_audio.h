@@ -168,8 +168,8 @@ WavFile *easyAudio_findSound(char *fileName) {
         if(!file) {
             found = true; 
         } else {
-            assert(file->file);
-            assert(file->name);
+            EasyAssert(file->file);
+            EasyAssert(file->name);
             if(cmpStrNull(fileName, file->name)) {
                 result = file->file;
                 found = true;
@@ -220,7 +220,7 @@ void addSound_(WavFile *sound) {
             filePtr = &file->next;
         }
     }
-    assert(found);
+    EasyAssert(found);
     
 }
 
@@ -231,7 +231,7 @@ PlayingSound *playSound(Arena *arena, WavFile *wavFile, PlayingSound *nextSoundT
     } else {
         result = pushStruct(arena, PlayingSound);
     }
-    assert(result);
+    EasyAssert(result);
     
     //add to playing sounds. 
     result->next = playingSounds;
@@ -299,8 +299,8 @@ void loadWavFile(WavFile *result, char *fileName, SDL_AudioSpec *audioSpec) {
 
     ///NOTE: Upsample to Stereo if mono sound
     if(outputSpec->channels != desiredChannels) {
-        assert(outputSpec->channels == AUDIO_MONO);
-        assert(audioSpec->channels != desiredChannels);
+        EasyAssert(outputSpec->channels == AUDIO_MONO);
+        EasyAssert(audioSpec->channels != desiredChannels);
         audioSpec->channels = desiredChannels;
 
         
@@ -324,13 +324,13 @@ void loadWavFile(WavFile *result, char *fileName, SDL_AudioSpec *audioSpec) {
     /////////////
     
     if(outputSpec) {
-        assert(audioSpec->freq == outputSpec->freq);
-        assert(audioSpec->format = outputSpec->format);
-        assert(audioSpec->channels == outputSpec->channels);   
-        assert(audioSpec->samples == outputSpec->samples);
+        EasyAssert(audioSpec->freq == outputSpec->freq);
+        EasyAssert(audioSpec->format = outputSpec->format);
+        EasyAssert(audioSpec->channels == outputSpec->channels);   
+        EasyAssert(audioSpec->samples == outputSpec->samples);
     } else {
         fprintf(stderr, "Couldn't open wav file: %s\n", SDL_GetError());
-        assert(!"couldn't open file");
+        EasyAssert(!"couldn't open file");
     }
 }
 
@@ -376,7 +376,7 @@ SDL_AUDIO_CALLBACK(audioCallback) {
             unsigned char *samples = sound->wavFile->data + sound->bytesAt;
             int remainingBytes = sound->wavFile->size - sound->bytesAt;
             
-            assert(remainingBytes >= 0);
+            EasyAssert(remainingBytes >= 0);
             
             unsigned int bytesToWrite = (remainingBytes < len) ? remainingBytes: len;
             
@@ -390,7 +390,7 @@ SDL_AUDIO_CALLBACK(audioCallback) {
             sound->bytesAt += bytesToWrite;
             
             if(sound->bytesAt >= sound->wavFile->size) {
-                assert(sound->bytesAt == sound->wavFile->size);
+                EasyAssert(sound->bytesAt == sound->wavFile->size);
                 if(sound->nextSound) {
                     //TODO: Allow the remaining bytes to loop back round and finish the full duration 
                     sound->active = false;

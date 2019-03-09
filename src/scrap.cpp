@@ -8,12 +8,12 @@
                 } else {
                     nextLevel = (LevelType)nextGroupListAt->levelType;    
                     
-                    assert(params->levelsData[nextLevel].groupId == nextGroup);
-                    assert(nextGroup > originalGroup);
+                    EasyAssert(params->levelsData[nextLevel].groupId == nextGroup);
+                    EasyAssert(nextGroup > originalGroup);
                     
                     //NOTE: Unlock the next group
                     listAt = params->levelGroups[nextGroup];
-                    assert(listAt == nextGroupListAt);
+                    EasyAssert(listAt == nextGroupListAt);
                     while(listAt) {
                         if(listAt->state == LEVEL_STATE_LOCKED) {
                             //this is since we can go back and complete levels again. 

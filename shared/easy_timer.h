@@ -10,7 +10,7 @@ Timer initTimer(float period, bool isSensitive) {
     Timer result = {};
     result.isSensitive = isSensitive;
     result.period = period;
-    assert(result.value_ == 0.0f);
+    EasyAssert(result.value_ == 0.0f);
     return result;
 }
 
@@ -52,10 +52,10 @@ TimerReturnInfo updateTimer(Timer *timer, float dt) {
         if(timer->isSensitive) {
             float intToAdd = (int)dt;
             float fractionToAdd = dt - (float)intToAdd;
-            assert(fractionToAdd < 1.0f);
+            EasyAssert(fractionToAdd < 1.0f);
 
             timer->intVal += intToAdd;
-            assert(timer->fractionVal < 1.0f);
+            EasyAssert(timer->fractionVal < 1.0f);
             if((timer->fractionVal + fractionToAdd) >= 1.0f) {
                 timer->intVal += 1.0f;
                 timer->fractionVal = fractionToAdd - (1.0f - timer->fractionVal);
@@ -69,8 +69,8 @@ TimerReturnInfo updateTimer(Timer *timer, float dt) {
 
         if(timer->value_ >= timer->period) {
             float minusVal = (timer->value_ - timer->period);
-            assert(timer->period > 0.0f);
-            assert(minusVal >= 0.0f);
+            EasyAssert(timer->period > 0.0f);
+            EasyAssert(minusVal >= 0.0f);
             int lots = (int)(minusVal / timer->period);
             returnInfo.residue = minusVal - (lots*timer->period);
 
@@ -79,7 +79,7 @@ TimerReturnInfo updateTimer(Timer *timer, float dt) {
                 printf("residue: %f\n", returnInfo.residue);
                 printf("minus val: %f\n", minusVal);
                 printf("lots: %d\n", lots);
-                assert(false);
+                EasyAssert(false);
             }
             timer->intVal = 0;
             timer->fractionVal = 0;

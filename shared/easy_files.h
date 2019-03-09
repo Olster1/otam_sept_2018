@@ -52,7 +52,7 @@ char *getFileLastPortion_(char *buffer, int bufferLen, char *at) {
     if(!result) {
         result = (char *)calloc(length, 1);    
     } else {
-        assert(bufferLen >= length);
+        EasyAssert(bufferLen >= length);
         buffer[length] = '\0'; //null terminate. 
     }
     
@@ -108,10 +108,10 @@ typedef struct {
 size_t sdl_GetFileSize(SDL_RWops *FileHandle) {
     long Result = SDL_RWseek(FileHandle, 0, RW_SEEK_END);
     if(Result < 0) {
-        assert(!"Seek Error");
+        EasyAssert(!"Seek Error");
     }
     if(SDL_RWseek(FileHandle, 0, RW_SEEK_SET) < 0) {
-        assert(!"Seek Error");
+        EasyAssert(!"Seek Error");
     }
     return (size_t)Result;
 }
@@ -181,7 +181,7 @@ void platformWriteFile(game_file_handle *Handle, void *Memory, size_t Size, int 
                 }
                 else
                 {
-                    assert(!"write file did not succeed");
+                    EasyAssert(!"write file did not succeed");
                 }
             }
         }
@@ -207,7 +207,7 @@ FileContents platformReadFile(game_file_handle Handle, void *Memory, size_t Size
                 }
                 else
                 {
-                    assert(!"Read file did not succeed");
+                    EasyAssert(!"Read file did not succeed");
                     Result.valid = false;
                 }
             }
@@ -232,7 +232,7 @@ size_t platformFileSize(char *FileName)
 }
 
 bool platformDoesFileExist(char *FileName) {
-    assert(FileName);
+    EasyAssert(FileName);
     SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r");
         
     bool result = false;    
@@ -246,7 +246,7 @@ bool platformDoesFileExist(char *FileName) {
 
 FileContents platformReadEntireFile(char *FileName, bool nullTerminate) {
     FileContents Result = {};
-    assert(FileName);
+    EasyAssert(FileName);
     SDL_RWops* FileHandle = SDL_RWFromFile(FileName, "r");
     
     if(FileHandle)
@@ -266,7 +266,7 @@ FileContents platformReadEntireFile(char *FileName, bool nullTerminate) {
             Result.valid = true;
             //NOTE(Oliver): Successfully read
         } else {
-            assert(!"Couldn't read file");
+            EasyAssert(!"Couldn't read file");
             Result.valid = false;
             free(Result.memory);
         }
@@ -275,7 +275,7 @@ FileContents platformReadEntireFile(char *FileName, bool nullTerminate) {
         Result.valid = false;
         const char *Error = SDL_GetError();
         printf("%s\n", Error);
-        assert(!"Couldn't open file");
+        EasyAssert(!"Couldn't open file");
     }
     return Result;
 }
@@ -293,14 +293,14 @@ static inline FileContents getFileContents(char *fileName) {
 void platformDeleteFile(char *fileName) {
 #ifdef __APPLE__ 
     if(remove(fileName) != 0) {
-        assert(!"couldn't delete file");
+        EasyAssert(!"couldn't delete file");
     }
 #elif _WIN32
     if(DeleteFileA(fileName) == 0) {
-        assert(!"couldn't delete file");
+        EasyAssert(!"couldn't delete file");
     }
 #else 
-    assert(!"not implemented")
+    EasyAssert(!"not implemented")
 #endif
 }
 
@@ -319,17 +319,17 @@ bool platformCreateDirectory(char *fileName) {
         closedir(dir);
     } else if (ENOENT == errno) {
         if(mkdir(fileName, S_IRWXU) == -1) {
-            assert(!"couldn't create directory");
+            EasyAssert(!"couldn't create directory");
         }
         result = true;
     } else {
-        assert(!"something went wrong");
+        EasyAssert(!"something went wrong");
     }
 #elif _WIN32
     if (CreateDirectory(fileName, NULL) == 0) {
         result = true;
     } else {
-        assert(!"couldn't create directory");
+        EasyAssert(!"couldn't create directory");
     }
 #endif
     return result;
@@ -376,7 +376,7 @@ char *platformGetUniqueDirName(char *dirName) {
 //Creates last folder if doesn't exist, but note recursive
 void platformCopyFile(char *fileName, char *copyDir) {
     FileContents contents = platformReadEntireFile(fileName, false);
-    assert(contents.valid);
+    EasyAssert(contents.valid);
     
     platformCreateDirectory(copyDir);
     {
@@ -390,7 +390,7 @@ void platformCopyFile(char *fileName, char *copyDir) {
         platformWriteFile(&handle, contents.memory, contents.fileSize, 0);
         platformEndFile(handle);
 
-        assert(!handle.HasErrors);
+        EasyAssert(!handle.HasErrors);
 
         free(copyName);
         free(copyName1);
@@ -430,7 +430,7 @@ FileNameOfType getDirectoryFilesOfType_(char *dirName, char *copyDir, char **ext
             BOOL findResult = true;
             bool firstTurn = true;
     #else 
-        assert(!"not implemented");
+        EasyAssert(!"not implemented");
     #endif
                do {
                 
@@ -447,14 +447,14 @@ FileNameOfType getDirectoryFilesOfType_(char *dirName, char *copyDir, char **ext
                 if(findResult != 0) {
                     char *name = fileFindData.cFileName;
 #else 
-assert(!"not implemented");
+EasyAssert(!"not implemented");
 #endif
                         char *fileName = concat(dirName, name);
                         char *ext = getFileExtension(fileName);
                         switch(opType) {
                             case DIR_FIND_FILE_TYPE: {
                                 if(isInCharList(ext, exts, count)) {
-                                    assert(fileNames.count < arrayCount(fileNames.names));
+                                    EasyAssert(fileNames.count < arrayCount(fileNames.names));
                                     fileNames.names[fileNames.count++] = fileName;
                                 }
                             } break;
@@ -466,7 +466,7 @@ assert(!"not implemented");
                             } break;
                             case DIR_FIND_DIR_TYPE: {
                                 if(!ext) { //is folder
-                                    assert(fileNames.count < arrayCount(fileNames.names));
+                                    EasyAssert(fileNames.count < arrayCount(fileNames.names));
                                     fileNames.names[fileNames.count++] = fileName;
                                 }
                             } break;
@@ -483,14 +483,14 @@ assert(!"not implemented");
 #elif _WIN32
                } while (findResult);
 #else
-               assert(!"not implemented");
+               EasyAssert(!"not implemented");
 #endif
 #if __APPLE__
             closedir(directory);
 #elif _WIN32
             FindClose(dirHandle);
 #else 
-            assert(!"not implemented");
+            EasyAssert(!"not implemented");
 #endif
         }
 

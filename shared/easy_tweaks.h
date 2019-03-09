@@ -24,12 +24,12 @@ int getHashForString(char *name, int modValue) {
 
 TweakVar *addTweakVar(Tweaker *tweaker, char *name, InfiniteAlloc *data) {
 	//int hashValue = getHashForString(name, arrayCount(tweaker->vars));
-	assert(tweaker->varCount < arrayCount(tweaker->vars));
+	EasyAssert(tweaker->varCount < arrayCount(tweaker->vars));
 	TweakVar *var = tweaker->vars + tweaker->varCount++;
 
 	var->name = name;
 	var->data = *data;
-	assert(var->data.memory);
+	EasyAssert(var->data.memory);
 
 	return var;
 }
@@ -48,12 +48,12 @@ TweakVar *findTweakVar(Tweaker *tweaker, char *name) {
 
 V3 getV3FromTweakData(Tweaker *tweaker, char *name) {
 	TweakVar *var = findTweakVar(tweaker, name);
-	assert(var);
+	EasyAssert(var);
 	DataObject *objs = (DataObject *)var->data.memory;
-	assert(objs[0].type == VAR_FLOAT);
-	assert(objs[1].type == VAR_FLOAT);
-	assert(objs[2].type == VAR_FLOAT);
-	assert(var->data.count == 3);
+	EasyAssert(objs[0].type == VAR_FLOAT);
+	EasyAssert(objs[1].type == VAR_FLOAT);
+	EasyAssert(objs[2].type == VAR_FLOAT);
+	EasyAssert(var->data.count == 3);
 
 	V3 result = v3(objs[0].floatVal, objs[1].floatVal, objs[2].floatVal);
 	return result;
@@ -61,11 +61,11 @@ V3 getV3FromTweakData(Tweaker *tweaker, char *name) {
 
 V2 getV2FromTweakData(Tweaker *tweaker, char *name) {
 	TweakVar *var = findTweakVar(tweaker, name);
-	assert(var);
+	EasyAssert(var);
 	DataObject *objs = (DataObject *)var->data.memory;
-	assert(objs[0].type == VAR_FLOAT);
-	assert(objs[1].type == VAR_FLOAT);
-	assert(var->data.count == 2);
+	EasyAssert(objs[0].type == VAR_FLOAT);
+	EasyAssert(objs[1].type == VAR_FLOAT);
+	EasyAssert(var->data.count == 2);
 
 	V2 result = v2(objs[0].floatVal, objs[1].floatVal);
 	return result;
@@ -73,10 +73,10 @@ V2 getV2FromTweakData(Tweaker *tweaker, char *name) {
 
 float getFloatFromTweakData(Tweaker *tweaker, char *name) {
 	TweakVar *var = findTweakVar(tweaker, name);
-	assert(var);
+	EasyAssert(var);
 	DataObject *objs = (DataObject *)var->data.memory;
-	assert(objs[0].type == VAR_FLOAT);
-	assert(var->data.count == 1);
+	EasyAssert(objs[0].type == VAR_FLOAT);
+	EasyAssert(var->data.count == 1);
 
 	float result = objs[0].floatVal;
 	return result;
@@ -84,9 +84,9 @@ float getFloatFromTweakData(Tweaker *tweaker, char *name) {
 
 char *getStringFromTweakData(Tweaker *tweaker, char *name) {
     TweakVar *var = findTweakVar(tweaker, name);
-    assert(var);
+    EasyAssert(var);
 	DataObject *objs = (DataObject *)var->data.memory;
-    assert(objs[0].type == VAR_CHAR_STAR);
+    EasyAssert(objs[0].type == VAR_CHAR_STAR);
 
     char *result = objs[0].stringVal;
 
@@ -98,9 +98,9 @@ char *getStringFromTweakData(Tweaker *tweaker, char *name) {
 
 unsigned long getIntFromTweakData_(Tweaker *tweaker, char *name) {
     TweakVar *var = findTweakVar(tweaker, name);
-    assert(var);
+    EasyAssert(var);
 	DataObject *objs = (DataObject *)var->data.memory;
-    assert(objs[0].type == VAR_INT);
+    EasyAssert(objs[0].type == VAR_INT);
     
     unsigned long result = objs[0].intVal;
 
@@ -109,9 +109,9 @@ unsigned long getIntFromTweakData_(Tweaker *tweaker, char *name) {
 
 bool getBoolFromTweakData(Tweaker *tweaker, char *name) {
     TweakVar *var = findTweakVar(tweaker, name);
-    assert(var);
+    EasyAssert(var);
 	DataObject *objs = (DataObject *)var->data.memory;
-    assert(objs[0].type == VAR_BOOL);
+    EasyAssert(objs[0].type == VAR_BOOL);
     
     bool result = objs[0].boolVal;
 
@@ -140,8 +140,8 @@ bool refreshTweakFile(char *fileName, Tweaker *tweaker) {
 
 	   tweaker->modTime = mod_time;
 
-		assert(contents.memory);
-		assert(contents.valid);
+		EasyAssert(contents.memory);
+		EasyAssert(contents.valid);
 
 		EasyTokenizer tokenizer = lexBeginParsing((char *)contents.memory, true);
 

@@ -146,7 +146,7 @@ static inline void addLineData(Tokenizer *tokenizer, Token *token, VertexInfo *i
     free(a);
     
     token = getNextToken(tokenizer);
-    assert(token && token->type == NUMBER);
+    EasyAssert(token && token->type == NUMBER);
     
     a = nullTerminate(token->at, token->length);
     vertex->E[indexBegin + 1] = atof(a);
@@ -154,7 +154,7 @@ static inline void addLineData(Tokenizer *tokenizer, Token *token, VertexInfo *i
     
     if(isV3) {
         token = getNextToken(tokenizer);
-        assert(token && token->type == NUMBER);
+        EasyAssert(token && token->type == NUMBER);
         
         a = nullTerminate(token->at, token->length);
         vertex->E[indexBegin + 2] = atof(a);
@@ -163,7 +163,7 @@ static inline void addLineData(Tokenizer *tokenizer, Token *token, VertexInfo *i
 }
 void addFaceData(Tokenizer *tokenizer, Token *token, Face *face, int index) {
     //TODO: use arenas here instead of freeing new strings. 
-    assert(token->type == NUMBER);
+    EasyAssert(token->type == NUMBER);
     char *a = nullTerminate(token->at, token->length);
     face->vertexPos[index] = (atoi(a) - 1);
     free(a);
@@ -181,16 +181,16 @@ void addFaceData(Tokenizer *tokenizer, Token *token, Face *face, int index) {
             forwardSlashCount++;
             token = getNextToken(tokenizer);
         } else {
-            assert(token->type == NUMBER);
+            EasyAssert(token->type == NUMBER);
         }
-        assert(token->type == NUMBER);
+        EasyAssert(token->type == NUMBER);
         a = nullTerminate(token->at, token->length);
         if(forwardSlashCount == 1) {
             face->vertexUV[index] = (atoi(a) - 1);
         } else if(forwardSlashCount == 2) {
             face->vertexNormal[index] = (atoi(a) - 1);
         } else {
-            assert(!"invalid code path");
+            EasyAssert(!"invalid code path");
         }
         free(a);
         tokenNxt = seeNextToken(tokenizer);
@@ -255,7 +255,7 @@ Mesh loadObjFile(char *fileName) {
                 } else if(mode == VERTEX_TEX_UV) {
                     addLineData(&tokenizer, token, &info, &vertexUVCount, 6, false);
                 } else if(mode == VERTEX_FACES) {
-                    assert(mode == VERTEX_FACES);
+                    EasyAssert(mode == VERTEX_FACES);
                     if(faceCount >= faceArraySize) {
                         //make bigger if neccessary
                         int oldArraySize = faceArraySize;
@@ -319,7 +319,7 @@ Mesh loadObjFile(char *fileName) {
     glBindVertexArray(result.vaoHandle.vaoHandle);
     renderCheckError();
 
-    assert(vertexNormalCount == vertexPosCount);
+    EasyAssert(vertexNormalCount == vertexPosCount);
     
     GLuint vertices;
     glGenBuffers(1, &vertices);
@@ -358,16 +358,16 @@ void renderModel(Mesh *mesh,
     glUseProgram(program->glProgram);
     renderCheckError();
 
-    assert(mesh->vaoHandle.vaoHandle);
+    EasyAssert(mesh->vaoHandle.vaoHandle);
     glBindVertexArray(mesh->vaoHandle.vaoHandle);
     renderCheckError();
 
     GLuint modelUniform = getUniformFromProgram(program, "model").handle; 
-    assert(modelUniform);
+    EasyAssert(modelUniform);
     GLuint viewUniform = getUniformFromProgram(program, "view").handle; 
-    assert(viewUniform);
+    EasyAssert(viewUniform);
     GLuint perspectiveUniform = getUniformFromProgram(program, "perspective").handle; 
-    // assert(perspectiveUniform);
+    // EasyAssert(perspectiveUniform);
 
     glUniformMatrix4fv(modelUniform, 1, GL_FALSE, modelMatrix.val);
     renderCheckError();
@@ -377,9 +377,9 @@ void renderModel(Mesh *mesh,
     renderCheckError();
     
     GLuint vertexAttrib = getAttribFromProgram(program, "vertex").handle; 
-    // assert(vertexAttrib);
+    // EasyAssert(vertexAttrib);
     // GLuint normalAttrib = getAttribFromProgram(program, "normal").handle; 
-    // assert(normalAttrib);
+    // EasyAssert(normalAttrib);
 
     glEnableVertexAttribArray(vertexAttrib);  
     renderCheckError();

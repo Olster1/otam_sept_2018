@@ -322,10 +322,10 @@ EasyToken lexGetToken_(EasyTokenizer *tokenizer, bool advanceWithToken) {
 	}
 
 	//lexPrintToken(&token);
-	//assert(token.type != TOKEN_UNINITIALISED);
+	//EasyAssert(token.type != TOKEN_UNINITIALISED);
 	
-	assert(tokenizer->src != at); // this doesn't 
-	assert(token.at);
+	EasyAssert(tokenizer->src != at); // this doesn't 
+	EasyAssert(token.at);
 	if(advanceWithToken) { tokenizer->src = at; }
 
 	if(token.type == TOKEN_STRING) {

@@ -2,6 +2,7 @@
 #define NDEBUG
 #endif
 
+
 #include "gameDefines.h"
 
 #if DEVELOPER_MODE
@@ -252,6 +253,8 @@ typedef struct {
     AppKeyStates overworldKeyStates;
     
     Timer levelNameTimer;
+
+    Timer colorGlowTimer;
     
     int startOffsets[3];
     int lifePoints;
@@ -381,8 +384,8 @@ void saveOverworldPositions(FrameParams *params) {
     for(int lvlIndex = 0; lvlIndex < arrayCount(params->levelsData); lvlIndex++) {
         LevelData *levelData = params->levelsData + lvlIndex;
         if(levelData->valid) {
-            assert(levelData->state != LEVEL_STATE_NULL);
-            assert(levelData->name);
+            EasyAssert(levelData->state != LEVEL_STATE_NULL);
+            EasyAssert(levelData->name);
             
             char *lvlTypeStr = LevelTypeStrings[levelData->levelType];
             
@@ -483,10 +486,10 @@ void updateAndRenderWorldEntity(WorldEntity *ent, FrameParams *params, float dt,
                 ent->direction = false;
             } break;
             default: {
-                assert(false);
+                EasyAssert(false);
             }
         }
-        assert(tex);
+        EasyAssert(tex);
 
         float width =  ent->size.x;
         float height =  ent->size.y;
@@ -541,7 +544,7 @@ BoardState getBoardState(FrameParams *params, V2 pos) {
     if(pos.x >= 0 && pos.x < params->boardWidth && pos.y >= 0 && pos.y < params->boardHeight) {
         BoardValue *val = &params->board[params->boardWidth*(int)pos.y + (int)pos.x];
         result = val->state;
-        assert(result != BOARD_INVALID);
+        EasyAssert(result != BOARD_INVALID);
     }
     
     return result;
@@ -552,7 +555,7 @@ BoardState getBoardStateWithConection(FrameParams *params, V2 pos) {
     if(pos.x >= 0 && pos.x < params->boardWidth && pos.y >= 0 && pos.y < params->boardHeight) {
         BoardValue *val = &params->copyBoard[params->boardWidth*(int)pos.y + (int)pos.x];
         result = val->state;
-        assert(result != BOARD_INVALID);
+        EasyAssert(result != BOARD_INVALID);
     }
     
     return result;
@@ -731,7 +734,7 @@ void setBoardState(FrameParams *params, V2 pos, BoardState state, BoardValType t
         val->type = type;
         val->fadeTimer = initTimer(FADE_TIMER_INTERVAL, false);
     } else {
-        assert(!"invalid code path");
+        EasyAssert(!"invalid code path");
     }
 }
 
@@ -745,7 +748,7 @@ static inline ExtraShape *initExtraShape(ExtraShape *shape) {
 }
 
 ExtraShape *addExtraShape(FrameParams *params) {
-    assert(params->extraShapeCount < arrayCount(params->extraShapes));
+    EasyAssert(params->extraShapeCount < arrayCount(params->extraShapes));
     ExtraShape *shape = params->extraShapes + params->extraShapeCount++;
     initExtraShape(shape);
     return shape;
@@ -840,8 +843,8 @@ static inline void parseOverworldBoard(char *at, int *values, V2 dim) {
                 at = lexEatWhiteSpace(at);
             } break;
             default: {
-                assert(xAt < dim.x);
-                assert(yAt < dim.y);
+                EasyAssert(xAt < dim.x);
+                EasyAssert(yAt < dim.y);
                 if(*at != '-') {
                     values[yAt*(int)dim.x + xAt] = 1;
                 } else {
@@ -863,7 +866,7 @@ static inline int loadLevelData(FrameParams *params) {
     char *b_ = concat("levels/", "level_overworld.txt");
     char *c_ = concat(globalExeBasePath, b_);
     FileContents overworldContents = getFileContentsNullTerminate(c_);
-    assert(overworldContents.valid);
+    EasyAssert(overworldContents.valid);
     params->overworldLayout = overworldContents;
     free(b_);
     free(c_);
@@ -873,12 +876,12 @@ static inline int loadLevelData(FrameParams *params) {
     int totalLevelCount = 0;
     
     for(int i = 1; i < LEVEL_COUNT; ++i) {
-        assert(i < arrayCount(LevelTypeStrings));
+        EasyAssert(i < arrayCount(LevelTypeStrings));
         char *a = concat(LevelTypeStrings[i], ".txt");
         char *b = concat("levels/", a);
         char *c = concat(globalExeBasePath, b);
         bool isFileValid = platformDoesFileExist(c);
-        assert(i < arrayCount(params->levelsData));
+        EasyAssert(i < arrayCount(params->levelsData));
         params->levelsData[i].valid = isFileValid;
         
         if(isFileValid) {
@@ -916,7 +919,7 @@ static inline int loadLevelData(FrameParams *params) {
             levelData->particleSystem.viewType = ORTHO_MATRIX;
             setParticleLifeSpan(&levelData->particleSystem, 1.0f);
             // Reactivate(&levelData->particleSystem);
-            // assert(levelData->particleSystem.Active);
+            // EasyAssert(levelData->particleSystem.Active);
             
             int groupId = 1; //NOTE: if no group id is set, it will default to first group. 
             
@@ -949,7 +952,7 @@ static inline int loadLevelData(FrameParams *params) {
                     } break;
                     case TOKEN_CLOSE_BRACKET: {
                         //assume we get all the information in the first block of data.
-                        assert(isLevelData);
+                        EasyAssert(isLevelData);
                         parsing = false;
                     } break;
                     default: {
@@ -989,12 +992,12 @@ static inline int loadLevelData(FrameParams *params) {
                 groupListAtPtr = &groupListAt->next;
             }
             
-            assert(levelData->next == 0);
+            EasyAssert(levelData->next == 0);
             
             *groupListAtPtr = levelData;
             
-            assert(contents.memory);
-            assert(contents.valid);
+            EasyAssert(contents.memory);
+            EasyAssert(contents.valid);
         }
         
         free(a);
@@ -1010,9 +1013,9 @@ static inline int loadLevelData(FrameParams *params) {
             for(int groupIndexAt = 0; groupIndexAt <= levelData->groupId; ++groupIndexAt) {
                 LevelData **groupAt = params->levelGroups + groupIndexAt;
                 if(*groupAt && *groupAt != levelData) {
-                    assert(*groupAt != levelData);
+                    EasyAssert(*groupAt != levelData);
                     while(*groupAt && *groupAt != levelData) {
-                        assert(*groupAt != levelData);
+                        EasyAssert(*groupAt != levelData);
                         LevelData *groupAtDef = *groupAt;
                         groupNum++;    
                         groupAt = &groupAtDef->next;
@@ -1027,17 +1030,17 @@ static inline int loadLevelData(FrameParams *params) {
             // levelIndexAt = levelData->groupId;
             #endif
             if(levelIndexAt < 10) {
-                assert(levelData->glyphCount < arrayCount(levelData->glyphs));
+                EasyAssert(levelData->glyphCount < arrayCount(levelData->glyphs));
                 levelData->glyphs[levelData->glyphCount++] = easyFont_getGlyph(params->numberFont, (u32)(levelIndexAt + 48));
             } else if(levelIndexAt < 100) {
                 int firstUnicode = (levelIndexAt / 10) + 48;
                 int secondUnicode = (levelIndexAt % 10) + 48;
-                assert(levelData->glyphCount < arrayCount(levelData->glyphs));
+                EasyAssert(levelData->glyphCount < arrayCount(levelData->glyphs));
                 levelData->glyphs[levelData->glyphCount++] = easyFont_getGlyph(params->numberFont, (u32)firstUnicode);
-                assert(levelData->glyphCount < arrayCount(levelData->glyphs));
+                EasyAssert(levelData->glyphCount < arrayCount(levelData->glyphs));
                 levelData->glyphs[levelData->glyphCount++] = easyFont_getGlyph(params->numberFont, (u32)secondUnicode);
             } else {
-                assert(!"invalid case");
+                EasyAssert(!"invalid case");
             }
         }
     }
@@ -1049,8 +1052,8 @@ void loadLevelNames_DEPRECATED(FrameParams *params) {
     char *c = concat(globalExeBasePath, "levels/level_names.txt");
     FileContents contents = getFileContentsNullTerminate(c);
     
-    assert(contents.memory);
-    assert(contents.valid);
+    EasyAssert(contents.memory);
+    EasyAssert(contents.valid);
     
     free(c);
     
@@ -1059,7 +1062,7 @@ void loadLevelNames_DEPRECATED(FrameParams *params) {
     bool parsing = true;
     
     for(int i = 1; i < LEVEL_COUNT; ++i) {
-        assert(i < arrayCount(params->levelsData));
+        EasyAssert(i < arrayCount(params->levelsData));
         params->levelsData[i].name = "Name Not Set!";
     }
     
@@ -1072,14 +1075,14 @@ void loadLevelNames_DEPRECATED(FrameParams *params) {
             } break;
             case TOKEN_INTEGER: {
                 char charBuffer[256] = {};
-                assert(arrayCount(charBuffer) > token.size);
+                EasyAssert(arrayCount(charBuffer) > token.size);
                 nullTerminateBuffer(charBuffer, token.at, token.size);
                 int indexAt = atoi(charBuffer);
-                assert(indexAt + 1 < arrayCount(params->levelsData));
+                EasyAssert(indexAt + 1 < arrayCount(params->levelsData));
                 namePtr = &params->levelsData[indexAt + 1].name;
             } break;
             case TOKEN_STRING: {
-                assert(namePtr);
+                EasyAssert(namePtr);
                 *namePtr = nullTerminate(token.at, token.size);
             } break;
             default: {
@@ -1113,7 +1116,7 @@ static inline void setBackgroundImage(FrameParams *params, int groupId) {
             params->bgTex = findTextureAsset("blue_land.png");
         } break;
         default: {
-            assert(false);
+            EasyAssert(false);
         }
     }
 }
@@ -1136,7 +1139,7 @@ ExtraShape *findExtraShape(ExtraShape *shapes, int count, int id) {
             break;
         }
     }
-    assert(result);
+    EasyAssert(result);
     return result;
 }
 
@@ -1146,7 +1149,7 @@ typedef struct {
 } SquareProperty;
 
 static inline void addGlowingLine(FrameParams *params, int yAt, GlowingLineType type) {
-    assert(params->glowingLinesCount < arrayCount(params->glowingLines));
+    EasyAssert(params->glowingLinesCount < arrayCount(params->glowingLines));
     GlowingLine *line = params->glowingLines + params->glowingLinesCount++;
     line->yAt = yAt;
     line->type = type;
@@ -1155,11 +1158,11 @@ static inline void addGlowingLine(FrameParams *params, int yAt, GlowingLineType 
 
 void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
     
-    assert(levelTypeIn < arrayCount(params->levelsData));
+    EasyAssert(levelTypeIn < arrayCount(params->levelsData));
     FileContents contents = params->levelsData[levelTypeIn].contents;
     
-    assert(contents.memory);
-    assert(contents.valid);
+    EasyAssert(contents.memory);
+    EasyAssert(contents.valid);
     
     EasyTokenizer tokenizer = lexBeginParsing((char *)contents.memory, true);
     
@@ -1201,13 +1204,13 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                     currentType = SQUARE_PROPERTIES;
                     isLevelData = false;
                     
-                    assert(propertyCount < arrayCount(squareProperties));
+                    EasyAssert(propertyCount < arrayCount(squareProperties));
                     currentShapeProperty = squareProperties + propertyCount++;
                     currentShapeProperty->shapeId = -1; //init to negative 1 since that means there is not shape
                 }
                 if(stringsMatchNullN("Windmill", token.at, token.size)) {
                     currentType = EXTRA_SHAPE_PROPERTIES;
-                    assert(extraShapeCount < arrayCount(extraShapes));
+                    EasyAssert(extraShapeCount < arrayCount(extraShapes));
                     shape = initExtraShape(&extraShapes[extraShapeCount++]);
                     isLevelData = false;
                 }
@@ -1239,7 +1242,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                     }
                     if(stringsMatchNullN("isMirror", token.at, token.size)) {
                         params->isMirrorLevel = true;
-                        assert(params->shapeSizes[1]);
+                        EasyAssert(params->shapeSizes[1]);
                     }
                     if(stringsMatchNullN("shapeSize3", token.at, token.size)) {
                         params->shapeSizes[2] = getIntFromDataObjects(&data, &tokenizer);
@@ -1254,24 +1257,24 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                     if(stringsMatchNullN("startOffset3", token.at, token.size)) {
                         params->startOffsets[2] = getIntFromDataObjects(&data, &tokenizer);
                     }
-                    assert(currentType == NULL_PROPERTIES);
+                    EasyAssert(currentType == NULL_PROPERTIES);
                     
                 }
                 if(stringsMatchNullN("Board", token.at, token.size)) {
                     parsing = false;
                     EasyToken nxtToken = lexGetNextToken(&tokenizer);
-                    assert(nxtToken.type == TOKEN_COLON);
+                    EasyAssert(nxtToken.type == TOKEN_COLON);
                     nxtToken = lexGetNextToken(&tokenizer);
-                    assert(nxtToken.type == TOKEN_OPEN_BRACKET);
+                    EasyAssert(nxtToken.type == TOKEN_OPEN_BRACKET);
                     currentType = NULL_PROPERTIES;
                 }
                 
                 if(currentType == SQUARE_PROPERTIES) {
-                    assert(currentShapeProperty);
+                    EasyAssert(currentShapeProperty);
                     if(stringsMatchNullN("id", token.at, token.size)) {
                         char *idAsStr = getStringFromDataObjects(&data, &tokenizer);
                         // printf("id as string: %s\n", idAsStr);
-                        assert(strlen(idAsStr) == 1);
+                        EasyAssert(strlen(idAsStr) == 1);
                         currentShapeProperty->id = idAsStr[0]; //has to be length one
                         
                     }
@@ -1281,7 +1284,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                 }
                 
                 if(currentType == EXTRA_SHAPE_PROPERTIES) {
-                    assert(shape);
+                    EasyAssert(shape);
                     if(stringsMatchNullN("id", token.at, token.size)) {
                         shape->id = getIntFromDataObjects(&data, &tokenizer);
                     }
@@ -1297,7 +1300,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                         shape->movePeriod = period;
                     }
                     if(stringsMatchNullN("lagTimerPeriod", token.at, token.size)) {
-                        assert(false);//doens't exist anymore
+                        EasyAssert(false);//doens't exist anymore
                     }
                     if(stringsMatchNullN("timeAffected", token.at, token.size)) {
                         shape->timeAffected = getBoolFromDataObjects(&data, &tokenizer);
@@ -1367,7 +1370,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
             case '\n': {
                 xAt = 0;
                 yAt--;
-                assert(!justNewLine);
+                EasyAssert(!justNewLine);
                 
                 justNewLine = true;
                 at = lexEatWhiteSpace(at);
@@ -1405,14 +1408,14 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                 justNewLine = false;
             } break;
             case 'b': {
-                assert(!"invalid code path");
+                EasyAssert(!"invalid code path");
                 // setBoardState(params, v2(xAt, yAt), BOARD_STATIC, BOARD_VAL_GLOW);    
                 // xAt++;
                 // at++;
                 // justNewLine = false;
             } break;
             case '!': {
-                assert(params->lifePointsMax > 0);
+                EasyAssert(params->lifePointsMax > 0);
                 setBoardState(params, v2(xAt, yAt), BOARD_EXPLOSIVE, BOARD_VAL_ALWAYS);    
                 at++;
                 xAt++;
@@ -1422,7 +1425,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                 int shapeIdToLookFor = -1;
                 if(lexIsNumeric(*at)) {
                     shapeIdToLookFor = (int)((*at) - 48);
-                    assert(shapeIdToLookFor >= 0);
+                    EasyAssert(shapeIdToLookFor >= 0);
                 } else {
                     SquareProperty *prop = 0; 
                     for(int propIndex = 0; propIndex < propertyCount; ++propIndex) {
@@ -1441,7 +1444,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
                 
                 if(shapeIdToLookFor >= 0) {
                     ExtraShape *shapeOnStack = findExtraShape(extraShapes, extraShapeCount, shapeIdToLookFor);
-                    assert(shapeOnStack);
+                    EasyAssert(shapeOnStack);
                     shape = addExtraShape(params);
                     *shape = *shapeOnStack;
                     shape->pos = v2(xAt, yAt); 
@@ -1454,7 +1457,7 @@ void createLevelFromFile(FrameParams *params, LevelType levelTypeIn) {
     }
     
     if(!params->isFreestyle) {
-        assert(params->maxExperiencePoints != 0);
+        EasyAssert(params->maxExperiencePoints != 0);
     }
     
 }
@@ -1468,7 +1471,7 @@ V2 getMoveVec(MoveType moveType) {
     } else  if(moveType == MOVE_DOWN) {
         moveVec = v2(0, -1);
     } else {
-        assert(!"not valid path");
+        EasyAssert(!"not valid path");
     }
     return moveVec;
 }
@@ -1507,13 +1510,13 @@ bool canShapeMove(FitrisShape *shape, FrameParams *params, MoveType moveType) {
                 result = true;
             }
         } else if(moveType == MOVE_RIGHT) {
-            assert(rightMostPos < params->boardWidth);
+            EasyAssert(rightMostPos < params->boardWidth);
             if(rightMostPos < (params->boardWidth - 1) && valid) {
                 result = true;
             } 
         } else if(moveType == MOVE_DOWN) { 
             if(bottomMostPos > 0 && valid) {
-                assert(bottomMostPos < params->boardHeight);
+                EasyAssert(bottomMostPos < params->boardHeight);
                 result = true;
             }
         }
@@ -1547,7 +1550,7 @@ QueryShapeInfo isRepeatedInShape(FitrisShape *shape, V2 pos, int index) {
             if(i != index && pos.x == shapePos.x && pos.y == shapePos.y) {
                 result.result = true;
                 result.index = i;
-                assert(i != index);
+                EasyAssert(i != index);
                 break;
             }
         }
@@ -1583,7 +1586,7 @@ FitrisBlock *findBlockById(FitrisShape *shape, int id) {
             }
         }
     }
-    assert(result);
+    EasyAssert(result);
     return result;
 }
 
@@ -1592,7 +1595,7 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
     if(result) {
         V2 moveVec = getMoveVec(moveType);
         
-        assert(!params->wasHitByExplosive);
+        EasyAssert(!params->wasHitByExplosive);
         // CHECK FOR EXPLOSIVES HIT
         int idsHitCount = 0;
         int idsHit[MAX_SHAPE_COUNT] = {};
@@ -1611,7 +1614,7 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
                 
                 BoardState state = getBoardState(params, newPos);
                 if(state == BOARD_EXPLOSIVE) {
-                    assert(params->lifePointsMax > 0);
+                    EasyAssert(params->lifePointsMax > 0);
                     params->lifePoints--;
                     params->wasHitByExplosive = true;
                     if(!playedExplosiveSound) {
@@ -1624,7 +1627,7 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
                     if(params->currentHotIndex == i) {
                         resetMouseUI(params);
                     }
-                    assert(idsHitCount < arrayCount(idsHit));
+                    EasyAssert(idsHitCount < arrayCount(idsHit));
                     idsHit[idsHitCount++] = shape->blocks[i].id;
                     setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    //this is the shape
                     setBoardState(params, newPos, BOARD_NULL, BOARD_VAL_TRANSIENT);//this is the bomb position
@@ -1650,10 +1653,10 @@ bool moveShape(FitrisShape *shape, FrameParams *params, MoveType moveType) {
                 V2 newPos = v2_plus(oldPos, moveVec);
                 
                 // printf("boardState: %d, index: %d\n", getBoardState(params, oldPos), i);
-                assert(getBoardState(params, oldPos) == BOARD_SHAPE);
+                EasyAssert(getBoardState(params, oldPos) == BOARD_SHAPE);
                 
                 BoardState newPosState = getBoardState(params, newPos);
-                assert(newPosState == BOARD_SHAPE || newPosState == BOARD_NULL);
+                EasyAssert(newPosState == BOARD_SHAPE || newPosState == BOARD_NULL);
                 
                 QueryShapeInfo info = isRepeatedInShape(shape, oldPos, i);
                 if(!info.result) { //dind't just get set by the block in shape before. 
@@ -1713,7 +1716,7 @@ void addToQueryList(FrameParams *params, VisitedQueue *sentinel, V2 pos, Arena *
             queue->pos = pos;
             
             //add to the search queue
-            assert(sentinel->prev->next == sentinel);
+            EasyAssert(sentinel->prev->next == sentinel);
             queue->prev = sentinel->prev;
             queue->next = sentinel;
             sentinel->prev->next = queue;
@@ -1755,11 +1758,11 @@ IslandInfo getShapeIslandCount(FitrisShape *shape, V2 startPos, FrameParams *par
     ADD_TO_QUERY_LIST(v2(0, 0), startPos);
     
     VisitedQueue *queryAt = sentinel.next;
-    assert(queryAt != &sentinel);
+    EasyAssert(queryAt != &sentinel);
     while(queryAt != &sentinel) {
         V2 pos = queryAt->pos;
         
-        assert(info.count < arrayCount(info.poses));
+        EasyAssert(info.count < arrayCount(info.poses));
         info.poses[info.count++] = pos;
         
         ADD_TO_QUERY_LIST(v2(1, 0), pos);
@@ -1776,18 +1779,18 @@ IslandInfo getShapeIslandCount(FitrisShape *shape, V2 startPos, FrameParams *par
     }
     releaseMemoryMark(&memMark);
     
-    assert(info.count <= getShapeCount(shape));
+    EasyAssert(info.count <= getShapeCount(shape));
 
-    //   assert(params->currentHotIndex >= 0);
+    //   EasyAssert(params->currentHotIndex >= 0);
     // V2 holdingPos = params->currentShape.blocks[params->currentHotIndex].pos;
     // BoardValue *shapeNow = getCopyBoardValue(params, holdingPos);
     // printf("baordState: %d\n", shapeNow->state);
-    // assert(shapeNow->state == BOARD_NULL);
+    // EasyAssert(shapeNow->state == BOARD_NULL);
     // BoardValue tempBlock = *shapeNow;
     // BoardValue *actualBoardVal = getBoardValue(params, holdingPos);
     // shapeNow->state = actualBoardVal->state;
     // printf("baordState:2 %d\n", shapeNow->state);
-    // assert(shapeNow->state == BOARD_SHAPE);
+    // EasyAssert(shapeNow->state == BOARD_SHAPE);
 
     // *shapeNow = tempBlock;
 
@@ -1817,23 +1820,23 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
     if(result) {
         
         V2 oldPos = shape->blocks[currentHotIndex].pos;
-        assert(shape->blocks[currentHotIndex].valid);
+        EasyAssert(shape->blocks[currentHotIndex].valid);
         
 #if OLD_WAY_CONNECTION
         BoardValue *oldVal = getBoardValue(params, oldPos);
         //
-        assert(oldVal->state == BOARD_SHAPE);
+        EasyAssert(oldVal->state == BOARD_SHAPE);
         //BUG!!!!
 #else
         BoardValue *oldVal = getCopyBoardValue(params, oldPos);
-        assert(oldVal->state == BOARD_NULL);//new
+        EasyAssert(oldVal->state == BOARD_NULL);//new
 #endif
         BoardState lastState = oldVal->state;
         oldVal->state = BOARD_SHAPE; //new
         
         
         IslandInfo mainIslandInfo = getShapeIslandCount(shape, oldPos, params);
-        assert(mainIslandInfo.count >= 1);
+        EasyAssert(mainIslandInfo.count >= 1);
 
         
         if(mainIslandInfo.count <= 1) {
@@ -1850,9 +1853,9 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
             #else
             BoardValue *newVal = getCopyBoardValue(params, boardPosAt);
             #endif
-            assert(newVal->state == BOARD_NULL);
+            EasyAssert(newVal->state == BOARD_NULL);
             newVal->state = BOARD_SHAPE;
-            ////   This code isn't needed anymore. Just used for the assert below. 
+            ////   This code isn't needed anymore. Just used for the EasyAssert below. 
             IslandInfo islandInfo = getShapeIslandCount(shape, boardPosAt, params);
             
             //See if the new pos is part of the same island
@@ -1870,7 +1873,7 @@ bool shapeStillConnected(FitrisShape *shape, int currentHotIndex, V2 boardPosAt,
             if(mainIslandInfo_after.count < mainIslandInfo.count) {
                 result = false;
             } else {
-                assert(found);
+                EasyAssert(found);
             }
             //set the state back to being a shape. 
             newVal->state = BOARD_NULL;
@@ -1891,20 +1894,20 @@ static inline void updateShapeMoveTime(FitrisShape *shape, FrameParams *params) 
         resetMouseUI(params);
     }
     bool isHoldingShape = params->currentHotIndex >= 0;
-    params->moveTime = 0;//params->dt;
+    params->moveTime = params->dt;
     
     if(isHoldingShape) { 
         if(!params->wasHoldingShape) {
             params->accumHoldTime = params->moveTimer.period - params->moveTimer.value_;
-            assert(params->accumHoldTime >= 0);
+            EasyAssert(params->accumHoldTime >= 0);
         }
         params->moveTime = 0.0f;
-        assert(!params->letGo);
+        EasyAssert(!params->letGo);
     } 
     params->wasHoldingShape = isHoldingShape;
     
     if(params->letGo) {
-        assert(!isHoldingShape);
+        EasyAssert(!isHoldingShape);
         params->moveTime = params->accumHoldTime;
         params->accumHoldTime = 0;
         params->letGo = false;
@@ -1923,14 +1926,14 @@ static inline int getTotalNumberOfShapeBlocks(FrameParams *params) {
 
 bool hasMirrorPartner(FrameParams *params, int hotBlockIndex, int mirrorIndexAt) {
     bool result = false;
-    assert(params->isMirrorLevel);
-    assert(params->currentShape.blocks[hotBlockIndex].valid);
-    assert(mirrorIndexAt >= 0);
+    EasyAssert(params->isMirrorLevel);
+    EasyAssert(params->currentShape.blocks[hotBlockIndex].valid);
+    EasyAssert(mirrorIndexAt >= 0);
     if(mirrorIndexAt < arrayCount(params->currentShape.blocks) && params->currentShape.blocks[mirrorIndexAt].valid) {
         if(hotBlockIndex < mirrorIndexAt) {
             result = mirrorIndexAt < getTotalNumberOfShapeBlocks(params);
         } else {
-            assert(hotBlockIndex != mirrorIndexAt);
+            EasyAssert(hotBlockIndex != mirrorIndexAt);
             result = mirrorIndexAt < params->shapeSizes[0];
         }
     } else {
@@ -1939,7 +1942,7 @@ bool hasMirrorPartner(FrameParams *params, int hotBlockIndex, int mirrorIndexAt)
     return result;
 }
 
-static inline bool isMirrorPartnerIndex(FrameParams *params, int currentHotIndex, int i, bool isCurrentHotIndex/*for the assert*/) {
+static inline bool isMirrorPartnerIndex(FrameParams *params, int currentHotIndex, int i, bool isCurrentHotIndex/*for the EasyAssert*/) {
     bool result = false;
     
     int mirrorOffsetCount = params->shapeSizes[0];
@@ -1947,19 +1950,19 @@ static inline bool isMirrorPartnerIndex(FrameParams *params, int currentHotIndex
     
     if(params->isMirrorLevel && currentHotIndex >= 0 && hasMirrorPartner(params, currentHotIndex, mirrorIndexAt)) {
         if(currentHotIndex < mirrorOffsetCount) {
-            assert(currentHotIndex + mirrorOffsetCount < getTotalNumberOfShapeBlocks(params));
+            EasyAssert(currentHotIndex + mirrorOffsetCount < getTotalNumberOfShapeBlocks(params));
             if((currentHotIndex + mirrorOffsetCount) == i) {
                 if(isCurrentHotIndex) {
-                    assert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
+                    EasyAssert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
                 }
                 //this would be if you grabbed the 'lower shape' and you want to hightlight the one above
                 result = true;          
             } 
         } else {
-            assert(currentHotIndex - mirrorOffsetCount >= 0);
+            EasyAssert(currentHotIndex - mirrorOffsetCount >= 0);
             if((currentHotIndex - mirrorOffsetCount) == i) {
                 if(isCurrentHotIndex) {
-                    assert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
+                    EasyAssert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
                 }
                 //this would be if you grabbed the 'higher shape' 
                 result = true;
@@ -2012,7 +2015,7 @@ void addToQueueForCopyBoard(MemoryArenaMark *memMark, V2 newPos, VisitedQueue *s
 //Note this doesn't put the shape block on the board that is the hot index since this moves during the move. 
 void floodFillShape(FrameParams *params, MemoryArenaMark *memMark, int hotIndex) {
     if(params->currentShape.blocks[hotIndex].valid) {
-        assert(hotIndex >= 0);
+        EasyAssert(hotIndex >= 0);
         V2 pos_ = params->currentShape.blocks[hotIndex].pos;
         
         VisitedQueue sentinel = {};
@@ -2026,14 +2029,14 @@ void floodFillShape(FrameParams *params, MemoryArenaMark *memMark, int hotIndex)
             
         sentinel.prev = sentinel.next = pushStruct(memMark->arena, VisitedQueue);
         sentinel.next->prev = sentinel.next->next = &sentinel;
-        assert(sentinel.next != &sentinel);
+        EasyAssert(sentinel.next != &sentinel);
         sentinel.next->pos = pos_;
 
         bool didCopy = copyBoardValToCopyBoard(params, sentinel.next->pos, v2(0, 0), &boardBoolInfo, false);
-        assert(!didCopy);
+        EasyAssert(!didCopy);
 
         VisitedQueue *queryAt = sentinel.next;
-        assert(queryAt != &sentinel);
+        EasyAssert(queryAt != &sentinel);
 
         while(queryAt != &sentinel) {
             V2 pos = queryAt->pos;
@@ -2064,7 +2067,7 @@ void takeBoardCopy(FrameParams *params) {
     for(int y = 0; y < params->boardHeight; y++) {
         for(int x = 0; x < params->boardWidth; x++) {
             // BoardValue *val = getBoardValue(params, v2(x, y));        
-            // assert(val);
+            // EasyAssert(val);
             BoardValue *copyval = getCopyBoardValue(params, v2(x, y));        
             zeroStruct(copyval, BoardValue);
             // if(val->state != BOARD_SHAPE) {
@@ -2116,15 +2119,15 @@ static inline TwoColors getAlienHoverColor(FitrisShape *shape, int indexAt) {
             result.color2 = COLOR_GREEN;
         } break;
         default: {
-            assert(!"invalid code path");
+            EasyAssert(!"invalid code path");
         }
     }
     return result;
 }
 
 void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 screenDim, Matrix4 metresToPixels, FrameParams *params, float moveTime) {
-    assert(!params->wasHitByExplosive);
-    assert(!params->createShape);
+    EasyAssert(!params->wasHitByExplosive);
+    EasyAssert(!params->createShape);
     
     
     bool isHoldingShape = params->currentHotIndex >= 0;
@@ -2162,7 +2165,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                 V4 color = COLOR_WHITE;
                 
                 if(inBounds(params->keyStates->mouseP_yUp, blockBounds, BOUNDS_RECT)) {
-                    assert(shape->blocks[i].valid);
+                    EasyAssert(shape->blocks[i].valid);
                     hotBlockIndex = i;
                     if(params->currentHotIndex < 0) {
                         color = alienColors.color1;
@@ -2186,7 +2189,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                 }
                 
                 if(params->currentHotIndex == i) { //we are holding this shape
-                    assert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
+                    EasyAssert(isDown(params->playStateKeyStates->gameButtons, BUTTON_LEFT_MOUSE));
                     // color = alienColors.color2;
                 }
                 
@@ -2199,7 +2202,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                 }
                 
                 BoardValue *val = getBoardValue(params, pos);
-                assert(val);
+                EasyAssert(val);
                 // val->color = color;
             }
         }
@@ -2210,11 +2213,11 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
             int mirrorIndexAt = hotBlockIndex < mirrorOffsetCount ? (hotBlockIndex + mirrorOffsetCount) : (hotBlockIndex - mirrorOffsetCount);
             
             if(hasMirrorPartner(params, hotBlockIndex, mirrorIndexAt)) { //same size
-                assert(mirrorIndexAt >= 0 && mirrorIndexAt < getTotalNumberOfShapeBlocks(params));
+                EasyAssert(mirrorIndexAt >= 0 && mirrorIndexAt < getTotalNumberOfShapeBlocks(params));
                 
                 V2 pos = shape->blocks[mirrorIndexAt].pos;
                 BoardValue *val = getBoardValue(params, pos);
-                assert(val);
+                EasyAssert(val);
                 val->cellTracker.wasHot = true;
                 val->cellTracker.shouldUpdate = true;
                 // val->color = getAlienHoverColor(shape, hotBlockIndex).color1;
@@ -2257,7 +2260,7 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                     
                     okToMove &= shapeStillConnected(shape, mirrorIndex, boardPosAtMirror, params);
                 } else {
-                    // assert(params->shapeSizes[0] != params->shapeSizes[1]);
+                    // EasyAssert(params->shapeSizes[0] != params->shapeSizes[1]);
                     //just move one block
                     isEvenSize = false;
                 }
@@ -2279,12 +2282,12 @@ void updateAndRenderShape(FitrisShape *shape, V3 cameraPos, V2 resolution, V2 sc
                     BoardValue *oldVal = getBoardValue(params, oldPos);
                     oldVal->color = COLOR_WHITE;
                     
-                    assert(getBoardState(params, oldPos) == BOARD_SHAPE);
-                    assert(getBoardState(params, newPos) == BOARD_NULL);
+                    EasyAssert(getBoardState(params, oldPos) == BOARD_SHAPE);
+                    EasyAssert(getBoardState(params, newPos) == BOARD_NULL);
                     setBoardState(params, oldPos, BOARD_NULL, BOARD_VAL_NULL);    
                     setBoardState(params, newPos, BOARD_SHAPE, shape->blocks[thisHotIndex].type);    
                     shape->blocks[thisHotIndex].pos = newPos;
-                    assert(getBoardState(params, newPos) == BOARD_SHAPE);
+                    EasyAssert(getBoardState(params, newPos) == BOARD_SHAPE);
                 }
             }
         }
@@ -2299,16 +2302,16 @@ Texture *getBoardTex(BoardValue *boardVal, BoardState boardState, BoardValType t
             case BOARD_STATIC: {
                 if(type == BOARD_VAL_OLD) {
                     tex = params->metalTex;
-                    assert(tex);
+                    EasyAssert(tex);
                 } else if(type == BOARD_VAL_DYNAMIC) {
                     tex = params->woodTex;
-                    assert(tex);
+                    EasyAssert(tex);
                 } else if (type == BOARD_VAL_ALWAYS){
                     tex = params->stoneTex;
                 } else {
-                    assert(!"invalid path");
+                    EasyAssert(!"invalid path");
                 }
-                assert(tex);
+                EasyAssert(tex);
             } break;
             case BOARD_EXPLOSIVE: {
                 tex = params->explosiveTex;
@@ -2331,15 +2334,15 @@ Texture *getBoardTex(BoardValue *boardVal, BoardState boardState, BoardValType t
                         tex = params->alienTex[4];
                     } break;
                     default: {
-                        assert(!"invalid path");
+                        EasyAssert(!"invalid path");
                     }
                 }
             } break;
             default: {
-                assert(!"not handled");
+                EasyAssert(!"not handled");
             }
         }
-        assert(tex);
+        EasyAssert(tex);
     }
     return tex;
 }
@@ -2388,7 +2391,7 @@ void loadOverworldPositions(FrameParams *params) {
                 if(wasStar) {
                     params->levelsData[levelType].pos = pos;
                 } else {
-                    assert(params->entityCount < arrayCount(params->worldEntities));
+                    EasyAssert(params->entityCount < arrayCount(params->worldEntities));
                     WorldEntity *ent = params->worldEntities + params->entityCount++;
                     ent->type = entityType;
                     ent->pos = pos;
@@ -2420,6 +2423,8 @@ void initBoard(FrameParams *params, LevelType levelType) {
     params->glowingLinesCount = 0;
     params->accumHoldTime = 0;
     params->letGo = false;  
+
+    params->colorGlowTimer = initTimer(1.0f, false);
     
     params->createShape = true;   
     float tempPeriod = params->moveTimer.period;
@@ -2463,11 +2468,11 @@ static inline V2 findAveragePos(FrameParams *params, LevelType lastLevel) {
 
         result = params->levelsData[(int)lastLevel].pos;
     } else {
-        assert(highestGroup);
-        assert(highestGroup->count > 0);
+        EasyAssert(highestGroup);
+        EasyAssert(highestGroup->count > 0);
         result = v2_scale(1.0f / (float)highestGroup->count, highestGroup->averagePos);
     }
-    assert(!(result.x == 0 && result.y == 0));
+    EasyAssert(!(result.x == 0 && result.y == 0));
     return result;
 }
 
@@ -2523,7 +2528,7 @@ void transitionCallbackForBackToOverworld(void *data_) {
     trans->info->gameMode = trans->newMode;
     trans->info->lastMode = trans->lastMode;
     trans->info->menuCursorAt = 0;
-    assert(parentChannelVolumes_[AUDIO_FLAG_MENU] == 0);
+    EasyAssert(parentChannelVolumes_[AUDIO_FLAG_MENU] == 0);
     setParentChannelVolume(AUDIO_FLAG_MENU, 1, SCENE_MUSIC_TRANSITION_TIME);
     setSoundType(AUDIO_FLAG_MENU);
 } 
@@ -2592,7 +2597,7 @@ void removeWinLine(FrameParams *params, int lineToRemove) {
             break;
         }
     }
-    assert(found);
+    EasyAssert(found);
 }
 
 void saveFileData(FrameParams *params) {
@@ -2600,8 +2605,8 @@ void saveFileData(FrameParams *params) {
     for(int lvlIndex = 0; lvlIndex < arrayCount(params->levelsData); lvlIndex++) {
         LevelData *levelData = params->levelsData + lvlIndex;
         if(levelData->valid && levelData->state != LEVEL_STATE_LOCKED) {
-            assert(levelData->state != LEVEL_STATE_NULL);
-            assert(levelData->name);
+            EasyAssert(levelData->state != LEVEL_STATE_NULL);
+            EasyAssert(levelData->name);
             
             char *lvlTypeStr = LevelTypeStrings[levelData->levelType];
             char *lvlStateStr = LevelStateStrings[levelData->state]; 
@@ -2673,7 +2678,7 @@ static void updateBoardWinState(FrameParams *params) {
                         } 
                     } break;
                     default: {
-                        assert(!"invalid code path");
+                        EasyAssert(!"invalid code path");
                     }
                 }
                 if(!answer) {
@@ -2681,7 +2686,7 @@ static void updateBoardWinState(FrameParams *params) {
                     break;
                 }
                 
-                assert(boardVal->state != BOARD_INVALID);
+                EasyAssert(boardVal->state != BOARD_INVALID);
             }
             
             if(win) {
@@ -2694,7 +2699,7 @@ static void updateBoardWinState(FrameParams *params) {
                     } else {
                         // printf("state is: %d\n", boardVal->state);
                         // printf("type is: %d\n", boardVal->type);
-                        // assert(!"type not recognised");
+                        // EasyAssert(!"type not recognised");
                     }
                 }
                 // playGameSound(params->soundArena, params->successSound, 0, AUDIO_FOREGROUND);
@@ -2717,7 +2722,7 @@ static void updateBoardWinState(FrameParams *params) {
         
         LevelData *currentLevel = params->levelsData + levelAsInt;
 
-        assert(currentLevel->valid);
+        EasyAssert(currentLevel->valid);
         int originalGroup = currentLevel->groupId;
         currentLevel->state = LEVEL_STATE_COMPLETED;
 
@@ -2732,7 +2737,7 @@ static void updateBoardWinState(FrameParams *params) {
             if(lvlData->state == LEVEL_STATE_COMPLETED) {
                 lvlsFinishedInGroup++;
             } else {
-                assert(lvlData->state == LEVEL_STATE_UNLOCKED);
+                EasyAssert(lvlData->state == LEVEL_STATE_UNLOCKED);
                 if(nextLevel == LEVEL_NULL) {
                     nextLevel = lvlType;
                 } 
@@ -2744,7 +2749,7 @@ static void updateBoardWinState(FrameParams *params) {
         
         if(lvlsFinishedInGroup == lvlGroup->count) {
             unlockNextGroup = true; 
-            assert(nextLevel == LEVEL_NULL);
+            EasyAssert(nextLevel == LEVEL_NULL);
             //finished the group
             goBackToOverworld = true;
             //finished all the levels;
@@ -2752,7 +2757,7 @@ static void updateBoardWinState(FrameParams *params) {
             for(int i = 0; i < LEVEL_COUNT; ++i) {
                 LevelData *data = params->levelsData + i;
                 if(data->valid) {
-                    assert(data->valid);
+                    EasyAssert(data->valid);
                     if(data->state == LEVEL_STATE_COMPLETED) {
                         completedLevelsCount++;
                     }
@@ -2785,12 +2790,12 @@ static void updateBoardWinState(FrameParams *params) {
             int nextGroupId = originalGroup + 1;
             LevelGroup *nextGroup = params->groups + nextGroupId;
             if(!nextGroup->activated) {
-                assert(nextGroup->activated == false);
+                EasyAssert(nextGroup->activated == false);
                 nextGroup->activated = true;
                 for(int groupId = 0; groupId < nextGroup->count; ++groupId) {
                     int lvlId = nextGroup->levels[groupId];
-                    assert(params->levelsData[lvlId].valid);
-                    assert(params->levelsData[lvlId].state == LEVEL_STATE_LOCKED);
+                    EasyAssert(params->levelsData[lvlId].valid);
+                    EasyAssert(params->levelsData[lvlId].state == LEVEL_STATE_LOCKED);
                     params->levelsData[lvlId].state = LEVEL_STATE_UNLOCKED;
                 }
             }
@@ -2800,7 +2805,7 @@ static void updateBoardWinState(FrameParams *params) {
             if(goBackToOverworld) {
                 setBackToOverworldTransition(params);
             } else {
-                assert(nextLevel != LEVEL_NULL);
+                EasyAssert(nextLevel != LEVEL_NULL);
                 setLevelTransition(params, nextLevel); 
             }
         } else {
@@ -2815,7 +2820,7 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
     bool repeatedYet = false;
     while(repeat) { //this is for when we get blocked 
         repeat = false;
-        assert(shape->count <= shape->max);
+        EasyAssert(shape->count <= shape->max);
         BoardState stateToSet;
         BoardState staticState = (shape->isBomb) ? BOARD_EXPLOSIVE : BOARD_STATIC;
         
@@ -2837,7 +2842,7 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
         // printf("%d\n", shape->count);
         if(shape->count != 0) {
             BoardState toBoardState = BOARD_INVALID;
-            assert(shape->count >= 0 && shape->count <= shape->max);
+            EasyAssert(shape->count >= 0 && shape->count <= shape->max);
             V2 shift = v2(shape->growDir.x*(shape->count - 1), shape->growDir.y*(shape->count - 1)); 
             V2 newPos = v2_plus(shape->pos, shift);
             
@@ -2847,9 +2852,9 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
             bool isInBounds = inBoardBounds(params, newPos);
             bool blocked = (toBoardState != BOARD_NULL && stateToSet == staticState);
             if((blocked || !isInBounds)) {
-                assert(shape->isOut);
+                EasyAssert(shape->isOut);
                 if(shape->count == 1) {
-                    assert(stateToSet != BOARD_NULL);
+                    EasyAssert(stateToSet != BOARD_NULL);
                     shape->isOut = true;
                     if(shape->tryingToBegin) { //on the second attempt after the shape has moved
                         for(int i = 0; i < shape->perpSize; ++i) {
@@ -2865,10 +2870,10 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
                     shape->count--;
                 }
             } else {
-                assert(shape->count > 0);
-                assert(stateToSet != BOARD_INVALID);
+                EasyAssert(shape->count > 0);
+                EasyAssert(stateToSet != BOARD_INVALID);
                 
-                assert(isInBounds);
+                EasyAssert(isInBounds);
                 if(settingBlock || stateToSet == BOARD_NULL) {
                     bool goThrough = true;
                     if(stateToSet == BOARD_NULL) { 
@@ -2881,19 +2886,19 @@ void updateWindmillSide(FrameParams *params, ExtraShape *shape) {
                 }
             }
             
-            assert(shape->max > 0);
+            EasyAssert(shape->max > 0);
             
             if(shape->count == shape->max) {
                 if(!wasJustFlipped) {
                     shape->isOut = false;
                     shape->justFlipped = true;
                 } else {
-                    assert(!shape->isOut);
+                    EasyAssert(!shape->isOut);
                 }
             }
         } else {
-            assert(shape->count == 0);
-            assert(!shape->isOut);
+            EasyAssert(shape->count == 0);
+            EasyAssert(!shape->isOut);
             shape->isOut = true;
             for(int i = 0; i < shape->perpSize; ++i) {
                 shape->growDir = perp(shape->growDir);
@@ -2973,13 +2978,13 @@ static inline Texture *getTileTex(FrameParams *params, int xAt, int yAt, Texture
             if(x >= 0 && y >= 0 && x < params->overworldDim.x && y < params->overworldDim.y) {
                 value = params->overworldValues[y*(int)params->overworldDim.x + x];
             } else {
-                assert(!(yIndex == 1 && xIndex == 1));
+                EasyAssert(!(yIndex == 1 && xIndex == 1));
             }
             //flip them round since we display the board top to bottom
             spots[2 - yIndex][xIndex] = value;
         }
     }
-    assert(spots[1][1] == 1);
+    EasyAssert(spots[1][1] == 1);
     
     // for(int i = 0; i < 9; ++i) {
     //     if(i == 3 || i == 6) {
@@ -3022,7 +3027,7 @@ static inline Texture *getTileTex(FrameParams *params, int xAt, int yAt, Texture
 //         params->overworldDts[indexIn] = newOne;
 //     }
     
-//     assert(ow_dt);
+//     EasyAssert(ow_dt);
 //     float returnVal = ow_dt->val;
 //     ow_dt->val += dtIn;
 //     return returnVal;
@@ -3077,7 +3082,7 @@ static inline Texture *getTileTex(FrameParams *params, int xAt, int yAt, Texture
 //         RenderInfo extraRenderInfo = calculateRenderInfo(v3(xPosOfMushroom, yPosOfMushroom, -1 - (yAt / 100)), v3(widthOfMushroom, heightOfMushroom, 1), overworldCam, params->metresToPixels);
 //         renderTextureCentreDim(params->mushroomTex, extraRenderInfo.pos, extraRenderInfo.dim.xy, COLOR_WHITE, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), extraRenderInfo.pvm));     
 //     }
-//     // assert(*at == '!');
+//     // EasyAssert(*at == '!');
 //     RenderInfo renderInfo = calculateRenderInfo(v3(xSpace*xAt, ySpace*yAt, -2), v3(xSpace, ySpace, 1), overworldCam, params->metresToPixels);
     
 //     Texture **tilesTexArray = params->tilesTex;
@@ -3205,7 +3210,7 @@ void gameUpdateAndRender(void *params_) {
             easyOS_processKeyStates(params->playStateKeyStates, resolution, params->screenDim, params->menuInfo.running);
             
             params->dt = min(increment, dtLeft);
-            assert(params->dt > 0.0f);
+            EasyAssert(params->dt > 0.0f);
             //if updating a transition don't update the game logic, just render the game board. 
             bool canDie = params->lifePointsMax > 0;
             
@@ -3238,7 +3243,7 @@ void gameUpdateAndRender(void *params_) {
                             xAt %= params->boardWidth;
                         }
                         int yAt = (params->boardHeight - 1) - rowOffset;
-                        // assert(i == params->currentShape.count);
+                        // EasyAssert(i == params->currentShape.count);
                         FitrisBlock *block = &params->currentShape.blocks[params->currentShape.count++];
                         block->pos = v2(xAt, yAt);
                         block->type = BOARD_VAL_SHAPES[i];
@@ -3269,7 +3274,7 @@ void gameUpdateAndRender(void *params_) {
                 float tempPeriod = params->moveTimer.period;
                 params->moveTimer = initTimer(tempPeriod, true);
                 params->createShape = false;
-                // assert(params->currentShape.count > 0);
+                // EasyAssert(params->currentShape.count > 0);
                 
             }
             
@@ -3281,7 +3286,7 @@ void gameUpdateAndRender(void *params_) {
                 float tUpdate = (extraShape->timeAffected) ? params->moveTime : params->dt;
                 // printf("%f\n", tUpdate);
                 while(tUpdate > 0.0f) {
-                    assert(params->dt >= 0);
+                    EasyAssert(params->dt >= 0);
                     
                     float dt;
                     if(extraShape->timeAffected) {
@@ -3292,7 +3297,7 @@ void gameUpdateAndRender(void *params_) {
 
                     float shapeDt = dt;
                     if(!extraShape->active) { 
-                        assert(extraShape->lagPeriod > 0.0f);
+                        EasyAssert(extraShape->lagPeriod > 0.0f);
                         if(extraShape->lagPeriod > 0.0f) {
                             TimerReturnInfo lagInfo = updateTimer(&extraShape->timer, dt);
                             // printf("lag extraShape: %f\n", extraShape->timer.value);
@@ -3317,7 +3322,7 @@ void gameUpdateAndRender(void *params_) {
                         }
                     }
                     tUpdate -= dt;
-                    assert(tUpdate >= 0.0f);
+                    EasyAssert(tUpdate >= 0.0f);
                 }
             }
             updateAndRenderShape(&params->currentShape, params->cameraPos, resolution, screenDim, params->metresToPixels, params, params->moveTime);
@@ -3335,7 +3340,7 @@ void gameUpdateAndRender(void *params_) {
                 updateBoardRows(params);
             }
             dtLeft -= params->dt;
-            assert(dtLeft >= 0.0f);
+            EasyAssert(dtLeft >= 0.0f);
             // printf("%s\n", "//////////");
         }
         params->dt = oldDt;
@@ -3490,6 +3495,18 @@ void gameUpdateAndRender(void *params_) {
         }
         
         //outputText(params->font, 10, helpTextY, -1, resolution, "Press R to reset", menuMargin, COLOR_BLACK, 0.5f, true);
+
+        // V4 higlightBlockColor = COLOR_WHITE;
+        // if(isOn(&params->colorGlowTimer)) {
+        //     TimerReturnInfo timeInfo = updateTimer(&params->colorGlowTimer, params->dt);
+        //     if(timeInfo.finished) {
+        //         if(params->currentHotIndex < 0) {
+        //             turnTimerOn(&params->colorGlowTimer);
+        //         }
+        //     }
+        //     higlightBlockColor = smoothStep00V4(COLOR_WHITE, timeInfo.canonicalVal, v4(1, 1, 0, 0.8f));
+            
+        // }
         
         renderXPBarAndHearts(params, resolution);
         for(int boardY = 0; boardY < params->boardHeight; ++boardY) {
@@ -3514,6 +3531,8 @@ void gameUpdateAndRender(void *params_) {
                     }
                 } 
             }
+
+            
             
             for(int boardX = 0; boardX < params->boardWidth; ++boardX) {
                 RenderInfo bgRenderInfo = calculateRenderInfo(v3(boardX, boardY, -3), v3(1, 1, 1), params->cameraPos, params->metresToPixels);
@@ -3604,7 +3623,7 @@ void gameUpdateAndRender(void *params_) {
                         renderTextureCentreDim(tex, currentStateRenderInfo.pos, currentStateRenderInfo.dim.xy, currentColor, 0, mat4(), mat4(), Mat4Mult(OrthoMatrixToScreen(resolution.x, resolution.y), currentStateRenderInfo.pvm));            
                     }
                 } else {
-                    assert(!isOn(&boardVal->fadeTimer));
+                    EasyAssert(!isOn(&boardVal->fadeTimer));
                 }
                 if(renderWinLine) {
                     winColor.w = alpha;
@@ -3754,56 +3773,56 @@ void gameUpdateAndRender(void *params_) {
         #if EDITOR_MODE
         
         if(wasPressed(params->keyStates->gameButtons, BUTTON_1)) {
-            assert(params->entityCount < arrayCount(params->worldEntities));
+            EasyAssert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
             ent->type = ENTITY_TYPE_ROCK;
         }
         if(wasPressed(params->keyStates->gameButtons, BUTTON_2)) {
-            assert(params->entityCount < arrayCount(params->worldEntities));
+            EasyAssert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
             ent->type = ENTITY_TYPE_TREE;
         }
         if(wasPressed(params->keyStates->gameButtons, BUTTON_3)) {
-            assert(params->entityCount < arrayCount(params->worldEntities));
+            EasyAssert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
             ent->type = ENTITY_TYPE_MUSHROOM;
         }
         if(wasPressed(params->keyStates->gameButtons, BUTTON_4)) {
-            assert(params->entityCount < arrayCount(params->worldEntities));
+            EasyAssert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
             ent->type = ENTITY_TYPE_CACTUS;
         }
         if(wasPressed(params->keyStates->gameButtons, BUTTON_5)) {
-            assert(params->entityCount < arrayCount(params->worldEntities));
+            EasyAssert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
             ent->type = ENTITY_TYPE_IGLOO;
         }
         if(wasPressed(params->keyStates->gameButtons, BUTTON_6)) {
-            assert(params->entityCount < arrayCount(params->worldEntities));
+            EasyAssert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
             ent->type = ENTITY_TYPE_SNOWMAN;
         }
         if(wasPressed(params->keyStates->gameButtons, BUTTON_7)) {
-            assert(params->entityCount < arrayCount(params->worldEntities));
+            EasyAssert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
             ent->type = ENTITY_TYPE_SNOW_PARTICLES;
             ent->particleSystem = params->overworldParticleSys;
             prewarmParticleSystem(&ent->particleSystem, v3(0, 0, 0));
         }
         if(wasPressed(params->keyStates->gameButtons, BUTTON_8)) {
-            assert(params->entityCount < arrayCount(params->worldEntities));
+            EasyAssert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
             ent->type = ENTITY_TYPE_CLOUD;
             ent->particleSystem = params->cloudParticleSys;
             prewarmParticleSystem(&ent->particleSystem, v3(0, 0, 0));
         }
         if(wasPressed(params->keyStates->gameButtons, BUTTON_9)) {
-            assert(params->entityCount < arrayCount(params->worldEntities));
+            EasyAssert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
             ent->type = ENTITY_TYPE_TREE1;
         }
         if(wasPressed(params->keyStates->gameButtons, BUTTON_TILDE)) {
-            assert(params->entityCount < arrayCount(params->worldEntities));
+            EasyAssert(params->entityCount < arrayCount(params->worldEntities));
             WorldEntity *ent = params->worldEntities + params->entityCount++;
             ent->type = ENTITY_TYPE_TREE2;
         }
@@ -3851,7 +3870,7 @@ void gameUpdateAndRender(void *params_) {
                                     highestGroupId = groupId;
                                 }
                                 if(levelAt->state != LEVEL_STATE_COMPLETED) {
-                                    assert(levelAt->state == LEVEL_STATE_UNLOCKED);
+                                    EasyAssert(levelAt->state == LEVEL_STATE_UNLOCKED);
                                     if(!playedSound) {
                                         playMenuSound(params->soundArena, params->showLevelsSound, 0, AUDIO_FOREGROUND);
                                         playedSound = true;
@@ -3893,7 +3912,7 @@ void gameUpdateAndRender(void *params_) {
                                 color = COLOR_GREY;
                             } break;
                             default: {
-                                assert(!"invalid code path");
+                                EasyAssert(!"invalid code path");
                             }
                         }
                         
@@ -4011,6 +4030,7 @@ void gameUpdateAndRender(void *params_) {
 }
 
 int main(int argc, char *args[]) {
+    EasyOS_setupAssert();
 #if 0// 3d stuff
     V2 res = v2(1980, 1080);
     Matrix4 perspectiveMat = projectionMatrixFOV(60.0f, res.x/res.y);
@@ -4021,13 +4041,11 @@ int main(int argc, char *args[]) {
     error_printFloat3("world Pos: ", pos.E);
     exit(0);
 #endif  
-
     V2 screenDim = {}; //init in create app function
     V2 resolution = v2(0, 0);
     bool blackBars = true;
     bool fullscreen = true;
     if(argc > 1) {
-        assert(argc == 5);
         char *resolutionX = args[1];
         char *resolutionY = args[2];
         char *fullscreenStr = args[3];
@@ -4057,13 +4075,13 @@ int main(int argc, char *args[]) {
     // V2 resolution = v2(1280, 800);
     
     OSAppInfo appInfo = easyOS_createApp(APP_TITLE, &screenDim, fullscreen);
-    assert(appInfo.valid);
+    EasyAssert(appInfo.valid);
     
     if(appInfo.valid) {
         Arena soundArena = createArena(Kilobytes(200));
         Arena longTermArena = createArena(Kilobytes(200));
         
-        AppSetupInfo setupInfo = easyOS_setupApp(&resolution, RESOURCE_PATH_EXTENSION, &longTermArena);
+        AppSetupInfo setupInfo = easyOS_setupApp(&resolution, &longTermArena);
         
         assets = (Asset **)pushSize(&longTermArena, 4096*sizeof(Asset *));
         
@@ -4106,7 +4124,7 @@ int main(int argc, char *args[]) {
         Tweaker tweaker = {};
         if(refreshTweakFile(concat(globalExeBasePath, "../src/tweakFile.txt"), &tweaker)) {
             char *startLevelStr = getStringFromTweakData(&tweaker, "startingLevel");
-            assert(startLevelStr);
+            EasyAssert(startLevelStr);
             for(int i = 0; i < arrayCount(LevelTypeStrings); ++i) {
                 if(cmpStrNull(LevelTypeStrings[i], startLevelStr)) {
                     startLevel = (LevelType)i;
@@ -4114,7 +4132,7 @@ int main(int argc, char *args[]) {
             }
             
             char *startModeStr = getStringFromTweakData(&tweaker, "startMode");
-            assert(startModeStr);
+            EasyAssert(startModeStr);
             for(int i = 0; i < arrayCount(GameModeTypeStrings); ++i) {
                 if(cmpStrNull(GameModeTypeStrings[i], startModeStr)) {
                     startGameMode = (GameMode)i;
@@ -4148,8 +4166,8 @@ int main(int argc, char *args[]) {
         
         FrameParams *params = (FrameParams *)calloc(sizeof(FrameParams), 1);
         memset(params, 0, sizeof(FrameParams));
-        assert(params->levelGroups[0] == 0);
-        assert(params);
+        EasyAssert(params->levelGroups[0] == 0);
+        EasyAssert(params);
         
         params->muteTex = findTextureAsset("mute.png");
         params->speakerTex = findTextureAsset("speaker.png");
@@ -4256,7 +4274,7 @@ int main(int argc, char *args[]) {
         params->overworldParticleSys.viewType = ORTHO_MATRIX;
         setParticleLifeSpan(&params->overworldParticleSys, 5.0f);
         Reactivate(&params->overworldParticleSys);
-        assert(params->overworldParticleSys.Active);
+        EasyAssert(params->overworldParticleSys.Active);
 
 
         ////////////  Set up the cloud particle system //////////////
@@ -4280,7 +4298,7 @@ int main(int argc, char *args[]) {
         params->cloudParticleSys.viewType = ORTHO_MATRIX;
         setParticleLifeSpan(&params->cloudParticleSys, 0.1f);
         Reactivate(&params->cloudParticleSys);
-        assert(params->cloudParticleSys.Active);
+        EasyAssert(params->cloudParticleSys.Active);
 #endif
         
         params->moveSound = findSoundAsset("menuSound.wav");
@@ -4343,7 +4361,7 @@ int main(int argc, char *args[]) {
 
         
         char *at = (char *)global_level_overworld;//params->overworldLayout.memory;
-        assert(at);
+        EasyAssert(at);
         params->overworldDim = parseGetBoardDim(at);
         int boardCellSize = params->overworldDim.x*params->overworldDim.y;
         params->overworldValues = (int *)calloc(boardCellSize*sizeof(int), 1);
@@ -4429,11 +4447,11 @@ int main(int argc, char *args[]) {
         
 #if !DESKTOP    
         if(SDL_iPhoneSetAnimationCallback(appInfo.windowHandle, 1, gameUpdateAndRender, params) < 0) {
-            assert(!"falid to set");
+            EasyAssert(!"falid to set");
         }
 #endif
         // if(SDL_AddEventWatch(EventFilter, NULL) < 0) {
-        // 	assert(!"falid to set");
+        // 	EasyAssert(!"falid to set");
         // }
         
         while(running) {
@@ -4455,7 +4473,7 @@ int main(int argc, char *args[]) {
                 }
             }
         }
-        
+        EasyCloseLogger();
         easyOS_endProgram(&appInfo);
     }
     return 0;

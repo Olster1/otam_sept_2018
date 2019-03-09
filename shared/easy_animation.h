@@ -77,7 +77,7 @@ static void AddAnimationToList(animation_list_item **AnimationItemFreeListPtr, A
         Item = pushStruct(arena, animation_list_item);
     }
     
-    assert(Item);
+    EasyAssert(Item);
     
     Item->timer = initTimer(ANIMATION_PERIOD, false);
     
@@ -96,7 +96,7 @@ static void AddAnimationToList(animation_list_item **AnimationItemFreeListPtr, A
 
 static void UpdateAnimation(animation_list_item **AnimationItemFreeListPtr, Arena *arena, animation_list_item *AnimationListSentintel, float dt, animation *NextAnimation) {
     animation_list_item *Item = AnimationListSentintel->Next;
-    assert(Item != AnimationListSentintel);
+    EasyAssert(Item != AnimationListSentintel);
     
     if(updateTimer(&Item->timer, dt).finished) {
         Item->FrameIndex++;
@@ -130,8 +130,8 @@ inline static bool IsEmpty(animation_list_item *Sentinel) {
 }
 
 inline static Texture *GetBitmap(animation_list_item *Item) {
-    assert(Item->Animation);
-    assert(Item->FrameIndex < Item->Animation->FrameCount);
+    EasyAssert(Item->Animation);
+    EasyAssert(Item->FrameIndex < Item->Animation->FrameCount);
     Texture *Result = &Item->Animation->Frames[Item->FrameIndex];
     return Result;
 }

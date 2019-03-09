@@ -8,12 +8,12 @@ int loadAndAddImagesToAssets(char *folderName) {
 	    char *shortName = getFileLastPortion(fullName);
 	    if(shortName[0] != '.') { //don't load hidden file 
 	        Asset *asset = findAsset(shortName);
-	        assert(!asset);
+	        EasyAssert(!asset);
 	        if(!asset) {
 	            asset = loadImageAsset(fullName);
 	        }
 	        asset = findAsset(shortName);
-	        assert(shortName);
+	        EasyAssert(shortName);
 	    }
 	    free(fullName);
 	    free(shortName);
@@ -30,12 +30,12 @@ int loadAndAddSoundsToAssets(char *folderName, SDL_AudioSpec *audioSpec) {
 	    char *shortName = getFileLastPortion(fullName);
 	    if(shortName[0] != '.') { //don't load hidden file 
 	        Asset *asset = findAsset(shortName);
-	        assert(!asset);
+	        EasyAssert(!asset);
 	        if(!asset) {
 	            asset = loadSoundAsset(fullName, audioSpec);
 	        }
 	        asset = findAsset(shortName);
-	        assert(shortName);
+	        EasyAssert(shortName);
 	    }
 	    free(fullName);
 	    free(shortName);
