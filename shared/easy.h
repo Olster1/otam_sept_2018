@@ -101,12 +101,12 @@ float min(float a, float b) {
 #endif 
 
 #define invalidCodePathStr(msg) { printf(msg); exit(0); }
-#if !DEVELOPER_MODE //turn off for crash EasyAssert
+#if DEVELOPER_MODE //turn off for crash EasyAssert
 // #define EasyAssert(statement) if(!(statement)) { int *a = 0; a = 0;}
 #define EasyAssert(statement) if(!(statement)) {printf("Something went wrong at %d in %s\n", __LINE__, __FILE__);  int *a = 0; *a = 0;}
 #define EasyAssertStr(statement, str) if(!(statement)) { printf("%s\n", str); } EasyAssert(statement); 
 #else
-#define EasyAssert(statement) if(!(statement)) { if(!globalLoggerHandle.Data) { EasyOpenLogger(); } char charBuffer[1028]; sprintf(charBuffer, "%d %s", __LINE__, __FILE__); int sizeToWrtite = strlen(charBuffer)*sizeof(u8); EasyLogInfo(&globalLoggerHandle, charBuffer, sizeToWrtite, globalLoggerHandle.fileOffsetAt); globalLoggerHandle.fileOffsetAt += sizeToWrtite;}
+#define EasyAssert(statement) if(!(statement)) { if(!globalLoggerHandle.Data) { EasyOpenLogger(); } char charBuffer[1028]; sprintf(charBuffer, "Line: %d File: %s \r\n", __LINE__, __FILE__); int sizeToWrtite = strlen(charBuffer)*sizeof(u8); EasyLogInfo(&globalLoggerHandle, charBuffer, sizeToWrtite, globalLoggerHandle.fileOffsetAt); globalLoggerHandle.fileOffsetAt += sizeToWrtite;}
 #define EasyAssertStr(statement, str)
 #endif
 
